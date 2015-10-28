@@ -35,17 +35,18 @@ import scala.util.{Failure, Success, Try}
 object Scheduler extends org.apache.mesos.Scheduler {
   private val logger = Logger.getLogger(this.getClass)
 
+  private[dse] val cluster = Cluster()
   private var driver: SchedulerDriver = null
 
   def start() {
     logger.info(s"Starting scheduler:\n$Config")
 
-//    cluster.load()
+    cluster.load()
 //    HttpServer.start()
 
     val frameworkBuilder = FrameworkInfo.newBuilder()
     frameworkBuilder.setUser(Config.user)
-//    cluster.frameworkId.foreach(id => frameworkBuilder.setId(FrameworkID.newBuilder().setValue(id)))
+    cluster.frameworkId.foreach(id => frameworkBuilder.setId(FrameworkID.newBuilder().setValue(id)))
     frameworkBuilder.setName(Config.frameworkName)
     frameworkBuilder.setFailoverTimeout(Config.frameworkTimeout.toUnit(TimeUnit.SECONDS))
     frameworkBuilder.setCheckpoint(true)
@@ -65,8 +66,8 @@ object Scheduler extends org.apache.mesos.Scheduler {
   override def registered(driver: SchedulerDriver, id: FrameworkID, master: MasterInfo) {
     logger.info("[registered] framework:" + Pretty.id(id.getValue) + " master:" + Pretty.master(master))
 
-//    cluster.frameworkId = Some(id.getValue)
-//    cluster.save()
+    cluster.frameworkId = Some(id.getValue)
+    cluster.save()
 
     this.driver = driver
 //    reconcileTasks(force = true)
