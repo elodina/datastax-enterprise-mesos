@@ -21,19 +21,15 @@ package net.elodina.mesos.dse
 import java.io.File
 import java.util
 import java.util.concurrent.TimeUnit
-import java.util.{Collections, Date}
 
 import _root_.net.elodina.mesos.utils.constraints.Constraints
-import _root_.net.elodina.mesos.utils.{State, Pretty}
-import org.apache.log4j
+import _root_.net.elodina.mesos.utils.{TaskRuntime, State, Pretty}
 import org.apache.log4j._
 import org.apache.mesos.Protos._
 import org.apache.mesos.{MesosSchedulerDriver, SchedulerDriver}
 
 import scala.collection.JavaConversions._
-import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.{Failure, Success, Try}
 
 object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] {
   private val logger = Logger.getLogger(this.getClass)
@@ -155,7 +151,13 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] {
   }
 
   private def launchTask(task: DSETask, offer: Offer) {
+    val taskInfo = task.createTaskInfo(offer)
 
+    task.runtime = Some(new TaskRuntime(taskInfo, offer))
+    task.state = State.Staging
+
+    driver.launchTasks(util.Arrays.asList(offer.getId), util.Arrays.asList(taskInfo), Filters.newBuilder().setRefuseSeconds(1).build)
+    logger.info(s"Starting task ${task.id} with taskid ${taskInfo.getTaskId.getValue} for offer ${offer.getId.getValue}")
   }
 
   private def resolveDeps() {

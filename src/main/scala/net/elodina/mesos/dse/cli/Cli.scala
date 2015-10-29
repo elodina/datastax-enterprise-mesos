@@ -25,13 +25,13 @@ object Cli {
             printLine("Failed to parse arguments.")
             parser.showUsage
           case schedulerOpts: SchedulerOptions => handleScheduler(schedulerOpts)
-          case addOpts: AddOptions => handleAdd(addOpts)
+          case addOpts: AddOptions => handleApi("/add", addOpts)
+          case startOpts: StartOptions => handleApi("/start", startOpts)
         }
       }
     } catch {
       case e: Throwable =>
         System.err.println("Error: " + e.getMessage)
-        e.printStackTrace()
         sys.exit(1)
     }
   }
@@ -50,12 +50,26 @@ object Cli {
     Scheduler.start()
   }
 
-  def handleAdd(config: AddOptions) {
-    resolveApi(config.api)
+  def handleApi[T <: Options: Writes](url: String, data: T) {
+    resolveApi(data.api)
 
-    val response = sendRequest("/add", config)
+    val response = sendRequest(url, data)
     printResponse(response)
   }
+
+//  def handleAdd(config: AddOptions) {
+//    resolveApi(config.api)
+//
+//    val response = sendRequest("/add", config)
+//    printResponse(response)
+//  }
+//
+//  def handleStart(config: StartOptions) {
+//    resolveApi(config.api)
+//
+//    val response = sendRequest("/start", config)
+//    printResponse(response)
+//  }
 
   private[dse] def sendRequest[T: Writes](uri: String, data: T): ApiResponse = {
     val url: String = Config.api + (if (Config.api.endsWith("/")) "" else "/") + "api" + uri
@@ -164,8 +178,8 @@ object Cli {
         config.asInstanceOf[SchedulerOptions].copy(frameworkTimeout = value)
       },
 
-      opt[Duration]("storage").optional().text("Storage for cluster state. Examples: file:datastax.json; zk:master:2181/datastax-mesos.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(frameworkTimeout = value)
+      opt[String]("storage").optional().text("Storage for cluster state. Examples: file:datastax.json; zk:master:2181/datastax-mesos.").action { (value, config) =>
+        config.asInstanceOf[SchedulerOptions].copy(storage = value)
       },
 
       opt[Boolean]("debug").optional().text("Run in debug mode.").action { (value, config) =>
@@ -229,6 +243,22 @@ object Cli {
           opts.asInstanceOf[AddOptions].copy(seed = value)
         }
       )
+    )
+
+    cmd("start").text("Starts tasks in the cluster.").action { (_, c) =>
+      StartOptions()
+    }.children(
+      arg[List[utils.Range]]("<id>").text("ID expression to add").action { (value, opts) =>
+        opts.asInstanceOf[StartOptions].copy(id = value.mkString(","))
+      },
+
+      opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
+        opts.asInstanceOf[StartOptions].copy(api = value)
+      },
+
+      opt[Duration]("timeout").optional().text("Time to wait until task starts. Should be a parsable Scala Duration value. Defaults to 2m. Optional").action { (value, config) =>
+        config.asInstanceOf[StartOptions].copy(timeout = value)
+      }
     )
   }
 

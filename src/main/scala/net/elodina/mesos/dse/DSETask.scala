@@ -53,8 +53,8 @@ trait DSETask extends Task with Constrained {
   val constraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
 
   override def attribute(name: String): Option[String] = {
-    if (name == "hostname") task.map(_.hostname)
-    else task.flatMap(_.attributes.get(name))
+    if (name == "hostname") runtime.map(_.hostname)
+    else runtime.flatMap(_.attributes.get(name))
   }
 
   def matches(offer: Offer): Option[String] = {
@@ -73,25 +73,25 @@ trait DSETask extends Task with Constrained {
     None
   }
 
-  def createMesosTask(offer: Offer): TaskInfo = {
+  def createTaskInfo(offer: Offer): TaskInfo = {
     val taskName = s"$taskType-$id"
     val taskId = TaskID.newBuilder().setValue(s"$taskName-${UUID.randomUUID()}").build()
 
     TaskInfo.newBuilder().setName(taskName).setTaskId(taskId).setSlaveId(offer.getSlaveId)
-      .setExecutor(createExecutor(taskName))
+      .setExecutor(createExecutorInfo(taskName))
       .setData(ByteString.copyFromUtf8(Json.stringify(Json.toJson(this))))
       .addResources(Protos.Resource.newBuilder().setName("cpus").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.cpu)))
       .addResources(Protos.Resource.newBuilder().setName("mem").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.mem)))
       .build()
   }
 
-  private def createExecutor(name: String): ExecutorInfo = {
+  private def createExecutorInfo(name: String): ExecutorInfo = {
     val commandBuilder = CommandInfo.newBuilder()
     commandBuilder
       .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/dse/" + Config.dse.getName).setExtract(true))
       .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/jre/" + Config.jre.getName).setExtract(true))
       .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/jar/" + Config.jar.getName))
-      .setValue(s"jre/bin/java -cp ${Config.jar.getName}${if (Config.debug) " -Ddebug" else ""} net.elodina.mesos.dse.Executor")
+      .setValue(s"$$(find jre* -maxdepth 0 -type d)/bin/java -cp ${Config.jar.getName}${if (Config.debug) " -Ddebug" else ""} net.elodina.mesos.dse.Executor")
 
     ExecutorInfo.newBuilder()
       .setExecutorId(ExecutorID.newBuilder().setValue(id))
@@ -177,7 +177,7 @@ object CassandraNodeTask {
 
     val task = CassandraNodeTask(id)
     task.state = state
-    task.task = runtime
+    task.runtime = runtime
     task.cpu = cpu
     task.mem = mem
     task.broadcast = broadcast
@@ -198,7 +198,7 @@ object CassandraNodeTask {
         "type" -> o.taskType,
         "id" -> o.id,
         "state" -> Json.toJson(o.state),
-        "runtime" -> Json.toJson(o.task),
+        "runtime" -> Json.toJson(o.runtime),
         "cpu" -> o.cpu,
         "mem" -> o.mem,
         "broadcast" -> o.broadcast,

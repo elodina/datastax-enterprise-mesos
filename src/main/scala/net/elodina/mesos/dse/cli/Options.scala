@@ -18,14 +18,26 @@
 
 package net.elodina.mesos.dse.cli
 
-import play.api.libs.json.Json
+import play.api.libs.json._
 
 import scala.concurrent.duration.{Duration, _}
 import scala.language.postfixOps
 
-sealed trait Options
+object DurationFormats {
+  val formats = new Format[Duration] {
+    override def writes(o: Duration): JsValue = JsString(o.toString)
 
-object NoOptions extends Options
+    override def reads(json: JsValue): JsResult[Duration] = json.validate[String].map(Duration.apply)
+  }
+}
+
+sealed trait Options {
+  val api: String
+}
+
+object NoOptions extends Options {
+  val api = ""
+}
 
 case class SchedulerOptions(api: String = "", master: String = "", user: String = "", frameworkRole: String = "*",
                             frameworkName: String = "datastax-enterprise", frameworkTimeout: Duration = 30 days,
@@ -39,4 +51,12 @@ case class AddOptions(taskType: String = "", id: String = "", api: String = "", 
 
 object AddOptions {
   implicit val formats = Json.format[AddOptions]
+}
+
+case class StartOptions(id: String = "", api: String = "", timeout: Duration = 2 minutes) extends Options
+
+object StartOptions {
+  implicit val durationFormats = DurationFormats.formats
+
+  implicit val formats = Json.format[StartOptions]
 }

@@ -22,8 +22,8 @@ import java.io._
 import java.util.Scanner
 import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 
-import net.elodina.mesos.dse.cli.AddOptions
-import net.elodina.mesos.utils.Util
+import net.elodina.mesos.dse.cli.{StartOptions, AddOptions}
+import net.elodina.mesos.utils.{State, Util}
 import org.apache.log4j.Logger
 import org.eclipse.jetty.server.{Server, ServerConnector}
 import org.eclipse.jetty.servlet.{ServletContextHandler, ServletHolder}
@@ -109,6 +109,7 @@ object HttpServer {
       if (uri.startsWith("/")) uri = uri.substring(1)
 
       if (uri == "add") handleAddTask(request, response)
+      else if (uri == "start") handleStartTask(request, response)
       else response.sendError(404)
     }
 
@@ -128,6 +129,35 @@ object HttpServer {
 
         Scheduler.cluster.save()
         respond(ApiResponse(success = true, s"Added tasks ${opts.id}", Some(Cluster(tasks))), response)
+      }
+    }
+
+    def handleStartTask(request: HttpServletRequest, response: HttpServletResponse) {
+      val opts = postBody(request).as[StartOptions]
+
+      val ids = Scheduler.cluster.expandIds(opts.id)
+      val missing = ids.filter(id => !Scheduler.cluster.tasks.exists(_.id == id))
+      if (missing.nonEmpty) respond(ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", None), response)
+      else {
+        val tasks = ids.flatMap { id =>
+          Scheduler.cluster.tasks.find(_.id == id) match {
+            case Some(task) =>
+              if (task.state == State.Inactive) {
+                task.state = State.Stopped
+                logger.info(s"Starting task $id")
+              } else logger.warn(s"Task $id already started")
+              Some(task)
+            case None =>
+              logger.warn(s"Task $id was removed, ignoring its start call")
+              None
+          }
+        }
+
+        if (opts.timeout.toMillis > 0) {
+          val ok = tasks.forall(_.waitFor(State.Running, opts.timeout))
+          if (ok) respond(ApiResponse(success = true, s"Started tasks ${opts.id}", Some(Cluster(tasks))), response)
+          else respond(ApiResponse(success = true, s"Start tasks ${opts.id} timed out after ${opts.timeout}", None), response)
+        } else respond(ApiResponse(success = true, s"Servers ${opts.id} scheduled to start", Some(Cluster(tasks))), response)
       }
     }
 
