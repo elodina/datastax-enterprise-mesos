@@ -18,6 +18,8 @@
 
 package net.elodina.mesos.dse.cli
 
+import play.api.libs.json.Json
+
 import scala.concurrent.duration.{Duration, _}
 import scala.language.postfixOps
 
@@ -27,4 +29,14 @@ object NoOptions extends Options
 
 case class SchedulerOptions(api: String = "", master: String = "", user: String = "", frameworkRole: String = "*",
                             frameworkName: String = "datastax-enterprise", frameworkTimeout: Duration = 30 days,
-                            storage: String = "file:datastax.json") extends Options
+                            storage: String = "file:datastax.json", debug: Boolean = false) extends Options
+
+case class AddOptions(taskType: String = "", id: String = "", api: String = "", cpu: Double = 0.5, mem: Long = 512,
+                      broadcast: String = "", constraints: String = "", logStdout: String = "cassandra-node.log",
+                      logStderr: String = "cassandra-node.err", agentStdout: String = "datastax-agent.log",
+                      agentStderr: String = "datastax-agent.err", clusterName: String = "Test Cluster",
+                      seed: Boolean = false) extends Options
+
+object AddOptions {
+  implicit val formats = Json.format[AddOptions]
+}

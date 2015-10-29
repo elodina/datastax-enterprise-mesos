@@ -18,6 +18,7 @@
 
 package net.elodina.mesos.dse
 
+import java.io.File
 import java.net.URI
 
 import scala.concurrent.duration._
@@ -25,6 +26,10 @@ import scala.language.postfixOps
 
 object Config {
   final val API_ENV = "DM_API"
+
+  val jarMask = "dse-mesos.*\\.jar"
+  val dseMask = "dse.*gz"
+  val jreMask = "jre.*"
 
   var debug: Boolean = false
 
@@ -38,6 +43,10 @@ object Config {
   var frameworkName: String = "datastax-enterprise"
   var frameworkRole: String = "*"
   var frameworkTimeout: Duration = 30 days
+
+  var jar: File = null
+  var dse: File = null
+  var jre: File = null
 
   def httpServerPort: Int = {
     val port = new URI(api).getPort
