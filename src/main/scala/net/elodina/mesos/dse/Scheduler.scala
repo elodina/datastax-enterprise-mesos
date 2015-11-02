@@ -223,6 +223,19 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     }
   }
 
+  def removeTask(id: String): Option[DSETask] = {
+    cluster.tasks.find(_.id == id) match {
+      case Some(task) =>
+        stopTask(id)
+
+        cluster.tasks -= task
+        Some(task)
+      case None =>
+        logger.warn(s"Task $id is already removed")
+        None
+    }
+  }
+
   private[dse] def setSeedNodes(task: DSETask, hostname: String) {
     val seeds = cluster.tasks.collect {
       case cassandraNode: CassandraNodeTask => cassandraNode

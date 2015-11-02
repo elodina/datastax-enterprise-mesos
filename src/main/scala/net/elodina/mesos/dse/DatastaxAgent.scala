@@ -25,11 +25,11 @@ import org.apache.log4j.Logger
 
 import scala.sys.process.Process
 
-case class DatastaxAgent(task: DSETask, dseAbsDir: String) {
+case class DatastaxAgent(task: DSETask) {
   private val logger = Logger.getLogger(this.getClass)
 
   private val started = new AtomicBoolean(false)
-  private var stopped: Boolean = false
+  private[dse] var stopped: Boolean = false
 
   private var process: Process = null
 
@@ -38,7 +38,8 @@ case class DatastaxAgent(task: DSETask, dseAbsDir: String) {
 
     logger.info("Starting Datastax Agent")
 
-    process = (Process(s"$dseAbsDir/${DSENode.DSE_AGENT_CMD}", Seq("-f")) #> new File(task.agentOut)).run()
+    val dseDir = DSENode.findDSEDir()
+    process = (Process(s"$dseDir/${DSENode.DSE_AGENT_CMD}", Seq("-f")) #> new File(task.agentOut)).run()
     try {
       process.exitValue()
     } catch {

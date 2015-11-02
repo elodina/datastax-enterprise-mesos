@@ -44,21 +44,18 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
 
   private var process: Process = null
 
-  def start() {
+  def start(): Int = {
     if (started.getAndSet(true)) throw new IllegalStateException(s"${task.taskType} ${task.id} already started")
 
     logger.info(s"Starting ${task.taskType} ${task.id}")
     System.setProperty("java.net.preferIPv4Stack", "true") //TODO maybe this should be configurable?
 
-    val dseDir = findDSEDir()
+    val dseDir = DSENode.findDSEDir()
     val workDir = new File(".").getCanonicalPath
     makeDirs(workDir)
     editCassandraYaml(workDir, s"$workDir/$dseDir/${DSENode.CASSANDRA_YAML_LOCATION}")
 
     process = configureProcess(dseDir, task.nodeOut).run()
-  }
-
-  def await(): Int = {
     try {
       process.exitValue()
     } catch {
@@ -79,14 +76,6 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
         process.destroy()
       }
     }
-  }
-
-  private def findDSEDir(): String = {
-    for (file <- new File(".").listFiles()) {
-      if (file.getName.matches(Config.dseDirMask) && file.isDirectory && file.getName != DSENode.DSE_DATA_DIR) return file.getName
-    }
-
-    throw new FileNotFoundException(s"${Config.dseDirMask} not found in current directory")
   }
 
   private def makeDirs(currentDir: String) {
@@ -183,4 +172,12 @@ object DSENode {
 
   final private val DSE_CMD = "bin/dse"
   final private[dse] val DSE_AGENT_CMD = "datastax-agent/bin/datastax-agent"
+
+  private[dse] def findDSEDir(): String = {
+    for (file <- new File(".").listFiles()) {
+      if (file.getName.matches(Config.dseDirMask) && file.isDirectory && file.getName != DSENode.DSE_DATA_DIR) return file.getName
+    }
+
+    throw new FileNotFoundException(s"${Config.dseDirMask} not found in current directory")
+  }
 }

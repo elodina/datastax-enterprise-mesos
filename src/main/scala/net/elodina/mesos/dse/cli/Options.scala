@@ -52,6 +52,15 @@ object AddOptions {
   implicit val formats = Json.format[AddOptions]
 }
 
+case class UpdateOptions(id: String = "", api: String = "", cpu: Option[Double] = None, mem: Option[Long] = None,
+                      broadcast: Option[String] = None, constraints: Option[String] = None, nodeOut: Option[String] = None,
+                      agentOut: Option[String] = None, clusterName: Option[String] = None,
+                      seed: Option[Boolean] = None) extends Options
+
+object UpdateOptions {
+  implicit val formats = Json.format[UpdateOptions]
+}
+
 case class StartOptions(id: String = "", api: String = "", timeout: Duration = 2 minutes) extends Options
 
 object StartOptions {
@@ -64,6 +73,12 @@ case class StopOptions(id: String = "", api: String = "") extends Options
 
 object StopOptions {
   implicit val formats = Json.format[StopOptions]
+}
+
+case class RemoveOptions(id: String = "", api: String = "") extends Options
+
+object RemoveOptions {
+  implicit val formats = Json.format[RemoveOptions]
 }
 
 case class StatusOptions(api: String = "") extends Options

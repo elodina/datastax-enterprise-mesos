@@ -26,19 +26,22 @@ import org.apache.mesos.Protos._
 import org.apache.mesos.{ExecutorDriver, MesosExecutorDriver}
 import play.api.libs.json.Json
 
+import scala.concurrent.ExecutionContext.Implicits.global
+import scala.concurrent.Future
+import scala.util.{Failure, Success}
+
 object Executor extends org.apache.mesos.Executor {
   private val logger = Logger.getLogger(Executor.getClass)
 
   private var hostname: String = null
   private var node: DSENode = null
+  private var agent: DatastaxAgent = null
 
   def main(args: Array[String]) {
     initLogging()
 
     val driver = new MesosExecutorDriver(Executor)
-    val sts = driver.run
-    logger.info("STATUS: " + sts)
-    val status = if (sts eq Status.DRIVER_STOPPED) 0 else 1
+    val status = if (driver.run eq Status.DRIVER_STOPPED) 0 else 1
 
     sys.exit(status)
   }
@@ -70,18 +73,25 @@ object Executor extends org.apache.mesos.Executor {
         setName(task.taskType)
 
         node = DSENode(task, driver, taskInfo, hostname)
-        try {
-          node.start()
-          val exitCode = node.await()
-          if (exitCode != 0 && !node.stopped) {
-            driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FAILED).build)
-          } else driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FINISHED).build)
-        } catch {
-          case e: Throwable =>
-            logger.error("", e)
-            sendTaskFailed(driver, taskInfo, e)
-        } finally {
-          node.stop()
+        agent = DatastaxAgent(task)
+
+        Future.firstCompletedOf(Seq(Future(node.start()), Future(agent.start()))).onComplete { result =>
+          result match {
+            case Success(exitCode) =>
+              logger.info("exit code: " + exitCode)
+              logger.info("node stopped: " + node.stopped)
+              logger.info("agent stopped: " + agent.stopped)
+              if (exitCode == 0 && (node.stopped || agent.stopped)) {
+                driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FINISHED).build)
+              } else driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FAILED).build)
+              node.stop()
+              agent.stop()
+            case Failure(ex) =>
+              node.stop()
+              agent.stop()
+              sendTaskFailed(driver, taskInfo, ex)
+          }
+
           driver.stop()
         }
       }
@@ -92,6 +102,7 @@ object Executor extends org.apache.mesos.Executor {
     logger.info("[killTask] " + id.getValue)
 
     node.stop()
+    agent.stop()
   }
 
   def frameworkMessage(driver: ExecutorDriver, data: Array[Byte]) {
@@ -102,6 +113,7 @@ object Executor extends org.apache.mesos.Executor {
     logger.info("[shutdown]")
 
     node.stop()
+    agent.stop()
   }
 
   def error(driver: ExecutorDriver, message: String) {

@@ -27,8 +27,10 @@ object Cli {
             parser.showUsage
           case schedulerOpts: SchedulerOptions => handleScheduler(schedulerOpts)
           case addOpts: AddOptions => handleApi("/add", addOpts)
+          case updateOpts: UpdateOptions => handleApi("/update", updateOpts)
           case startOpts: StartOptions => handleApi("/start", startOpts)
           case stopOpts: StopOptions => handleApi("/stop", stopOpts)
+          case removeOpts: RemoveOptions => handleApi("/remove", removeOpts)
           case statusOpts: StatusOptions => handleApi("/status", statusOpts)
         }
       }
@@ -250,6 +252,50 @@ object Cli {
       )
     )
 
+    cmd("update").text("Update task configuration.").action { (_, c) =>
+      UpdateOptions()
+    }.children(
+      arg[List[utils.Range]]("<id>").text("ID expression to update").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(id = value.mkString(","))
+      },
+
+      opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(api = value)
+      },
+
+      opt[Double]("cpu").optional().text("CPU amount (0.5, 1, 2).").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(cpu = Some(value))
+      },
+
+      opt[Long]("mem").optional().text("Mem amount in Mb.").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(mem = Some(value))
+      },
+
+      opt[String]("broadcast").optional().text("Network interface to broadcast for nodes.").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(broadcast = Some(value))
+      },
+
+      opt[String]("constraints").optional().text("Constraints (hostname=like:^master$,rack=like:^1.*$).").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(constraints = Some(value))
+      },
+
+      opt[String]("node-out").optional().text("File name to redirect Datastax Node output to.").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(nodeOut = Some(value))
+      },
+
+      opt[String]("agent-out").optional().text("File name to redirect Datastax Agent output to.").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(agentOut = Some(value))
+      },
+
+      opt[String]("cluster-name").optional().text("The name of the cluster.").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(clusterName = Some(value))
+      },
+
+      opt[Boolean]("seed").optional().text("Flags whether this Datastax Node is a seed node.").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(seed = Some(value))
+      }
+    )
+
     cmd("start").text("Starts tasks in the cluster.").action { (_, c) =>
       StartOptions()
     }.children(
@@ -269,12 +315,24 @@ object Cli {
     cmd("stop").text("Stops tasks in the cluster.").action { (_, c) =>
       StopOptions()
     }.children(
-      arg[List[utils.Range]]("<id>").text("ID expression to add").action { (value, opts) =>
+      arg[List[utils.Range]]("<id>").text("ID expression to stop").action { (value, opts) =>
         opts.asInstanceOf[StopOptions].copy(id = value.mkString(","))
       },
 
       opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
         opts.asInstanceOf[StopOptions].copy(api = value)
+      }
+    )
+
+    cmd("remove").text("Removes tasks in the cluster.").action { (_, c) =>
+      RemoveOptions()
+    }.children(
+      arg[List[utils.Range]]("<id>").text("ID expression to remove").action { (value, opts) =>
+        opts.asInstanceOf[RemoveOptions].copy(id = value.mkString(","))
+      },
+
+      opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
+        opts.asInstanceOf[RemoveOptions].copy(api = value)
       }
     )
 
