@@ -55,7 +55,7 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     makeDirs(workDir)
     editCassandraYaml(workDir, s"$workDir/$dseDir/${DSENode.CASSANDRA_YAML_LOCATION}")
 
-    process = configureProcess(workDir, dseDir, task.nodeOut).run()
+    process = configureProcess(dseDir, task.nodeOut).run()
   }
 
   def await(): Int = {
@@ -152,8 +152,8 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     }
   }
 
-  private def configureProcess(workDir: String, dseDir: String, outputTo: String): ProcessBuilder = {
-    Process(s"$workDir/$dseDir/${DSENode.DSE_CMD}", Seq("cassandra", "-f")) #> new File(outputTo)
+  private def configureProcess(dseDir: String, outputTo: String): ProcessBuilder = {
+    Process(s"$dseDir/${DSENode.DSE_CMD}", Seq("cassandra", "-f")) #> new File(outputTo)
   }
 }
 

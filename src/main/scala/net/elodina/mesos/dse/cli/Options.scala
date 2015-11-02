@@ -65,3 +65,9 @@ case class StopOptions(id: String = "", api: String = "") extends Options
 object StopOptions {
   implicit val formats = Json.format[StopOptions]
 }
+
+case class StatusOptions(api: String = "") extends Options
+
+object StatusOptions {
+  implicit val formats = Json.format[StatusOptions]
+}

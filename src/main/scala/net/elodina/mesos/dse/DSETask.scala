@@ -18,8 +18,6 @@
 
 package net.elodina.mesos.dse
 
-import java.util.UUID
-
 import com.google.protobuf.ByteString
 import net.elodina.mesos.dse.cli.AddOptions
 import net.elodina.mesos.utils.constraints.{Constrained, Constraint}
@@ -74,7 +72,7 @@ trait DSETask extends Task with Constrained {
 
   def createTaskInfo(offer: Offer): TaskInfo = {
     val taskName = s"$taskType-$id"
-    val taskId = TaskID.newBuilder().setValue(s"$taskName-${UUID.randomUUID()}").build()
+    val taskId = TaskID.newBuilder().setValue(s"$taskName-${System.currentTimeMillis()}").build()
 
     Scheduler.setSeedNodes(this, offer.getHostname)
 
@@ -95,7 +93,7 @@ trait DSETask extends Task with Constrained {
       .setValue(s"$$(find jre* -maxdepth 0 -type d)/bin/java -cp ${Config.jar.getName}${if (Config.debug) " -Ddebug" else ""} net.elodina.mesos.dse.Executor")
 
     ExecutorInfo.newBuilder()
-      .setExecutorId(ExecutorID.newBuilder().setValue(id))
+      .setExecutorId(ExecutorID.newBuilder().setValue(s"$name-${System.currentTimeMillis()}"))
       .setCommand(commandBuilder)
       .setName(name)
       .build

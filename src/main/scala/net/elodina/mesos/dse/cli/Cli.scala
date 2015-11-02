@@ -29,6 +29,7 @@ object Cli {
           case addOpts: AddOptions => handleApi("/add", addOpts)
           case startOpts: StartOptions => handleApi("/start", startOpts)
           case stopOpts: StopOptions => handleApi("/stop", stopOpts)
+          case statusOpts: StatusOptions => handleApi("/status", statusOpts)
         }
       }
     } catch {
@@ -272,6 +273,14 @@ object Cli {
         opts.asInstanceOf[StopOptions].copy(id = value.mkString(","))
       },
 
+      opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
+        opts.asInstanceOf[StopOptions].copy(api = value)
+      }
+    )
+
+    cmd("status").text("Retrieves current cluster status.").action { (_, c) =>
+      StatusOptions()
+    }.children(
       opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
         opts.asInstanceOf[StopOptions].copy(api = value)
       }

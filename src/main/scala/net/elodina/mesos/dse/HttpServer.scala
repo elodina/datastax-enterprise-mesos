@@ -111,6 +111,7 @@ object HttpServer {
       if (uri == "add") handleAddTask(request, response)
       else if (uri == "start") handleStartTask(request, response)
       else if (uri == "stop") handleStopTask(request, response)
+      else if (uri == "status") handleClusterStatus(request, response)
       else response.sendError(404)
     }
 
@@ -173,6 +174,10 @@ object HttpServer {
         Scheduler.cluster.save()
         respond(ApiResponse(success = true, s"Stopped tasks ${opts.id}", Some(Cluster(tasks))), response)
       }
+    }
+
+    def handleClusterStatus(request: HttpServletRequest, response: HttpServletResponse) {
+      respond(ApiResponse(success = true, s"Retrieved current cluster status", Some(Scheduler.cluster)), response)
     }
 
     private def handleHealth(response: HttpServletResponse) {

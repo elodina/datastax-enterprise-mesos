@@ -23,19 +23,23 @@ import java.util
 import java.util.concurrent.TimeUnit
 
 import _root_.net.elodina.mesos.utils.constraints.Constraints
-import _root_.net.elodina.mesos.utils.{Pretty, State, TaskRuntime}
+import _root_.net.elodina.mesos.utils.{Pretty, Reconciliation, State, TaskRuntime}
 import org.apache.log4j._
 import org.apache.mesos.Protos._
 import org.apache.mesos.{MesosSchedulerDriver, SchedulerDriver}
 
 import scala.collection.JavaConversions._
+import scala.concurrent.duration.{Duration, _}
 import scala.language.postfixOps
 
-object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] {
+object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] with Reconciliation[DSETask] {
   private val logger = Logger.getLogger(this.getClass)
 
   private[dse] val cluster = Cluster()
   private var driver: SchedulerDriver = null
+
+  override protected val reconcileDelay: Duration = 20 seconds
+  override protected val reconcileMaxTries: Int = 5
 
   def start() {
     initLogging()
@@ -71,7 +75,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] {
     cluster.save()
 
     this.driver = driver
-    //    reconcileTasks(force = true)
+    implicitReconcile(driver)
   }
 
   override def offerRescinded(driver: SchedulerDriver, id: OfferID) {
@@ -88,7 +92,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] {
     logger.info("[reregistered] master:" + Pretty.master(master))
 
     this.driver = driver
-    //    reconcileTasks(force = true)
+    implicitReconcile(driver)
   }
 
   override def slaveLost(driver: SchedulerDriver, id: SlaveID) {
@@ -129,7 +133,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] {
       }
     }
 
-    //TODO reconcile tasks
+    explicitReconcile(driver)
     cluster.save()
   }
 
