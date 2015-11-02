@@ -44,12 +44,11 @@ trait DSETask extends Task with Constrained {
   var cpu: Double = 0.5
   var mem: Long = 512
   var broadcast: String = ""
-  var logStdout: String = ""
-  var logStderr: String = ""
-  var agentStdout: String = ""
-  var agentStderr: String = ""
+  var nodeOut: String = ""
+  var agentOut: String = ""
   var clusterName: String = ""
   var seed: Boolean = false
+  var seeds: String = ""
   val constraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
 
   override def attribute(name: String): Option[String] = {
@@ -76,6 +75,8 @@ trait DSETask extends Task with Constrained {
   def createTaskInfo(offer: Offer): TaskInfo = {
     val taskName = s"$taskType-$id"
     val taskId = TaskID.newBuilder().setValue(s"$taskName-${UUID.randomUUID()}").build()
+
+    Scheduler.setSeedNodes(this, offer.getHostname)
 
     TaskInfo.newBuilder().setName(taskName).setTaskId(taskId).setSlaveId(offer.getSlaveId)
       .setExecutor(createExecutorInfo(taskName))
@@ -112,14 +113,19 @@ object DSETask {
     task.mem = opts.mem
     task.broadcast = opts.broadcast
     Constraint.parse(opts.constraints).foreach(task.constraints +=)
-    task.logStdout = opts.logStdout
-    task.logStderr = opts.logStderr
-    task.agentStdout = opts.agentStdout
-    task.agentStderr = opts.agentStderr
+    task.nodeOut = opts.nodeOut
+    task.agentOut = opts.agentOut
     task.clusterName = opts.clusterName
     task.seed = opts.seed
 
     task
+  }
+
+  def idFromTaskId(taskId: String): String = {
+    taskId.split("-", 4) match {
+      case Array(_, _, value, _) => value
+      case _ => throw new IllegalArgumentException(taskId)
+    }
   }
 
   implicit val stateFormats = new Format[State.Value] {
@@ -157,6 +163,7 @@ case class CassandraNodeTask(id: String) extends DSETask {
 }
 
 object CassandraNodeTask {
+
   import DSETask._
 
   implicit val reader = (
@@ -166,14 +173,13 @@ object CassandraNodeTask {
     (__ \ 'cpu).read[Double] and
     (__ \ 'mem).read[Long] and
     (__ \ 'broadcast).read[String] and
-    (__ \ 'logStdout).read[String] and
-    (__ \ 'logStderr).read[String] and
-    (__ \ 'agentStdout).read[String] and
-    (__ \ 'agentStderr).read[String] and
+    (__ \ 'nodeOut).read[String] and
+    (__ \ 'agentOut).read[String] and
     (__ \ 'clusterName).read[String] and
     (__ \ 'seed).read[Boolean] and
+    (__ \ 'seeds).read[String] and
     (__ \ 'constraints).read[String].map(Constraint.parse))((id, state, runtime, cpu, mem, broadcast,
-      logStdout, logStderr, agentStdout, agentStderr, clusterName, seed, constraints) => {
+      nodeOut, agentOut, clusterName, seed, seeds, constraints) => {
 
     val task = CassandraNodeTask(id)
     task.state = state
@@ -181,12 +187,11 @@ object CassandraNodeTask {
     task.cpu = cpu
     task.mem = mem
     task.broadcast = broadcast
-    task.logStdout = logStdout
-    task.logStderr = logStderr
-    task.agentStdout = agentStdout
-    task.agentStderr = agentStderr
+    task.nodeOut = nodeOut
+    task.agentOut = agentOut
     task.clusterName = clusterName
     task.seed = seed
+    task.seeds = seeds
     constraints.foreach(task.constraints +=)
 
     task
@@ -202,12 +207,11 @@ object CassandraNodeTask {
         "cpu" -> o.cpu,
         "mem" -> o.mem,
         "broadcast" -> o.broadcast,
-        "logStdout" -> o.logStdout,
-        "logStderr" -> o.logStderr,
-        "agentStdout" -> o.agentStdout,
-        "agentStderr" -> o.agentStderr,
+        "nodeOut" -> o.nodeOut,
+        "agentOut" -> o.agentOut,
         "clusterName" -> o.clusterName,
         "seed" -> o.seed,
+        "seeds" -> o.seeds,
         "constraints" -> Util.formatConstraints(o.constraints)
       )
     }

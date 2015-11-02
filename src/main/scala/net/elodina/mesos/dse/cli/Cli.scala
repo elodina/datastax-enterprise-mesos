@@ -5,6 +5,7 @@ import java.net.{HttpURLConnection, URL}
 
 import net.elodina.mesos.dse._
 import net.elodina.mesos.utils
+import net.elodina.mesos.utils.{TaskRuntime, Util}
 import play.api.libs.json.{Json, Writes}
 import scopt.{OptionParser, Read}
 
@@ -27,6 +28,7 @@ object Cli {
           case schedulerOpts: SchedulerOptions => handleScheduler(schedulerOpts)
           case addOpts: AddOptions => handleApi("/add", addOpts)
           case startOpts: StartOptions => handleApi("/start", startOpts)
+          case stopOpts: StopOptions => handleApi("/stop", stopOpts)
         }
       }
     } catch {
@@ -50,26 +52,12 @@ object Cli {
     Scheduler.start()
   }
 
-  def handleApi[T <: Options: Writes](url: String, data: T) {
+  def handleApi[T <: Options : Writes](url: String, data: T) {
     resolveApi(data.api)
 
     val response = sendRequest(url, data)
     printResponse(response)
   }
-
-//  def handleAdd(config: AddOptions) {
-//    resolveApi(config.api)
-//
-//    val response = sendRequest("/add", config)
-//    printResponse(response)
-//  }
-//
-//  def handleStart(config: StartOptions) {
-//    resolveApi(config.api)
-//
-//    val response = sendRequest("/start", config)
-//    printResponse(response)
-//  }
 
   private[dse] def sendRequest[T: Writes](uri: String, data: T): ApiResponse = {
     val url: String = Config.api + (if (Config.api.endsWith("/")) "" else "/") + "api" + uri
@@ -130,8 +118,32 @@ object Cli {
   }
 
   private def printTask(task: DSETask, indent: Int = 0) {
-    printLine("TODO")
+    printLine("task:", indent)
+    printLine(s"id: ${task.id}", indent + 1)
+    printLine(s"type: ${task.taskType}", indent + 1)
+    printLine(s"state: ${task.state}", indent + 1)
+    printLine(s"cpu: ${task.cpu}", indent + 1)
+    printLine(s"mem: ${task.mem}", indent + 1)
+
+    if (task.broadcast != "") printLine(s"broadcast: ${task.broadcast}", indent + 1)
+    printLine(s"node out: ${task.nodeOut}", indent + 1)
+    printLine(s"agent out: ${task.agentOut}", indent + 1)
+    printLine(s"seed: ${task.seed}", indent + 1)
+    if (task.seeds != "") printLine(s"seeds: ${task.seeds}", indent + 1)
+    if (task.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(task.constraints)}", indent + 1)
+
+    task.runtime.foreach(printTaskRuntime(_, indent + 1))
+
     printLine()
+  }
+
+  private def printTaskRuntime(runtime: TaskRuntime, indent: Int = 0) {
+    printLine(s"runtime:", indent)
+    printLine(s"task id: ${runtime.taskId}", indent + 1)
+    printLine(s"slave id: ${runtime.slaveId}", indent + 1)
+    printLine(s"executor id: ${runtime.executorId}", indent + 1)
+    printLine(s"hostname: ${runtime.hostname}", indent + 1)
+    printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
   }
 
   private def printLine(s: AnyRef = "", indent: Int = 0) = out.println("  " * indent + s)
@@ -190,7 +202,7 @@ object Cli {
     cmd("add").text("Adds a task to the cluster.").children(
       arg[String]("<task-type>").text("Task type to add").action { (taskType, config) =>
         taskType match {
-          case TaskTypes.CASSANDRA_NODE => AddOptions(taskType = taskType, logStdout = s"$taskType.log", logStderr = s"$taskType.err")
+          case TaskTypes.CASSANDRA_NODE => AddOptions(taskType = taskType, nodeOut = s"$taskType.log")
           //other types go here
           case _ => throw new CliError(s"Unknown task type $taskType")
         }
@@ -219,24 +231,16 @@ object Cli {
           opts.asInstanceOf[AddOptions].copy(constraints = value)
         },
 
-        opt[String]("log-stdout").optional().text("File name to redirect Datastax Node stdout to.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(logStdout = value)
+        opt[String]("node-out").optional().text("File name to redirect Datastax Node output to.").action { (value, opts) =>
+          opts.asInstanceOf[AddOptions].copy(nodeOut = value)
         },
 
-        opt[String]("log-stderr").optional().text("File name to redirect Datastax Node stderr to.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(logStderr = value)
-        },
-
-        opt[String]("agent-stdout").optional().text("File name to redirect Datastax Agent stdout to.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(agentStdout = value)
-        },
-
-        opt[String]("agent-stderr").optional().text("File name to redirect Datastax Agent stderr to.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(agentStderr = value)
+        opt[String]("agent-out").optional().text("File name to redirect Datastax Agent output to.").action { (value, opts) =>
+          opts.asInstanceOf[AddOptions].copy(agentOut = value)
         },
 
         opt[String]("cluster-name").optional().text("The name of the cluster.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(agentStderr = value)
+          opts.asInstanceOf[AddOptions].copy(clusterName = value)
         },
 
         opt[Boolean]("seed").optional().text("Flags whether this Datastax Node is a seed node.").action { (value, opts) =>
@@ -258,6 +262,18 @@ object Cli {
 
       opt[Duration]("timeout").optional().text("Time to wait until task starts. Should be a parsable Scala Duration value. Defaults to 2m. Optional").action { (value, config) =>
         config.asInstanceOf[StartOptions].copy(timeout = value)
+      }
+    )
+
+    cmd("stop").text("Stops tasks in the cluster.").action { (_, c) =>
+      StopOptions()
+    }.children(
+      arg[List[utils.Range]]("<id>").text("ID expression to add").action { (value, opts) =>
+        opts.asInstanceOf[StopOptions].copy(id = value.mkString(","))
+      },
+
+      opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
+        opts.asInstanceOf[StopOptions].copy(api = value)
       }
     )
   }

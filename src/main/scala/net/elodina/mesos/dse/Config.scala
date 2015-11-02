@@ -29,6 +29,7 @@ object Config {
 
   val jarMask = "dse-mesos.*\\.jar"
   val dseMask = "dse.*gz"
+  val dseDirMask = "^dse.*$"
   val jreMask = "jre.*"
 
   var debug: Boolean = false
@@ -55,14 +56,14 @@ object Config {
 
   override def toString: String = {
     s"""
-      |Debug:             $debug
-      |Master:            $master
-      |User:              $user
-      |Api:               $api
-      |Storage:           $storage
-      |Framework Name:    $frameworkName
-      |Framework Role:    $frameworkRole
-      |Framework Timeout: $frameworkTimeout
+       |Debug:             $debug
+       |Master:            $master
+       |User:              $user
+       |Api:               $api
+       |Storage:           $storage
+       |Framework Name:    $frameworkName
+       |Framework Role:    $frameworkRole
+       |Framework Timeout: $frameworkTimeout
     """.stripMargin
   }
 }

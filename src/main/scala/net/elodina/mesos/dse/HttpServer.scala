@@ -22,7 +22,7 @@ import java.io._
 import java.util.Scanner
 import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 
-import net.elodina.mesos.dse.cli.{StartOptions, AddOptions}
+import net.elodina.mesos.dse.cli.{AddOptions, StartOptions, StopOptions}
 import net.elodina.mesos.utils.{State, Util}
 import org.apache.log4j.Logger
 import org.eclipse.jetty.server.{Server, ServerConnector}
@@ -110,6 +110,7 @@ object HttpServer {
 
       if (uri == "add") handleAddTask(request, response)
       else if (uri == "start") handleStartTask(request, response)
+      else if (uri == "stop") handleStopTask(request, response)
       else response.sendError(404)
     }
 
@@ -158,6 +159,19 @@ object HttpServer {
           if (ok) respond(ApiResponse(success = true, s"Started tasks ${opts.id}", Some(Cluster(tasks))), response)
           else respond(ApiResponse(success = true, s"Start tasks ${opts.id} timed out after ${opts.timeout}", None), response)
         } else respond(ApiResponse(success = true, s"Servers ${opts.id} scheduled to start", Some(Cluster(tasks))), response)
+      }
+    }
+
+    def handleStopTask(request: HttpServletRequest, response: HttpServletResponse) {
+      val opts = postBody(request).as[StopOptions]
+
+      val ids = Scheduler.cluster.expandIds(opts.id)
+      val missing = ids.filter(id => !Scheduler.cluster.tasks.exists(_.id == id))
+      if (missing.nonEmpty) respond(ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", None), response)
+      else {
+        val tasks = ids.flatMap(Scheduler.stopTask)
+        Scheduler.cluster.save()
+        respond(ApiResponse(success = true, s"Stopped tasks ${opts.id}", Some(Cluster(tasks))), response)
       }
     }
 

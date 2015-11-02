@@ -23,7 +23,7 @@ import java.util
 import java.util.concurrent.TimeUnit
 
 import _root_.net.elodina.mesos.utils.constraints.Constraints
-import _root_.net.elodina.mesos.utils.{TaskRuntime, State, Pretty}
+import _root_.net.elodina.mesos.utils.{Pretty, State, TaskRuntime}
 import org.apache.log4j._
 import org.apache.mesos.Protos._
 import org.apache.mesos.{MesosSchedulerDriver, SchedulerDriver}
@@ -71,7 +71,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] {
     cluster.save()
 
     this.driver = driver
-//    reconcileTasks(force = true)
+    //    reconcileTasks(force = true)
   }
 
   override def offerRescinded(driver: SchedulerDriver, id: OfferID) {
@@ -88,7 +88,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] {
     logger.info("[reregistered] master:" + Pretty.master(master))
 
     this.driver = driver
-//    reconcileTasks(force = true)
+    //    reconcileTasks(force = true)
   }
 
   override def slaveLost(driver: SchedulerDriver, id: SlaveID) {
@@ -102,7 +102,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] {
   override def statusUpdate(driver: SchedulerDriver, status: TaskStatus) {
     logger.info("[statusUpdate] " + Pretty.taskStatus(status))
 
-//    onServerStatus(driver, status)
+    onTaskStatus(driver, status)
   }
 
   override def frameworkMessage(driver: SchedulerDriver, executorId: ExecutorID, slaveId: SlaveID, data: Array[Byte]) {
@@ -158,6 +158,82 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] {
 
     driver.launchTasks(util.Arrays.asList(offer.getId), util.Arrays.asList(taskInfo), Filters.newBuilder().setRefuseSeconds(1).build)
     logger.info(s"Starting task ${task.id} with taskid ${taskInfo.getTaskId.getValue} for offer ${offer.getId.getValue}")
+  }
+
+  private def onTaskStatus(driver: SchedulerDriver, status: TaskStatus) {
+    val task = cluster.tasks.find(_.id == DSETask.idFromTaskId(status.getTaskId.getValue))
+
+    status.getState match {
+      case TaskState.TASK_RUNNING => onTaskStarted(task, driver, status)
+      case TaskState.TASK_LOST | TaskState.TASK_FAILED | TaskState.TASK_ERROR => onTaskFailed(task, status)
+      case TaskState.TASK_FINISHED | TaskState.TASK_KILLED => onTaskFinished(task, status)
+      case TaskState.TASK_STAGING | TaskState.TASK_STARTING =>
+      case _ => logger.warn("Got unexpected task state: " + status.getState)
+    }
+
+    cluster.save()
+  }
+
+  private def onTaskStarted(taskOpt: Option[DSETask], driver: SchedulerDriver, status: TaskStatus) {
+    taskOpt match {
+      case Some(task) => task.state = State.Running
+      case None =>
+        logger.info(s"Got ${status.getState} for unknown/stopped task, killing task ${status.getTaskId.getValue}")
+        driver.killTask(status.getTaskId)
+    }
+  }
+
+  private def onTaskFailed(taskOpt: Option[DSETask], status: TaskStatus) {
+    taskOpt match {
+      case Some(task) =>
+        task.state = State.Stopped
+        task.runtime = None
+      case None => logger.info(s"Got ${status.getState} for unknown/stopped task with task id ${status.getTaskId.getValue}")
+    }
+  }
+
+  private def onTaskFinished(taskOpt: Option[DSETask], status: TaskStatus) {
+    taskOpt match {
+      case Some(task) =>
+        task.state = State.Inactive
+        task.runtime = None
+        logger.info(s"Task ${task.id} has finished")
+      case None => logger.info(s"Got ${status.getState} for unknown/stopped task with task id ${status.getTaskId.getValue}")
+    }
+  }
+
+  def stopTask(id: String): Option[DSETask] = {
+    cluster.tasks.find(_.id == id) match {
+      case Some(task) =>
+        task.state match {
+          case State.Staging | State.Starting | State.Running =>
+            driver.killTask(TaskID.newBuilder().setValue(task.runtime.get.taskId).build)
+          case _ =>
+        }
+
+        task.state = State.Inactive
+        Some(task)
+      case None =>
+        logger.warn(s"Task $id was removed, ignoring its stop call")
+        None
+    }
+  }
+
+  private[dse] def setSeedNodes(task: DSETask, hostname: String) {
+    val seeds = cluster.tasks.collect {
+      case cassandraNode: CassandraNodeTask => cassandraNode
+    }.filter(c => c.seed && c.clusterName == task.clusterName)
+      .filter(c => c.state == State.Staging || c.state == State.Starting || c.state == State.Running)
+      .flatMap(_.attribute("hostname")).toList
+
+    if (seeds.isEmpty) {
+      if (!task.seed) {
+        logger.warn(s"No seed nodes available and current not is not seed node. Forcing seed for node ${task.id}")
+        task.seed = true
+      }
+
+      task.seeds = hostname
+    } else task.seeds = seeds.sorted.mkString(",")
   }
 
   private def resolveDeps() {

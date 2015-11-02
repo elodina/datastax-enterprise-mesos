@@ -44,9 +44,8 @@ case class SchedulerOptions(api: String = "", master: String = "", user: String 
                             storage: String = "file:datastax.json", debug: Boolean = false) extends Options
 
 case class AddOptions(taskType: String = "", id: String = "", api: String = "", cpu: Double = 0.5, mem: Long = 512,
-                      broadcast: String = "", constraints: String = "", logStdout: String = "cassandra-node.log",
-                      logStderr: String = "cassandra-node.err", agentStdout: String = "datastax-agent.log",
-                      agentStderr: String = "datastax-agent.err", clusterName: String = "Test Cluster",
+                      broadcast: String = "", constraints: String = "", nodeOut: String = "cassandra-node.log",
+                      agentOut: String = "datastax-agent.log", clusterName: String = "Test Cluster",
                       seed: Boolean = false) extends Options
 
 object AddOptions {
@@ -59,4 +58,10 @@ object StartOptions {
   implicit val durationFormats = DurationFormats.formats
 
   implicit val formats = Json.format[StartOptions]
+}
+
+case class StopOptions(id: String = "", api: String = "") extends Options
+
+object StopOptions {
+  implicit val formats = Json.format[StopOptions]
 }
