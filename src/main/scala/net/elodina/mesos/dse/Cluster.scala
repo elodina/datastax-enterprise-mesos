@@ -77,8 +77,10 @@ case class Cluster(bootstrapTasks: List[DSETask] = Nil, var frameworkId: Option[
     if (expr == null || expr == "") throw new IllegalArgumentException("ID expression cannot be null or empty")
     else {
       expr.split(",").flatMap { part =>
-        if (part == "*") return tasks.map(_.id).toList
-        else utils.Range(part).values.map(_.toString)
+        utils.Range(part) match {
+          case utils.Range.* => tasks.map(_.id).toList
+          case range => range.values.map(_.toString)
+        }
       }.distinct.sorted.toList
     }
   }

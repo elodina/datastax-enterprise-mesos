@@ -33,13 +33,16 @@ case class DatastaxAgent(task: DSETask) {
 
   private var process: Process = null
 
-  def start(): Int = {
+  def start() {
     if (started.getAndSet(true)) throw new IllegalStateException(s"Datastax Agent already started")
 
     logger.info("Starting Datastax Agent")
 
     val dseDir = DSENode.findDSEDir()
     process = (Process(s"$dseDir/${DSENode.DSE_AGENT_CMD}", Seq("-f")) #> new File(task.agentOut)).run()
+  }
+
+  def await(): Int = {
     try {
       process.exitValue()
     } catch {

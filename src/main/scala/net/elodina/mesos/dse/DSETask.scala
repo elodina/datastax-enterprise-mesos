@@ -103,7 +103,7 @@ trait DSETask extends Task with Constrained {
 object DSETask {
   def apply(id: String, opts: AddOptions): DSETask = {
     val task = opts.taskType match {
-      case TaskTypes.CASSANDRA_NODE => CassandraNodeTask(opts.id)
+      case TaskTypes.CASSANDRA_NODE => CassandraNodeTask(id)
       case _ => throw new IllegalArgumentException(s"Unknown task type ${opts.taskType}")
     }
 

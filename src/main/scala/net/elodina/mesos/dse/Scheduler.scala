@@ -141,16 +141,20 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     cluster.tasks.filter(_.state == State.Stopped).toList match {
       case Nil => Some("all tasks are running")
       case tasks =>
-        val reason = tasks.flatMap { task =>
-          checkConstraints(offer, task).orElse(task.matches(offer)) match {
-            case Some(declineReason) => Some(s"task ${task.id}: $declineReason")
-            case None =>
-              launchTask(task, offer)
-              None
-          }
-        }.mkString(", ")
+        if (cluster.tasks.exists(task => task.state == State.Staging || task.state == State.Starting))
+          Some("should wait until other tasks are started")
+        else {
+          val reason = tasks.flatMap { task =>
+            checkConstraints(offer, task).orElse(task.matches(offer)) match {
+              case Some(declineReason) => Some(s"task ${task.id}: $declineReason")
+              case None =>
+                launchTask(task, offer)
+                None
+            }
+          }.mkString(", ")
 
-        if (reason.isEmpty) None else Some(reason)
+          if (reason.isEmpty) None else Some(reason)
+        }
     }
   }
 

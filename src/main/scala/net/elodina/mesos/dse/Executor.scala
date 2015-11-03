@@ -66,7 +66,7 @@ object Executor extends org.apache.mesos.Executor {
     logger.info("[launchTask] " + Pretty.task(taskInfo))
 
     val task = Json.parse(taskInfo.getData.toStringUtf8).as[DSETask]
-    driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_RUNNING).build)
+    driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_STARTING).build)
 
     new Thread {
       override def run() {
@@ -75,12 +75,17 @@ object Executor extends org.apache.mesos.Executor {
         node = DSENode(task, driver, taskInfo, hostname)
         agent = DatastaxAgent(task)
 
-        Future.firstCompletedOf(Seq(Future(node.start()), Future(agent.start()))).onComplete { result =>
+        node.start()
+        agent.start()
+
+        Future(node.awaitConsistentState()).map {
+          case true => driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_RUNNING).build)
+          case false => logger.info("Node stopped, abandon waiting for consistent state")
+        }
+
+        Future.firstCompletedOf(Seq(Future(node.await()), Future(agent.await()))).onComplete { result =>
           result match {
             case Success(exitCode) =>
-              logger.info("exit code: " + exitCode)
-              logger.info("node stopped: " + node.stopped)
-              logger.info("agent stopped: " + agent.stopped)
               if (exitCode == 0 && (node.stopped || agent.stopped)) {
                 driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FINISHED).build)
               } else driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FAILED).build)

@@ -18,13 +18,14 @@
 
 package net.elodina.mesos.dse
 
-import java.io.{File, FileNotFoundException, FileWriter}
-import java.net.NetworkInterface
+import java.io.{File, FileNotFoundException, FileWriter, IOException}
+import java.net.{InetAddress, NetworkInterface}
 import java.nio.file._
 import java.nio.file.attribute.PosixFileAttributeView
 import java.util
 import java.util.concurrent.atomic.AtomicBoolean
 
+import org.apache.cassandra.tools.NodeProbe
 import org.apache.log4j.Logger
 import org.apache.mesos.ExecutorDriver
 import org.apache.mesos.Protos.TaskInfo
@@ -44,7 +45,7 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
 
   private var process: Process = null
 
-  def start(): Int = {
+  def start() {
     if (started.getAndSet(true)) throw new IllegalStateException(s"${task.taskType} ${task.id} already started")
 
     logger.info(s"Starting ${task.taskType} ${task.id}")
@@ -56,6 +57,39 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     editCassandraYaml(workDir, s"$workDir/$dseDir/${DSENode.CASSANDRA_YAML_LOCATION}")
 
     process = configureProcess(dseDir, task.nodeOut).run()
+  }
+
+  def awaitConsistentState(): Boolean = {
+    while (!stopped) {
+      try {
+        val probe = new NodeProbe("localhost", 7199) //TODO port should be configurable and come from mesos offers
+
+        val ip = InetAddress.getByName(hostname).getHostAddress
+        probe.getLiveNodes.toList.find(node => node == hostname || node == ip) match {
+          case Some(node) =>
+            if (!probe.getJoiningNodes.isEmpty) logger.info("Node is live but there are joining nodes, waiting...")
+            else if (!probe.getMovingNodes.isEmpty) logger.info("Node is live but there are moving nodes, waiting...")
+            else if (!probe.getLeavingNodes.isEmpty) logger.info("Node is live but there are leaving nodes, waiting...")
+            else {
+              //TODO should we check unreachable nodes?
+              logger.info("Node jumped to normal state")
+              return true
+            }
+          case None => logger.debug(s"Node $hostname is not yet live, waiting...")
+        }
+      } catch {
+        case e: IOException =>
+          logger.debug("Failed to connect via JMX")
+          logger.trace("", e)
+      }
+
+      Thread.sleep(3000) //TODO configurable
+    }
+
+    false
+  }
+
+  def await(): Int = {
     try {
       process.exitValue()
     } catch {
