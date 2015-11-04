@@ -153,7 +153,12 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
           }
 
           val reason = filteredTasks.flatMap { task =>
-            checkConstraints(offer, task).orElse(task.matches(offer)) match {
+            val constraintDeclineReason = task.seed match {
+              case true => checkConstraintsWith(offer, task, _.seedConstraints, name => tasks.filter(_.seed).flatMap(_.attribute(name)))
+              case false => checkConstraints(offer, task)
+            }
+
+            constraintDeclineReason.orElse(task.matches(offer)) match {
               case Some(declineReason) => Some(s"task ${task.id}: $declineReason")
               case None =>
                 launchTask(task, offer)
@@ -278,7 +283,6 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
   }
 
   private def initLogging() {
-    //TODO configure this better
     System.setProperty("org.eclipse.jetty.util.log.class", classOf[JettyLog4jLogger].getName)
 
     BasicConfigurator.resetConfiguration()
@@ -286,7 +290,6 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     val root = Logger.getRootLogger
     root.setLevel(Level.INFO)
 
-    Logger.getLogger("org.apache.zookeeper").setLevel(Level.WARN)
     Logger.getLogger("org.I0Itec.zkclient").setLevel(Level.WARN)
 
     val logger = Logger.getLogger(Scheduler.getClass)

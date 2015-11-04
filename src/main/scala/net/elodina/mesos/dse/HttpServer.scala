@@ -154,6 +154,10 @@ object HttpServer {
                 task.constraints.clear()
                 task.constraints ++= Constraint.parse(constraints)
               }
+              opts.seedConstraints.foreach { seedConstraints =>
+                task.seedConstraints.clear()
+                task.seedConstraints ++= Constraint.parse(seedConstraints)
+              }
               opts.nodeOut.foreach(task.nodeOut = _)
               opts.clusterName.foreach(task.clusterName = _)
               opts.seed.foreach(task.seed = _)

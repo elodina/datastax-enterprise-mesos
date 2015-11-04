@@ -135,6 +135,7 @@ object Cli {
     printLine(s"seed: ${task.seed}", indent + 1)
     if (task.seeds != "") printLine(s"seeds: ${task.seeds}", indent + 1)
     if (task.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(task.constraints)}", indent + 1)
+    if (task.seed && task.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(task.seedConstraints)}", indent + 1)
 
     task.runtime.foreach(printTaskRuntime(_, indent + 1))
 
@@ -235,6 +236,10 @@ object Cli {
           opts.asInstanceOf[AddOptions].copy(constraints = value)
         },
 
+        opt[String]("seed-constraints").optional().text("Seed node constraints. Will be evaluated only across seed nodes.").action { (value, opts) =>
+          opts.asInstanceOf[AddOptions].copy(seedConstraints = value)
+        },
+
         opt[String]("node-out").optional().text("File name to redirect Datastax Node output to.").action { (value, opts) =>
           opts.asInstanceOf[AddOptions].copy(nodeOut = value)
         },
@@ -277,6 +282,10 @@ object Cli {
       },
 
       opt[String]("constraints").optional().text("Constraints (hostname=like:^master$,rack=like:^1.*$).").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(constraints = Some(value))
+      },
+
+      opt[String]("seed-constraints").optional().text("Seed node constraints. Will be evaluated only across seed nodes.").action { (value, opts) =>
         opts.asInstanceOf[UpdateOptions].copy(constraints = Some(value))
       },
 

@@ -48,6 +48,7 @@ trait DSETask extends Task with Constrained {
   var seed: Boolean = false
   var seeds: String = ""
   val constraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
+  val seedConstraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
 
   override def attribute(name: String): Option[String] = {
     if (name == "hostname") runtime.map(_.hostname)
@@ -111,6 +112,7 @@ object DSETask {
     task.mem = opts.mem
     task.broadcast = opts.broadcast
     Constraint.parse(opts.constraints).foreach(task.constraints +=)
+    Constraint.parse(opts.seedConstraints).foreach(task.seedConstraints +=)
     task.nodeOut = opts.nodeOut
     task.agentOut = opts.agentOut
     task.clusterName = opts.clusterName
@@ -176,8 +178,9 @@ object CassandraNodeTask {
     (__ \ 'clusterName).read[String] and
     (__ \ 'seed).read[Boolean] and
     (__ \ 'seeds).read[String] and
-    (__ \ 'constraints).read[String].map(Constraint.parse))((id, state, runtime, cpu, mem, broadcast,
-      nodeOut, agentOut, clusterName, seed, seeds, constraints) => {
+    (__ \ 'constraints).read[String].map(Constraint.parse) and
+    (__ \ 'seedConstraints).read[String].map(Constraint.parse))((id, state, runtime, cpu, mem, broadcast,
+      nodeOut, agentOut, clusterName, seed, seeds, constraints, seedConstraints) => {
 
     val task = CassandraNodeTask(id)
     task.state = state
@@ -191,6 +194,7 @@ object CassandraNodeTask {
     task.seed = seed
     task.seeds = seeds
     constraints.foreach(task.constraints +=)
+    seedConstraints.foreach(task.seedConstraints +=)
 
     task
   })
@@ -210,7 +214,8 @@ object CassandraNodeTask {
         "clusterName" -> o.clusterName,
         "seed" -> o.seed,
         "seeds" -> o.seeds,
-        "constraints" -> Util.formatConstraints(o.constraints)
+        "constraints" -> Util.formatConstraints(o.constraints),
+        "seedConstraints" -> Util.formatConstraints(o.seedConstraints)
       )
     }
   }

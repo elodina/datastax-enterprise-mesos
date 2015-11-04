@@ -44,18 +44,19 @@ case class SchedulerOptions(api: String = "", master: String = "", user: String 
                             storage: String = "file:datastax.json", debug: Boolean = false) extends Options
 
 case class AddOptions(taskType: String = "", id: String = "", api: String = "", cpu: Double = 2, mem: Long = 8192,
-                      broadcast: String = "", constraints: String = "", nodeOut: String = "cassandra-node.log",
-                      agentOut: String = "datastax-agent.log", clusterName: String = "Test Cluster",
-                      seed: Boolean = false) extends Options
+                      broadcast: String = "", constraints: String = "", seedConstraints: String = "",
+                      nodeOut: String = "cassandra-node.log", agentOut: String = "datastax-agent.log",
+                      clusterName: String = "Test Cluster", seed: Boolean = false) extends Options
 
 object AddOptions {
   implicit val formats = Json.format[AddOptions]
 }
 
 case class UpdateOptions(id: String = "", api: String = "", cpu: Option[Double] = None, mem: Option[Long] = None,
-                      broadcast: Option[String] = None, constraints: Option[String] = None, nodeOut: Option[String] = None,
-                      agentOut: Option[String] = None, clusterName: Option[String] = None,
-                      seed: Option[Boolean] = None) extends Options
+                         broadcast: Option[String] = None, constraints: Option[String] = None,
+                         seedConstraints: Option[String] = None, nodeOut: Option[String] = None,
+                         agentOut: Option[String] = None, clusterName: Option[String] = None,
+                         seed: Option[Boolean] = None) extends Options
 
 object UpdateOptions {
   implicit val formats = Json.format[UpdateOptions]
