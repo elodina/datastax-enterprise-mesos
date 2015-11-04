@@ -68,7 +68,7 @@ object Cluster {
 case class Cluster(bootstrapTasks: List[DSETask] = Nil, var frameworkId: Option[String] = None) {
   private val storage = Cluster.newStorage(Config.storage)
 
-  private[dse] val tasks = new mutable.HashSet[DSETask]()
+  private[dse] val tasks = new mutable.TreeSet[DSETask]()(Ordering.by(_.id.toInt))
 
   //add anything that was passed to constructor
   bootstrapTasks.foreach(tasks.add)

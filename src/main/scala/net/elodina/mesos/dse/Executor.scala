@@ -27,7 +27,7 @@ import org.apache.mesos.{ExecutorDriver, MesosExecutorDriver}
 import play.api.libs.json.Json
 
 import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
+import scala.concurrent._
 import scala.util.{Failure, Success}
 
 object Executor extends org.apache.mesos.Executor {
@@ -78,7 +78,7 @@ object Executor extends org.apache.mesos.Executor {
         node.start()
         agent.start()
 
-        Future(node.awaitConsistentState()).map {
+        Future(blocking(node.awaitConsistentState())).map {
           case true => driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_RUNNING).build)
           case false => logger.info("Node stopped, abandon waiting for consistent state")
         }

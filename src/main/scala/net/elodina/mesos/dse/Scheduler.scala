@@ -138,13 +138,21 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
   }
 
   private def acceptOffer(offer: Offer): Option[String] = {
-    cluster.tasks.filter(_.state == State.Stopped).toList match {
+    cluster.tasks.filter(_.state == State.Stopped).toList.sortBy(_.id.toInt) match {
       case Nil => Some("all tasks are running")
       case tasks =>
         if (cluster.tasks.exists(task => task.state == State.Staging || task.state == State.Starting))
           Some("should wait until other tasks are started")
         else {
-          val reason = tasks.flatMap { task =>
+          // Consider starting seeds first
+          val filteredTasks = tasks.filter(_.seed) match {
+            case Nil => tasks
+            case seeds =>
+              logger.info("There are seed nodes to be launched so will prefer them first.")
+              seeds
+          }
+
+          val reason = filteredTasks.flatMap { task =>
             checkConstraints(offer, task).orElse(task.matches(offer)) match {
               case Some(declineReason) => Some(s"task ${task.id}: $declineReason")
               case None =>

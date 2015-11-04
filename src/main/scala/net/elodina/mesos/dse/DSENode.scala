@@ -19,7 +19,7 @@
 package net.elodina.mesos.dse
 
 import java.io.{File, FileNotFoundException, FileWriter, IOException}
-import java.net.{InetAddress, NetworkInterface}
+import java.net.NetworkInterface
 import java.nio.file._
 import java.nio.file.attribute.PosixFileAttributeView
 import java.util
@@ -64,22 +64,28 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
       try {
         val probe = new NodeProbe("localhost", 7199) //TODO port should be configurable and come from mesos offers
 
-        val ip = InetAddress.getByName(hostname).getHostAddress
-        probe.getLiveNodes.toList.find(node => node == hostname || node == ip) match {
-          case Some(node) =>
-            if (!probe.getJoiningNodes.isEmpty) logger.info("Node is live but there are joining nodes, waiting...")
-            else if (!probe.getMovingNodes.isEmpty) logger.info("Node is live but there are moving nodes, waiting...")
-            else if (!probe.getLeavingNodes.isEmpty) logger.info("Node is live but there are leaving nodes, waiting...")
-            else {
-              //TODO should we check unreachable nodes?
-              logger.info("Node jumped to normal state")
-              return true
-            }
-          case None => logger.debug(s"Node $hostname is not yet live, waiting...")
-        }
+        val initialized = probe.isInitialized
+        val joined = probe.isJoined
+        val starting = probe.isStarting
+        val joiningNodes = probe.getJoiningNodes.toList
+        val movingNodes = probe.getMovingNodes.toList
+        val leavingNodes = probe.getMovingNodes.toList
+        val operationMode = probe.getOperationMode
+
+        if (initialized && joined && !starting) {
+          if (joiningNodes.nonEmpty) logger.info(s"Node is live but there are joining nodes $joiningNodes, waiting...")
+          else if (movingNodes.nonEmpty) logger.info(s"Node is live but there are moving nodes $movingNodes, waiting...")
+          else if (leavingNodes.nonEmpty) logger.info(s"Node is live but there are leaving nodes $leavingNodes, waiting...")
+          else if (operationMode != "NORMAL") logger.info(s"Node is live but its operation mode is $operationMode, waiting...")
+          else {
+            //TODO should we check unreachable nodes?
+            logger.info("Node jumped to normal state")
+            return true
+          }
+        } else logger.info(s"Node is live but still initializing, joining or starting. Initialized: $initialized, Joined: $joined, Started: ${!starting}. Retrying...")
       } catch {
         case e: IOException =>
-          logger.debug("Failed to connect via JMX")
+          logger.debug("Failed to connect via JMX, retrying...")
           logger.trace("", e)
       }
 
@@ -134,8 +140,8 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
 
     cassandraYaml.put(DSENode.CLUSTER_NAME_KEY, task.clusterName)
     cassandraYaml.put(DSENode.DATA_FILE_DIRECTORIES_KEY, Array(s"$workDir/${DSENode.DSE_DATA_DIR}"))
-    cassandraYaml.put(DSENode.COMMIT_LOG_DIRECTORY_KEY, s"$workDir/${DSENode.COMMIT_LOG_DIR}")
-    cassandraYaml.put(DSENode.SAVED_CACHES_DIRECTORY_KEY, s"$workDir/${DSENode.SAVED_CACHES_DIR}")
+    cassandraYaml.put(DSENode.COMMIT_LOG_DIRECTORY_KEY, Array(s"$workDir/${DSENode.COMMIT_LOG_DIR}"))
+    cassandraYaml.put(DSENode.SAVED_CACHES_DIRECTORY_KEY, Array(s"$workDir/${DSENode.SAVED_CACHES_DIR}"))
     cassandraYaml.put(DSENode.LISTEN_ADDRESS_KEY, hostname)
     cassandraYaml.put(DSENode.RPC_ADDRESS_KEY, hostname)
 

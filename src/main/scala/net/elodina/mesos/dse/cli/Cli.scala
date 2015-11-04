@@ -131,6 +131,7 @@ object Cli {
     if (task.broadcast != "") printLine(s"broadcast: ${task.broadcast}", indent + 1)
     printLine(s"node out: ${task.nodeOut}", indent + 1)
     printLine(s"agent out: ${task.agentOut}", indent + 1)
+    printLine(s"cluster name: ${task.clusterName}", indent + 1)
     printLine(s"seed: ${task.seed}", indent + 1)
     if (task.seeds != "") printLine(s"seeds: ${task.seeds}", indent + 1)
     if (task.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(task.constraints)}", indent + 1)
