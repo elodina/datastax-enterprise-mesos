@@ -43,7 +43,7 @@ case class SchedulerOptions(api: String = "", master: String = "", user: String 
                             frameworkName: String = "datastax-enterprise", frameworkTimeout: Duration = 30 days,
                             storage: String = "file:datastax.json", debug: Boolean = false) extends Options
 
-case class AddOptions(taskType: String = "", id: String = "", api: String = "", cpu: Double = 0.5, mem: Long = 512,
+case class AddOptions(taskType: String = "", id: String = "", api: String = "", cpu: Double = 2, mem: Long = 8192,
                       broadcast: String = "", constraints: String = "", nodeOut: String = "cassandra-node.log",
                       agentOut: String = "datastax-agent.log", clusterName: String = "Test Cluster",
                       seed: Boolean = false) extends Options

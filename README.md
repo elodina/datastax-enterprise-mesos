@@ -7,6 +7,7 @@ Datastax Enterprise Mesos Framework
 * [Scheduler configuration](#scheduler-configuration)
 * [Run the scheduler](#run-the-scheduler)
 * [Quick start](#quick-start)
+* [Richer usage example](https://github.com/elodina/datastax-enterprise-mesos/tree/master/richer_usage_example.md)
 
 [Typical operations](#typical-operations)
 * [Shutting down framework](#shutting-down-framework)
@@ -185,7 +186,6 @@ cluster:
     
 Typical operations
 =================
------------------------
 Shutting down framework
 -----------------------
 
