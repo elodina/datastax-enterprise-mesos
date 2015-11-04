@@ -33,9 +33,7 @@ dependencies {
     compile 'com.github.scopt:scopt_2.10:3.3.0'
     compile "log4j:log4j:1.2.16"
     compile name: 'scala-mesos-utils-0.0.1'
-    compile ("com.101tec:zkclient:0.6") {
-        exclude group: "org.slf4j"
-    }
+    compile "com.101tec:zkclient:0.6"
     testCompile 'junit:junit:4.12'
 }
 
