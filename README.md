@@ -240,6 +240,8 @@ Adds a task to the cluster.
         Network interface to broadcast for nodes.
   --constraints <value>
         Constraints (hostname=like:^master$,rack=like:^1.*$).
+  --seed-constraints <value>
+        Seed node constraints. Will be evaluated only across seed nodes.
   --node-out <value>
         File name to redirect Datastax Node output to.
   --agent-out <value>
@@ -248,6 +250,14 @@ Adds a task to the cluster.
         The name of the cluster.
   --seed <value>
         Flags whether this Datastax Node is a seed node.
+  --data-file-dirs <value>
+        Cassandra data file directories separated by comma. Defaults to sandbox if not set
+  --commit-log-dir <value>
+        Cassandra commit log dir. Defaults to sandbox if not set
+  --saved-caches-dir <value>
+        Cassandra saved caches dir. Defaults to sandbox if not set
+  --state-backoff <value>
+        Backoff between checks for consistent node state.
 Command: update [options] <id>
 Update task configuration.
   <id>
@@ -262,6 +272,8 @@ Update task configuration.
         Network interface to broadcast for nodes.
   --constraints <value>
         Constraints (hostname=like:^master$,rack=like:^1.*$).
+  --seed-constraints <value>
+        Seed node constraints. Will be evaluated only across seed nodes.
   --node-out <value>
         File name to redirect Datastax Node output to.
   --agent-out <value>
@@ -270,6 +282,14 @@ Update task configuration.
         The name of the cluster.
   --seed <value>
         Flags whether this Datastax Node is a seed node.
+  --data-file-dirs <value>
+        Cassandra data file directories separated by comma. Defaults to sandbox if not set
+  --commit-log-dir <value>
+        Cassandra commit log dir. Defaults to sandbox if not set
+  --saved-caches-dir <value>
+        Cassandra saved caches dir. Defaults to sandbox if not set
+  --state-backoff <value>
+        Backoff between checks for consistent node state.
 Command: start [options] <id>
 Starts tasks in the cluster.
   <id>

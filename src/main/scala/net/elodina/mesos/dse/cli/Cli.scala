@@ -136,6 +136,9 @@ object Cli {
     if (task.seeds != "") printLine(s"seeds: ${task.seeds}", indent + 1)
     if (task.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(task.constraints)}", indent + 1)
     if (task.seed && task.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(task.seedConstraints)}", indent + 1)
+    if (task.dataFileDirs != "") printLine(s"data file dirs: ${task.dataFileDirs}", indent + 1)
+    if (task.commitLogDir != "") printLine(s"commit log dir: ${task.commitLogDir}", indent + 1)
+    if (task.savedCachesDir != "") printLine(s"saved caches dir: ${task.savedCachesDir}", indent + 1)
 
     task.runtime.foreach(printTaskRuntime(_, indent + 1))
 
@@ -254,6 +257,22 @@ object Cli {
 
         opt[Boolean]("seed").optional().text("Flags whether this Datastax Node is a seed node.").action { (value, opts) =>
           opts.asInstanceOf[AddOptions].copy(seed = value)
+        },
+
+        opt[String]("data-file-dirs").optional().text("Cassandra data file directories separated by comma. Defaults to sandbox if not set").action { (value, opts) =>
+          opts.asInstanceOf[AddOptions].copy(dataFileDirs = value)
+        },
+
+        opt[String]("commit-log-dir").optional().text("Cassandra commit log dir. Defaults to sandbox if not set").action { (value, opts) =>
+          opts.asInstanceOf[AddOptions].copy(commitLogDir = value)
+        },
+
+        opt[String]("saved-caches-dir").optional().text("Cassandra saved caches dir. Defaults to sandbox if not set").action { (value, opts) =>
+          opts.asInstanceOf[AddOptions].copy(savedCachesDir = value)
+        },
+
+        opt[Duration]("state-backoff").optional().text("Backoff between checks for consistent node state.").action { (value, opts) =>
+          opts.asInstanceOf[AddOptions].copy(awaitConsistentStateBackoff = value)
         }
       )
     )
@@ -303,6 +322,22 @@ object Cli {
 
       opt[Boolean]("seed").optional().text("Flags whether this Datastax Node is a seed node.").action { (value, opts) =>
         opts.asInstanceOf[UpdateOptions].copy(seed = Some(value))
+      },
+
+      opt[String]("data-file-dirs").optional().text("Cassandra data file directories separated by comma. Defaults to sandbox if not set").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(dataFileDirs = Some(value))
+      },
+
+      opt[String]("commit-log-dir").optional().text("Cassandra commit log dir. Defaults to sandbox if not set").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(commitLogDir = Some(value))
+      },
+
+      opt[String]("saved-caches-dir").optional().text("Cassandra saved caches dir. Defaults to sandbox if not set").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(savedCachesDir = Some(value))
+      },
+
+      opt[Duration]("state-backoff").optional().text("Backoff between checks for consistent node state.").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(awaitConsistentStateBackoff = Some(value))
       }
     )
 

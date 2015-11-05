@@ -49,7 +49,6 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     if (started.getAndSet(true)) throw new IllegalStateException(s"${task.taskType} ${task.id} already started")
 
     logger.info(s"Starting ${task.taskType} ${task.id}")
-    System.setProperty("java.net.preferIPv4Stack", "true") //TODO maybe this should be configurable?
 
     val dseDir = DSENode.findDSEDir()
     val workDir = new File(".").getCanonicalPath
@@ -78,7 +77,6 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
           else if (leavingNodes.nonEmpty) logger.info(s"Node is live but there are leaving nodes $leavingNodes, waiting...")
           else if (operationMode != "NORMAL") logger.info(s"Node is live but its operation mode is $operationMode, waiting...")
           else {
-            //TODO should we check unreachable nodes?
             logger.info("Node jumped to normal state")
             return true
           }
@@ -89,7 +87,7 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
           logger.trace("", e)
       }
 
-      Thread.sleep(3000) //TODO configurable
+      Thread.sleep(task.awaitConsistentStateBackoff.toMillis)
     }
 
     false
@@ -119,13 +117,18 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
   }
 
   private def makeDirs(currentDir: String) {
-    makeDir(new File(s"$currentDir/${DSENode.CASSANDRA_LIB_DIR}"))
+    makeDir(new File(s"$currentDir/${DSENode.CASSANDRA_LIB_DIR}")) //TODO Cassandra/Spark lib/log dirs look unnecessary, remove them a bit later
     makeDir(new File(s"$currentDir/${DSENode.CASSANDRA_LOG_DIR}"))
     makeDir(new File(s"$currentDir/${DSENode.SPARK_LIB_DIR}"))
     makeDir(new File(s"$currentDir/${DSENode.SPARK_LOG_DIR}"))
-    makeDir(new File(s"$currentDir/${DSENode.DSE_DATA_DIR}"))
-    makeDir(new File(s"$currentDir/${DSENode.COMMIT_LOG_DIR}"))
-    makeDir(new File(s"$currentDir/${DSENode.SAVED_CACHES_DIR}"))
+
+    if (task.dataFileDirs.isEmpty) task.dataFileDirs = s"$currentDir/${DSENode.DSE_DATA_DIR}"
+    if (task.commitLogDir.isEmpty) task.commitLogDir = s"$currentDir/${DSENode.COMMIT_LOG_DIR}"
+    if (task.savedCachesDir.isEmpty) task.savedCachesDir = s"$currentDir/${DSENode.SAVED_CACHES_DIR}"
+
+    task.dataFileDirs.split(",").foreach(dir => makeDir(new File(dir)))
+    makeDir(new File(task.commitLogDir))
+    makeDir(new File(task.savedCachesDir))
   }
 
   private def makeDir(dir: File) {
@@ -139,9 +142,9 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     val cassandraYaml = mutable.Map(yaml.load(Source.fromFile(file).reader()).asInstanceOf[util.Map[String, AnyRef]].toSeq: _*)
 
     cassandraYaml.put(DSENode.CLUSTER_NAME_KEY, task.clusterName)
-    cassandraYaml.put(DSENode.DATA_FILE_DIRECTORIES_KEY, Array(s"$workDir/${DSENode.DSE_DATA_DIR}"))
-    cassandraYaml.put(DSENode.COMMIT_LOG_DIRECTORY_KEY, Array(s"$workDir/${DSENode.COMMIT_LOG_DIR}"))
-    cassandraYaml.put(DSENode.SAVED_CACHES_DIRECTORY_KEY, Array(s"$workDir/${DSENode.SAVED_CACHES_DIR}"))
+    cassandraYaml.put(DSENode.DATA_FILE_DIRECTORIES_KEY, task.dataFileDirs.split(","))
+    cassandraYaml.put(DSENode.COMMIT_LOG_DIRECTORY_KEY, Array(task.commitLogDir))
+    cassandraYaml.put(DSENode.SAVED_CACHES_DIRECTORY_KEY, Array(task.savedCachesDir))
     cassandraYaml.put(DSENode.LISTEN_ADDRESS_KEY, hostname)
     cassandraYaml.put(DSENode.RPC_ADDRESS_KEY, hostname)
 

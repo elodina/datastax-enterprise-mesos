@@ -161,6 +161,10 @@ object HttpServer {
               opts.nodeOut.foreach(task.nodeOut = _)
               opts.clusterName.foreach(task.clusterName = _)
               opts.seed.foreach(task.seed = _)
+              opts.dataFileDirs.foreach(task.dataFileDirs = _)
+              opts.commitLogDir.foreach(task.commitLogDir = _)
+              opts.savedCachesDir.foreach(task.savedCachesDir = _)
+              opts.awaitConsistentStateBackoff.foreach(task.awaitConsistentStateBackoff = _)
 
               logger.info(s"Updated task $id")
               Some(task)

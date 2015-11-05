@@ -29,8 +29,8 @@ import play.api.libs.json._
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
+import scala.concurrent.duration._
 import scala.language.postfixOps
-
 
 object TaskTypes {
   final val CASSANDRA_NODE: String = "cassandra-node"
@@ -49,6 +49,11 @@ trait DSETask extends Task with Constrained {
   var seeds: String = ""
   val constraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
   val seedConstraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
+
+  var dataFileDirs: String = ""
+  var commitLogDir: String = ""
+  var savedCachesDir: String = ""
+  var awaitConsistentStateBackoff: Duration = 3 seconds
 
   override def attribute(name: String): Option[String] = {
     if (name == "hostname") runtime.map(_.hostname)
@@ -117,6 +122,10 @@ object DSETask {
     task.agentOut = opts.agentOut
     task.clusterName = opts.clusterName
     task.seed = opts.seed
+    task.dataFileDirs = opts.dataFileDirs
+    task.commitLogDir = opts.commitLogDir
+    task.savedCachesDir = opts.savedCachesDir
+    task.awaitConsistentStateBackoff = opts.awaitConsistentStateBackoff
 
     task
   }
@@ -165,6 +174,7 @@ case class CassandraNodeTask(id: String) extends DSETask {
 object CassandraNodeTask {
 
   import DSETask._
+  import net.elodina.mesos.dse.cli.DurationFormats.formats
 
   implicit val reader = (
     (__ \ 'id).read[String] and
@@ -179,8 +189,13 @@ object CassandraNodeTask {
     (__ \ 'seed).read[Boolean] and
     (__ \ 'seeds).read[String] and
     (__ \ 'constraints).read[String].map(Constraint.parse) and
-    (__ \ 'seedConstraints).read[String].map(Constraint.parse))((id, state, runtime, cpu, mem, broadcast,
-      nodeOut, agentOut, clusterName, seed, seeds, constraints, seedConstraints) => {
+    (__ \ 'seedConstraints).read[String].map(Constraint.parse) and
+    (__ \ 'dataFileDirs).read[String] and
+    (__ \ 'commitLogDir).read[String] and
+    (__ \ 'savedCachesDir).read[String] and
+    (__ \ 'awaitConsistentStateBackoff).read[Duration])((id, state, runtime, cpu, mem, broadcast,
+      nodeOut, agentOut, clusterName, seed, seeds, constraints, seedConstraints,
+      dataFileDirs, commitLogDir, savedCachesDir, stateBackoff) => {
 
     val task = CassandraNodeTask(id)
     task.state = state
@@ -195,6 +210,10 @@ object CassandraNodeTask {
     task.seeds = seeds
     constraints.foreach(task.constraints +=)
     seedConstraints.foreach(task.seedConstraints +=)
+    task.dataFileDirs = dataFileDirs
+    task.commitLogDir = commitLogDir
+    task.savedCachesDir = savedCachesDir
+    task.awaitConsistentStateBackoff = stateBackoff
 
     task
   })
@@ -215,7 +234,11 @@ object CassandraNodeTask {
         "seed" -> o.seed,
         "seeds" -> o.seeds,
         "constraints" -> Util.formatConstraints(o.constraints),
-        "seedConstraints" -> Util.formatConstraints(o.seedConstraints)
+        "seedConstraints" -> Util.formatConstraints(o.seedConstraints),
+        "dataFileDirs" -> o.dataFileDirs,
+        "commitLogDir" -> o.commitLogDir,
+        "savedCachesDir" -> o.savedCachesDir,
+        "awaitConsistentStateBackoff" -> Json.toJson(o.awaitConsistentStateBackoff)
       )
     }
   }
