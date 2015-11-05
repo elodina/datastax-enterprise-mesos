@@ -153,12 +153,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
           }
 
           val reason = filteredTasks.flatMap { task =>
-            val constraintDeclineReason = task.seed match {
-              case true => checkConstraintsWith(offer, task, _.seedConstraints, name => tasks.filter(_.seed).flatMap(_.attribute(name)))
-              case false => checkConstraints(offer, task)
-            }
-
-            constraintDeclineReason.orElse(task.matches(offer)) match {
+            checkSeedConstraints(offer, task).orElse(checkConstraints(offer, task)).orElse(task.matches(offer)) match {
               case Some(declineReason) => Some(s"task ${task.id}: $declineReason")
               case None =>
                 launchTask(task, offer)
@@ -169,6 +164,11 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
           if (reason.isEmpty) None else Some(reason)
         }
     }
+  }
+
+  private def checkSeedConstraints(offer: Offer, task: DSETask): Option[String] = {
+    if (task.seed) checkConstraintsWith(offer, task, _.seedConstraints, name => tasks.filter(_.seed).flatMap(_.attribute(name)).toList)
+    else None
   }
 
   private def launchTask(task: DSETask, offer: Offer) {

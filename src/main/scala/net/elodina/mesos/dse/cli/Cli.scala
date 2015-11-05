@@ -286,7 +286,7 @@ object Cli {
       },
 
       opt[String]("seed-constraints").optional().text("Seed node constraints. Will be evaluated only across seed nodes.").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(constraints = Some(value))
+        opts.asInstanceOf[UpdateOptions].copy(seedConstraints = Some(value))
       },
 
       opt[String]("node-out").optional().text("File name to redirect Datastax Node output to.").action { (value, opts) =>
