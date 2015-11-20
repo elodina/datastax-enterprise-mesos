@@ -39,7 +39,7 @@ object Config {
 
   var api: String = null
 
-  var storage: String = "file:datastax.json"
+  var storage: String = "file:dse-mesos.json"
 
   var frameworkName: String = "datastax-enterprise"
   var frameworkRole: String = "*"

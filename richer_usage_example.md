@@ -8,7 +8,7 @@ In terminal 1:
 
 ```
     # export DM_API=http://master:6666
-    # ./dse-mesos.sh scheduler --master master:5050 --storage zk:master:2181/datastax-mesos
+    # ./dse-mesos.sh scheduler --master master:5050 --storage zk:master:2181/dse-mesos
 ```
 
 In terminal 2:

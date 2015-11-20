@@ -62,7 +62,7 @@ Starts the Datastax Enterprise Mesos Scheduler.
   --framework-timeout <value>
         Framework failover timeout. Defaults to 30 days.
   --storage <value>
-        Storage for cluster state. Examples: file:datastax.json; zk:master:2181/datastax-mesos.
+        Storage for cluster state. Examples: file:dse-mesos.json; zk:master:2181/dse-mesos.
   --debug <value>
         Run in debug mode.
 ```
@@ -221,7 +221,7 @@ Starts the Datastax Enterprise Mesos Scheduler.
   --framework-timeout <value>
         Framework failover timeout. Defaults to 30 days.
   --storage <value>
-        Storage for cluster state. Examples: file:datastax.json; zk:master:2181/datastax-mesos.
+        Storage for cluster state. Examples: file:dse-mesos.json; zk:master:2181/dse-mesos.
   --debug <value>
         Run in debug mode.
 Command: add <task-type>
