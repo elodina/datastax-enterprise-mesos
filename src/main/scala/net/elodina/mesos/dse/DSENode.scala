@@ -35,7 +35,6 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.io.Source
 import scala.language.postfixOps
-import scala.sys.process.{Process, ProcessBuilder}
 
 case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, hostname: String) {
   private val logger = Logger.getLogger(this.getClass)
@@ -47,15 +46,27 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
 
   def start() {
     if (started.getAndSet(true)) throw new IllegalStateException(s"${task.taskType} ${task.id} already started")
-
     logger.info(s"Starting ${task.taskType} ${task.id}")
 
     val dseDir = DSENode.findDSEDir()
-    val workDir = new File(".").getCanonicalPath
-    makeDirs(workDir)
-    editCassandraYaml(workDir, s"$workDir/$dseDir/${DSENode.CASSANDRA_YAML_LOCATION}")
+    val workDir = new File(".")
+    makeDseDirs(workDir)
+    editCassandraYaml(new File(dseDir, DSENode.CASSANDRA_YAML_LOCATION))
 
-    process = configureProcess(dseDir, task.nodeOut).run()
+    process = startProcess(task, dseDir)
+  }
+
+  private def startProcess(task: DSETask, dseDir: File): Process = {
+    val cmd = util.Arrays.asList("" + new File(dseDir, DSENode.DSE_CMD), "cassandra", "-f")
+
+    val builder: ProcessBuilder = new ProcessBuilder(cmd)
+      .redirectOutput(new File(task.nodeOut))
+      .redirectError(new File(task.nodeOut))
+
+    if (task.replaceAddress != "")
+      builder.environment().put("JVM_OPTS", s"-Dcassandra.replace_address=${task.replaceAddress}")
+
+    builder.start()
   }
 
   def awaitConsistentState(): Boolean = {
@@ -95,7 +106,7 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
 
   def await(): Int = {
     try {
-      process.exitValue()
+      process.waitFor()
     } catch {
       case e: RuntimeException =>
         this.synchronized {
@@ -116,15 +127,15 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     }
   }
 
-  private def makeDirs(currentDir: String) {
-    makeDir(new File(s"$currentDir/${DSENode.CASSANDRA_LIB_DIR}")) //TODO Cassandra/Spark lib/log dirs look unnecessary, remove them a bit later
-    makeDir(new File(s"$currentDir/${DSENode.CASSANDRA_LOG_DIR}"))
-    makeDir(new File(s"$currentDir/${DSENode.SPARK_LIB_DIR}"))
-    makeDir(new File(s"$currentDir/${DSENode.SPARK_LOG_DIR}"))
+  private def makeDseDirs(currentDir: File) {
+    makeDir(new File(currentDir, DSENode.CASSANDRA_LIB_DIR)) //TODO Cassandra/Spark lib/log dirs look unnecessary, remove them a bit later
+    makeDir(new File(currentDir, DSENode.CASSANDRA_LOG_DIR))
+    makeDir(new File(currentDir, DSENode.SPARK_LIB_DIR))
+    makeDir(new File(currentDir, DSENode.SPARK_LOG_DIR))
 
-    if (task.dataFileDirs.isEmpty) task.dataFileDirs = s"$currentDir/${DSENode.DSE_DATA_DIR}"
-    if (task.commitLogDir.isEmpty) task.commitLogDir = s"$currentDir/${DSENode.COMMIT_LOG_DIR}"
-    if (task.savedCachesDir.isEmpty) task.savedCachesDir = s"$currentDir/${DSENode.SAVED_CACHES_DIR}"
+    if (task.dataFileDirs.isEmpty) task.dataFileDirs = "" + new File(currentDir, DSENode.DSE_DATA_DIR)
+    if (task.commitLogDir.isEmpty) task.commitLogDir = "" + new File(currentDir, DSENode.COMMIT_LOG_DIR)
+    if (task.savedCachesDir.isEmpty) task.savedCachesDir = "" + new File(currentDir, DSENode.SAVED_CACHES_DIR)
 
     task.dataFileDirs.split(",").foreach(dir => makeDir(new File(dir)))
     makeDir(new File(task.commitLogDir))
@@ -137,7 +148,7 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     Files.getFileAttributeView(dir.toPath, classOf[PosixFileAttributeView], LinkOption.NOFOLLOW_LINKS).setOwner(userPrincipal)
   }
 
-  private def editCassandraYaml(workDir: String, file: String) {
+  private def editCassandraYaml(file: File) {
     val yaml = new Yaml()
     val cassandraYaml = mutable.Map(yaml.load(Source.fromFile(file).reader()).asInstanceOf[util.Map[String, AnyRef]].toSeq: _*)
 
@@ -183,10 +194,6 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
       }
     }
   }
-
-  private def configureProcess(dseDir: String, outputTo: String): ProcessBuilder = {
-    Process(s"$dseDir/${DSENode.DSE_CMD}", Seq("cassandra", "-f")) #> new File(outputTo)
-  }
 }
 
 object DSENode {
@@ -216,9 +223,10 @@ object DSENode {
   final private val DSE_CMD = "bin/dse"
   final private[dse] val DSE_AGENT_CMD = "datastax-agent/bin/datastax-agent"
 
-  private[dse] def findDSEDir(): String = {
+  private[dse] def findDSEDir(): File = {
     for (file <- new File(".").listFiles()) {
-      if (file.getName.matches(Config.dseDirMask) && file.isDirectory && file.getName != DSENode.DSE_DATA_DIR) return file.getName
+      if (file.isDirectory && file.getName.matches(Config.dseDirMask) && file.getName != DSENode.DSE_DATA_DIR)
+        return file
     }
 
     throw new FileNotFoundException(s"${Config.dseDirMask} not found in current directory")

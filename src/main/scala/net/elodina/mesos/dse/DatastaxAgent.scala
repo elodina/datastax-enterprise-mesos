@@ -22,8 +22,7 @@ import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
 
 import org.apache.log4j.Logger
-
-import scala.sys.process.Process
+import java.util
 
 case class DatastaxAgent(task: DSETask) {
   private val logger = Logger.getLogger(this.getClass)
@@ -34,17 +33,25 @@ case class DatastaxAgent(task: DSETask) {
   private var process: Process = null
 
   def start() {
-    if (started.getAndSet(true)) throw new IllegalStateException(s"Datastax Agent already started")
-
+    if (started.getAndSet(true)) throw new IllegalStateException("Datastax Agent already started")
     logger.info("Starting Datastax Agent")
 
-    val dseDir = DSENode.findDSEDir()
-    process = (Process(s"$dseDir/${DSENode.DSE_AGENT_CMD}", Seq("-f")) #> new File(task.agentOut)).run()
+    process = startProcess(task, DSENode.findDSEDir())
+  }
+
+  private def startProcess(task: DSETask, dseDir: File): Process = {
+    val cmd = util.Arrays.asList("" + new File(dseDir, DSENode.DSE_AGENT_CMD), "-f")
+
+    val builder: ProcessBuilder = new ProcessBuilder(cmd)
+      .redirectOutput(new File(task.agentOut))
+      .redirectError(new File(task.agentOut))
+
+    builder.start()
   }
 
   def await(): Int = {
     try {
-      process.exitValue()
+      process.waitFor()
     } catch {
       case e: RuntimeException =>
         this.synchronized {
@@ -57,7 +64,7 @@ case class DatastaxAgent(task: DSETask) {
   def stop() {
     this.synchronized {
       if (!stopped) {
-        logger.info(s"Stopping Datastax Agent")
+        logger.info("Stopping Datastax Agent")
 
         stopped = true
         process.destroy()
