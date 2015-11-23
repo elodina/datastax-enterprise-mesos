@@ -197,7 +197,9 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
 
   private def onTaskStarted(taskOpt: Option[DSETask], driver: SchedulerDriver, status: TaskStatus) {
     taskOpt match {
-      case Some(task) => task.state = State.Running
+      case Some(task) =>
+        task.state = State.Running
+        task.replaceAddress = ""
       case None =>
         logger.info(s"Got ${status.getState} for unknown/stopped task, killing task ${status.getTaskId.getValue}")
         driver.killTask(status.getTaskId)

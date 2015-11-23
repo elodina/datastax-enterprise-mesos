@@ -46,7 +46,7 @@ case class SchedulerOptions(api: String = "", master: String = "", user: String 
 case class AddOptions(taskType: String = "", id: String = "", api: String = "", cpu: Double = 2, mem: Long = 8192,
                       broadcast: String = "", constraints: String = "", seedConstraints: String = "",
                       nodeOut: String = "cassandra-node.log", agentOut: String = "datastax-agent.log",
-                      clusterName: String = "Test Cluster", seed: Boolean = false,
+                      clusterName: String = "Test Cluster", seed: Boolean = false, replaceAddress: String = "",
                       dataFileDirs: String = "", commitLogDir: String = "", savedCachesDir: String = "",
                       awaitConsistentStateBackoff: Duration = 3 seconds) extends Options
 
@@ -59,7 +59,7 @@ case class UpdateOptions(id: String = "", api: String = "", cpu: Option[Double] 
                          broadcast: Option[String] = None, constraints: Option[String] = None,
                          seedConstraints: Option[String] = None, nodeOut: Option[String] = None,
                          agentOut: Option[String] = None, clusterName: Option[String] = None,
-                         seed: Option[Boolean] = None, dataFileDirs: Option[String] = None,
+                         seed: Option[Boolean] = None, replaceAddress: Option[String] = None, dataFileDirs: Option[String] = None,
                          commitLogDir: Option[String] = None, savedCachesDir: Option[String] = None,
                          awaitConsistentStateBackoff: Option[Duration] = None) extends Options
 

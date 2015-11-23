@@ -86,9 +86,11 @@ object Executor extends org.apache.mesos.Executor {
         Future.firstCompletedOf(Seq(Future(node.await()), Future(agent.await()))).onComplete { result =>
           result match {
             case Success(exitCode) =>
-              if (exitCode == 0 && (node.stopped || agent.stopped)) {
+              if ((exitCode == 0 || exitCode == 143) && (node.stopped || agent.stopped))
                 driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FINISHED).build)
-              } else driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FAILED).build)
+              else
+                driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FAILED).setMessage(s"exitCode=$exitCode").build)
+
               node.stop()
               agent.stop()
             case Failure(ex) =>

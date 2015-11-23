@@ -46,6 +46,7 @@ trait DSETask extends Task with Constrained {
   var agentOut: String = ""
   var clusterName: String = ""
   var seed: Boolean = false
+  var replaceAddress: String = ""
   var seeds: String = ""
   val constraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
   val seedConstraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
@@ -122,6 +123,7 @@ object DSETask {
     task.agentOut = opts.agentOut
     task.clusterName = opts.clusterName
     task.seed = opts.seed
+    task.replaceAddress = opts.replaceAddress
     task.dataFileDirs = opts.dataFileDirs
     task.commitLogDir = opts.commitLogDir
     task.savedCachesDir = opts.savedCachesDir
@@ -188,13 +190,14 @@ object CassandraNodeTask {
     (__ \ 'clusterName).read[String] and
     (__ \ 'seed).read[Boolean] and
     (__ \ 'seeds).read[String] and
+    (__ \ 'replaceAddress).read[String] and
     (__ \ 'constraints).read[String].map(Constraint.parse) and
     (__ \ 'seedConstraints).read[String].map(Constraint.parse) and
     (__ \ 'dataFileDirs).read[String] and
     (__ \ 'commitLogDir).read[String] and
     (__ \ 'savedCachesDir).read[String] and
     (__ \ 'awaitConsistentStateBackoff).read[Duration])((id, state, runtime, cpu, mem, broadcast,
-      nodeOut, agentOut, clusterName, seed, seeds, constraints, seedConstraints,
+      nodeOut, agentOut, clusterName, seed, seeds, replaceAddress, constraints, seedConstraints,
       dataFileDirs, commitLogDir, savedCachesDir, stateBackoff) => {
 
     val task = CassandraNodeTask(id)
@@ -208,6 +211,7 @@ object CassandraNodeTask {
     task.clusterName = clusterName
     task.seed = seed
     task.seeds = seeds
+    task.replaceAddress = replaceAddress
     constraints.foreach(task.constraints +=)
     seedConstraints.foreach(task.seedConstraints +=)
     task.dataFileDirs = dataFileDirs
@@ -233,6 +237,7 @@ object CassandraNodeTask {
         "clusterName" -> o.clusterName,
         "seed" -> o.seed,
         "seeds" -> o.seeds,
+        "replaceAddress" -> o.replaceAddress,
         "constraints" -> Util.formatConstraints(o.constraints),
         "seedConstraints" -> Util.formatConstraints(o.seedConstraints),
         "dataFileDirs" -> o.dataFileDirs,
