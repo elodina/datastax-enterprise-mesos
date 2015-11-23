@@ -198,7 +198,7 @@ object Cli {
         config.asInstanceOf[SchedulerOptions].copy(frameworkTimeout = value)
       },
 
-      opt[String]("storage").optional().text("Storage for cluster state. Examples: file:datastax.json; zk:master:2181/datastax-mesos.").action { (value, config) =>
+      opt[String]("storage").optional().text("Storage for cluster state. Examples: file:dse-mesos.json; zk:master:2181/dse-mesos.").action { (value, config) =>
         config.asInstanceOf[SchedulerOptions].copy(storage = value)
       },
 
