@@ -105,15 +105,7 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
   }
 
   def await(): Int = {
-    try {
-      process.waitFor()
-    } catch {
-      case e: RuntimeException =>
-        this.synchronized {
-          if (stopped && e.getMessage == "No exit code: process destroyed.") 0
-          else throw e
-        }
-    }
+    process.waitFor()
   }
 
   def stop() {

@@ -50,15 +50,7 @@ case class DatastaxAgent(task: DSETask) {
   }
 
   def await(): Int = {
-    try {
-      process.waitFor()
-    } catch {
-      case e: RuntimeException =>
-        this.synchronized {
-          if (stopped && e.getMessage == "No exit code: process destroyed.") 0
-          else throw e
-        }
-    }
+    process.waitFor()
   }
 
   def stop() {
