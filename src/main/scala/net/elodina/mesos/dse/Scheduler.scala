@@ -68,8 +68,24 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     sys.exit(status)
   }
 
+  def assertVersion(masterInfo: MasterInfo, minSupportedVersion: String = "0.23.0")(onUnsupportedVersion: => Unit): Unit = {
+    val version = masterInfo.getVersion
+
+    def versionNumber(ver: String): Int = {
+      val parts = ver.split('.')
+      parts(0).toInt * 1000000 + parts(1).toInt * 1000 + parts(2).toInt
+    }
+
+    if (version.isEmpty || versionNumber(minSupportedVersion) > versionNumber(version)) {
+      logger.fatal(s"""Minimum supported Mesos version is "$minSupportedVersion", whereas current version is "$version"""")
+      onUnsupportedVersion
+    }
+  }
+
   override def registered(driver: SchedulerDriver, id: FrameworkID, master: MasterInfo) {
     logger.info("[registered] framework:" + Pretty.id(id.getValue) + " master:" + Pretty.master(master))
+
+    assertVersion(master) { driver.stop() }
 
     cluster.frameworkId = Some(id.getValue)
     cluster.save()
