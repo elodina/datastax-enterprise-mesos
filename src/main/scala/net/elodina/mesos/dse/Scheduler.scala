@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit
 
 import _root_.net.elodina.mesos.utils.constraints.Constraints
 import _root_.net.elodina.mesos.utils.{Pretty, Reconciliation, State, TaskRuntime}
+import com.google.protobuf.ByteString
 import org.apache.log4j._
 import org.apache.mesos.Protos._
 import org.apache.mesos.{MesosSchedulerDriver, SchedulerDriver}
@@ -52,11 +53,26 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     val frameworkBuilder = FrameworkInfo.newBuilder()
     frameworkBuilder.setUser(Config.user)
     cluster.frameworkId.foreach(id => frameworkBuilder.setId(FrameworkID.newBuilder().setValue(id)))
+    frameworkBuilder.setRole(Config.frameworkRole)
+
     frameworkBuilder.setName(Config.frameworkName)
     frameworkBuilder.setFailoverTimeout(Config.frameworkTimeout.toUnit(TimeUnit.SECONDS))
     frameworkBuilder.setCheckpoint(true)
 
-    val driver = new MesosSchedulerDriver(this, frameworkBuilder.build, Config.master)
+    var credsBuilder: Credential.Builder = null
+    if (Config.principal != null && Config.secret != null) {
+      frameworkBuilder.setPrincipal(Config.principal)
+
+      credsBuilder = Credential.newBuilder()
+        .setPrincipal(Config.principal)
+        .setSecret(ByteString.copyFromUtf8(Config.secret))
+    }
+
+    val driver = if (credsBuilder == null) {
+      new MesosSchedulerDriver(this, frameworkBuilder.build, Config.master)
+    } else {
+      new MesosSchedulerDriver(this, frameworkBuilder.build, Config.master, credsBuilder.build())
+    }
 
     Runtime.getRuntime.addShutdownHook(new Thread() {
       override def run() {

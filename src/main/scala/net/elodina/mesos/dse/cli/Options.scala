@@ -39,9 +39,12 @@ object NoOptions extends Options {
   val api = ""
 }
 
-case class SchedulerOptions(api: String = "", master: String = "", user: String = "", frameworkRole: String = "*",
-                            frameworkName: String = "datastax-enterprise", frameworkTimeout: Duration = 30 days,
-                            storage: String = "file:dse-mesos.json", debug: Boolean = false) extends Options
+case class SchedulerOptions(api: String = "",
+                            master: String = "", user: String = "",
+                            principal: String = "", secret: String = "",
+                            frameworkRole: String = "*", frameworkName: String = "datastax-enterprise", frameworkTimeout: Duration = 30 days,
+                            storage: String = "file:dse-mesos.json",
+                            debug: Boolean = false) extends Options
 
 case class AddOptions(taskType: String = "", id: String = "", api: String = "", cpu: Double = 2, mem: Long = 8192,
                       broadcast: String = "", constraints: String = "", seedConstraints: String = "",

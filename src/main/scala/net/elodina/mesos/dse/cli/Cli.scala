@@ -46,6 +46,8 @@ object Cli {
 
     Config.master = config.master
     Config.user = config.user
+    Config.principal = if (config.principal.isEmpty) null else config.principal
+    Config.secret = if (config.secret.isEmpty) null else config.secret
     Config.frameworkName = config.frameworkName
     Config.frameworkRole = config.frameworkRole
     Config.frameworkTimeout = config.frameworkTimeout
@@ -185,6 +187,14 @@ object Cli {
 
       opt[String]("user").optional().text("Mesos user. Defaults to current system user.").action { (value, config) =>
         config.asInstanceOf[SchedulerOptions].copy(user = value)
+      },
+
+      opt[String]("principal").optional().text("Principal (username) used to register framework.").action { (value, config) =>
+        config.asInstanceOf[SchedulerOptions].copy(principal = value)
+      },
+
+      opt[String]("secret").optional().text("Secret (password) used to register framework.").action { (value, config) =>
+        config.asInstanceOf[SchedulerOptions].copy(secret = value)
       },
 
       opt[String]("framework-name").optional().text("Framework name. Defaults to datastax-enterprise").action { (value, config) =>
