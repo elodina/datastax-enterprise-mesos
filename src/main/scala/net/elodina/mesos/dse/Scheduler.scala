@@ -306,12 +306,10 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     for (file <- new File(".").listFiles()) {
       if (file.getName.matches(Config.jarMask)) Config.jar = file
       if (file.getName.matches(Config.dseMask)) Config.dse = file
-      if (file.getName.matches(Config.jreMask) && !file.isDirectory) Config.jre = file
     }
 
     if (Config.jar == null) throw new IllegalStateException(Config.jarMask + " not found in current dir")
     if (Config.dse == null) throw new IllegalStateException(Config.dseMask + " not found in in current dir")
-    if (Config.jre == null) throw new IllegalStateException(Config.jreMask + " not found in in current dir")
   }
 
   private def initLogging() {

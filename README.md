@@ -71,6 +71,8 @@ Starts the Datastax Enterprise Mesos Scheduler.
         Storage for cluster state. Examples: file:dse-mesos.json; zk:master:2181/dse-mesos.
   --debug <value>
         Run in debug mode.
+  --jre <value>
+	Path to JRE archive.
 ```
     
 Quick start
