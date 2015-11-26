@@ -68,11 +68,8 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
         .setSecret(ByteString.copyFromUtf8(Config.secret))
     }
 
-    val driver = if (credsBuilder == null) {
-      new MesosSchedulerDriver(this, frameworkBuilder.build, Config.master)
-    } else {
-      new MesosSchedulerDriver(this, frameworkBuilder.build, Config.master, credsBuilder.build())
-    }
+    val driver = if (credsBuilder == null) new MesosSchedulerDriver(this, frameworkBuilder.build, Config.master)
+    else new MesosSchedulerDriver(this, frameworkBuilder.build, Config.master, credsBuilder.build())
 
     Runtime.getRuntime.addShutdownHook(new Thread() {
       override def run() {
