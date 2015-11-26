@@ -72,8 +72,11 @@ object Executor extends org.apache.mesos.Executor {
       override def run() {
         setName(task.taskType)
 
-        node = DSENode(task, driver, taskInfo, hostname)
-        agent = DatastaxAgent(task)
+        var envVars = Map[String, String]()
+        findJreDir().foreach { envVars += "JAVA_HOME" -> _ }
+
+        node = DSENode(task, driver, taskInfo, hostname, envVars)
+        agent = DatastaxAgent(task, envVars)
 
         node.start()
         agent.start()
@@ -146,5 +149,14 @@ object Executor extends org.apache.mesos.Executor {
 
     val layout = new PatternLayout("%d [%t] %-5p %c %x - %m%n")
     root.addAppender(new ConsoleAppender(layout))
+  }
+
+  private[dse] def findJreDir(): Option[String] = {
+    for (file <- new java.io.File(System.getProperty("user.dir")).listFiles()) {
+      if (file.isDirectory && file.getName.matches(Config.jreMask))
+        return Some(file.getCanonicalPath)
+    }
+
+    None
   }
 }
