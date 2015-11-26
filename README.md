@@ -57,6 +57,10 @@ Starts the Datastax Enterprise Mesos Scheduler.
         Mesos Master addresses.
   --user <value>
         Mesos user. Defaults to current system user.
+  --principal <value>
+        Principal (username) used to register framework.
+  --secret <value>
+        Secret (password) used to register framework.
   --framework-name <value>
         Framework name. Defaults to datastax-enterprise
   --framework-role <value>
