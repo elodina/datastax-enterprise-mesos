@@ -83,6 +83,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
 
   override def registered(driver: SchedulerDriver, id: FrameworkID, master: MasterInfo) {
     logger.info("[registered] framework:" + Pretty.id(id.getValue) + " master:" + Pretty.master(master))
+    checkMesosVersion(master, driver)
 
     cluster.frameworkId = Some(id.getValue)
     cluster.save()
@@ -265,6 +266,22 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
       case None =>
         logger.warn(s"Task $id is already removed")
         None
+    }
+  }
+
+  private def checkMesosVersion(master: MasterInfo, driver: SchedulerDriver): Unit = {
+    val minVersion = "0.23.0"
+    val version = master.getVersion
+
+    def versionNumber(ver: String): Int = {
+      val parts = ver.split('.')
+      parts(0).toInt * 1000000 + parts(1).toInt * 1000 + parts(2).toInt
+    }
+
+    if (version.isEmpty || versionNumber(version) < versionNumber(minVersion)) {
+      val versionStr = if (version.isEmpty) "< \"0.23.0\"" else "\"" + version + "\""
+      logger.fatal(s"""Minimum supported Mesos version is "$minVersion", whereas current version is $versionStr. Stopping Scheduler""")
+      driver.stop
     }
   }
 

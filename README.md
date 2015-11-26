@@ -29,6 +29,8 @@ Installation
 Prerequisites
 -------------
 
+Minimum supported Mesos version is 0.23.0
+
 Clone and build the project
 
     # git clone https://github.com/elodina/datastax-enterprise-mesos
