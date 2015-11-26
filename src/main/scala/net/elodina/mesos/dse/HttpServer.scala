@@ -161,6 +161,7 @@ object HttpServer {
               opts.nodeOut.foreach(task.nodeOut = _)
               opts.clusterName.foreach(task.clusterName = _)
               opts.seed.foreach(task.seed = _)
+              opts.replaceAddress.foreach(task.replaceAddress = _)
               opts.dataFileDirs.foreach(task.dataFileDirs = _)
               opts.commitLogDir.foreach(task.commitLogDir = _)
               opts.savedCachesDir.foreach(task.savedCachesDir = _)

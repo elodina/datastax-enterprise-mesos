@@ -46,6 +46,8 @@ object Cli {
 
     Config.master = config.master
     Config.user = config.user
+    Config.principal = if (config.principal.isEmpty) null else config.principal
+    Config.secret = if (config.secret.isEmpty) null else config.secret
     Config.frameworkName = config.frameworkName
     Config.frameworkRole = config.frameworkRole
     Config.frameworkTimeout = config.frameworkTimeout
@@ -134,6 +136,7 @@ object Cli {
     printLine(s"cluster name: ${task.clusterName}", indent + 1)
     printLine(s"seed: ${task.seed}", indent + 1)
     if (task.seeds != "") printLine(s"seeds: ${task.seeds}", indent + 1)
+    if (task.replaceAddress != "") printLine(s"replace-address: ${task.replaceAddress}", indent + 1)
     if (task.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(task.constraints)}", indent + 1)
     if (task.seed && task.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(task.seedConstraints)}", indent + 1)
     if (task.dataFileDirs != "") printLine(s"data file dirs: ${task.dataFileDirs}", indent + 1)
@@ -184,6 +187,14 @@ object Cli {
 
       opt[String]("user").optional().text("Mesos user. Defaults to current system user.").action { (value, config) =>
         config.asInstanceOf[SchedulerOptions].copy(user = value)
+      },
+
+      opt[String]("principal").optional().text("Principal (username) used to register framework.").action { (value, config) =>
+        config.asInstanceOf[SchedulerOptions].copy(principal = value)
+      },
+
+      opt[String]("secret").optional().text("Secret (password) used to register framework.").action { (value, config) =>
+        config.asInstanceOf[SchedulerOptions].copy(secret = value)
       },
 
       opt[String]("framework-name").optional().text("Framework name. Defaults to datastax-enterprise").action { (value, config) =>
@@ -259,6 +270,10 @@ object Cli {
           opts.asInstanceOf[AddOptions].copy(seed = value)
         },
 
+        opt[String]("replace-address").optional().text("Replace address for the dead Datastax Node").action { (value, opts) =>
+          opts.asInstanceOf[AddOptions].copy(replaceAddress = value)
+        },
+
         opt[String]("data-file-dirs").optional().text("Cassandra data file directories separated by comma. Defaults to sandbox if not set").action { (value, opts) =>
           opts.asInstanceOf[AddOptions].copy(dataFileDirs = value)
         },
@@ -322,6 +337,10 @@ object Cli {
 
       opt[Boolean]("seed").optional().text("Flags whether this Datastax Node is a seed node.").action { (value, opts) =>
         opts.asInstanceOf[UpdateOptions].copy(seed = Some(value))
+      },
+
+      opt[String]("replace-address").optional().text("Replace address for the dead Datastax Node").action { (value, opts) =>
+        opts.asInstanceOf[UpdateOptions].copy(replaceAddress = Some(value))
       },
 
       opt[String]("data-file-dirs").optional().text("Cassandra data file directories separated by comma. Defaults to sandbox if not set").action { (value, opts) =>
