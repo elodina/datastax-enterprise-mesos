@@ -25,7 +25,7 @@ import scala.collection.JavaConversions._
 import org.apache.log4j.Logger
 import java.util
 
-case class DatastaxAgent(task: DSETask, envVars: Map[String, String] = Map.empty) {
+case class DatastaxAgent(task: DSETask, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
 
   private val started = new AtomicBoolean(false)
@@ -47,8 +47,7 @@ case class DatastaxAgent(task: DSETask, envVars: Map[String, String] = Map.empty
       .redirectOutput(new File(task.agentOut))
       .redirectError(new File(task.agentOut))
 
-    builder.environment().putAll(envVars)
-
+    builder.environment().putAll(env)
     builder.start()
   }
 

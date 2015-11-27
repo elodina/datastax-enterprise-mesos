@@ -66,6 +66,7 @@ object Config {
        |Framework Name:    $frameworkName
        |Framework Role:    $frameworkRole
        |Framework Timeout: $frameworkTimeout
+       |JRE:               ${if (jre != null) jre else "<pre-installed>"}
     """.stripMargin
   }
 }

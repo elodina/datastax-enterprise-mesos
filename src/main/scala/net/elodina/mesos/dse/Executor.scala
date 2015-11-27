@@ -72,11 +72,11 @@ object Executor extends org.apache.mesos.Executor {
       override def run() {
         setName(task.taskType)
 
-        var envVars = Map[String, String]()
-        findJreDir().foreach { envVars += "JAVA_HOME" -> _ }
+        var env = Map[String, String]()
+        findJreDir().foreach { env += "JAVA_HOME" -> _ }
 
-        node = DSENode(task, driver, taskInfo, hostname, envVars)
-        agent = DatastaxAgent(task, envVars)
+        node = DSENode(task, driver, taskInfo, hostname, env)
+        agent = DatastaxAgent(task, env)
 
         node.start()
         agent.start()

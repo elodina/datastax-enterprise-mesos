@@ -94,12 +94,10 @@ trait DSETask extends Task with Constrained {
   private def createExecutorInfo(name: String): ExecutorInfo = {
     var java = "java"
     val commandBuilder = CommandInfo.newBuilder()
-    commandBuilder
-      .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/dse/" + Config.dse.getName).setExtract(true))
+      .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/dse/" + Config.dse.getName))
 
     if (Config.jre != null) {
-      commandBuilder
-	.addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/jre/" + Config.jre.getName).setExtract(true))
+      commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/jre/" + Config.jre.getName))
       java = "$(find jre* -maxdepth 0 -type d)/bin/java"
     }
 
