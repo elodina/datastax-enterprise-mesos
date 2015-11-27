@@ -1,6 +1,6 @@
 package net.elodina.mesos.dse.cli
 
-import java.io.{IOException, PrintStream}
+import java.io.{File, IOException, PrintStream}
 import java.net.{HttpURLConnection, URL}
 
 import net.elodina.mesos.dse._
@@ -53,6 +53,12 @@ object Cli {
     Config.frameworkTimeout = config.frameworkTimeout
     Config.storage = config.storage
     Config.debug = config.debug
+
+    if (!config.jre.isEmpty) {
+      Config.jre = new File(config.jre)
+      if (!Config.jre.exists()) throw new IllegalStateException("JRE file doesn't exists")
+      if (!Config.jre.isFile()) throw new IllegalStateException("JRE isn't a file")
+    }
 
     Scheduler.start()
   }
@@ -215,6 +221,10 @@ object Cli {
 
       opt[Boolean]("debug").optional().text("Run in debug mode.").action { (value, config) =>
         config.asInstanceOf[SchedulerOptions].copy(debug = value)
+      },
+
+      opt[String]("jre").optional().text("Path to JRE archive.").action { (value, config) =>
+	config.asInstanceOf[SchedulerOptions].copy(jre = value)
       }
     )
 
