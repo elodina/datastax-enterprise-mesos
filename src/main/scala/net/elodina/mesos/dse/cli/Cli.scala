@@ -56,8 +56,7 @@ object Cli {
 
     if (!config.jre.isEmpty) {
       Config.jre = new File(config.jre)
-      if (!Config.jre.exists()) throw new IllegalStateException("JRE file doesn't exists")
-      if (!Config.jre.isFile()) throw new IllegalStateException("JRE isn't a file")
+      if (!Config.jre.exists() || !Config.jre.isFile) throw new IllegalStateException("JRE file doesn't exist")
     }
 
     Scheduler.start()

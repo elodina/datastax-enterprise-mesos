@@ -20,11 +20,12 @@ package net.elodina.mesos.dse
 
 import java.io.File
 import java.util.concurrent.atomic.AtomicBoolean
+import scala.collection.JavaConversions._
 
 import org.apache.log4j.Logger
 import java.util
 
-case class DatastaxAgent(task: DSETask) {
+case class DatastaxAgent(task: DSETask, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
 
   private val started = new AtomicBoolean(false)
@@ -46,6 +47,7 @@ case class DatastaxAgent(task: DSETask) {
       .redirectOutput(new File(task.agentOut))
       .redirectError(new File(task.agentOut))
 
+    builder.environment().putAll(env)
     builder.start()
   }
 

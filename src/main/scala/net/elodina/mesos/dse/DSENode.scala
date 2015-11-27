@@ -36,7 +36,7 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.language.postfixOps
 
-case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, hostname: String) {
+case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
 
   private val started = new AtomicBoolean(false)
@@ -66,6 +66,7 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     if (task.replaceAddress != "")
       builder.environment().put("JVM_OPTS", s"-Dcassandra.replace_address=${task.replaceAddress}")
 
+    builder.environment().putAll(env)
     builder.start()
   }
 
