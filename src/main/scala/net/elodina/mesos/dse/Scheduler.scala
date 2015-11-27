@@ -24,6 +24,7 @@ import java.util.concurrent.TimeUnit
 
 import _root_.net.elodina.mesos.utils.constraints.Constraints
 import _root_.net.elodina.mesos.utils.{Pretty, Reconciliation, State, TaskRuntime}
+import com.google.protobuf.ByteString
 import org.apache.log4j._
 import org.apache.mesos.Protos._
 import org.apache.mesos.{MesosSchedulerDriver, SchedulerDriver}
@@ -52,11 +53,23 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     val frameworkBuilder = FrameworkInfo.newBuilder()
     frameworkBuilder.setUser(Config.user)
     cluster.frameworkId.foreach(id => frameworkBuilder.setId(FrameworkID.newBuilder().setValue(id)))
+    frameworkBuilder.setRole(Config.frameworkRole)
+
     frameworkBuilder.setName(Config.frameworkName)
     frameworkBuilder.setFailoverTimeout(Config.frameworkTimeout.toUnit(TimeUnit.SECONDS))
     frameworkBuilder.setCheckpoint(true)
 
-    val driver = new MesosSchedulerDriver(this, frameworkBuilder.build, Config.master)
+    var credsBuilder: Credential.Builder = null
+    if (Config.principal != null && Config.secret != null) {
+      frameworkBuilder.setPrincipal(Config.principal)
+
+      credsBuilder = Credential.newBuilder()
+        .setPrincipal(Config.principal)
+        .setSecret(ByteString.copyFromUtf8(Config.secret))
+    }
+
+    val driver = if (credsBuilder == null) new MesosSchedulerDriver(this, frameworkBuilder.build, Config.master)
+    else new MesosSchedulerDriver(this, frameworkBuilder.build, Config.master, credsBuilder.build())
 
     Runtime.getRuntime.addShutdownHook(new Thread() {
       override def run() {
@@ -70,6 +83,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
 
   override def registered(driver: SchedulerDriver, id: FrameworkID, master: MasterInfo) {
     logger.info("[registered] framework:" + Pretty.id(id.getValue) + " master:" + Pretty.master(master))
+    checkMesosVersion(master, driver)
 
     cluster.frameworkId = Some(id.getValue)
     cluster.save()
@@ -255,6 +269,22 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     }
   }
 
+  private def checkMesosVersion(master: MasterInfo, driver: SchedulerDriver): Unit = {
+    val minVersion = "0.23.0"
+    val version = master.getVersion
+
+    def versionNumber(ver: String): Int = {
+      val parts = ver.split('.')
+      parts(0).toInt * 1000000 + parts(1).toInt * 1000 + parts(2).toInt
+    }
+
+    if (version.isEmpty || versionNumber(version) < versionNumber(minVersion)) {
+      val versionStr = if (version.isEmpty) "< \"0.23.0\"" else "\"" + version + "\""
+      logger.fatal(s"""Minimum supported Mesos version is "$minVersion", whereas current version is $versionStr. Stopping Scheduler""")
+      driver.stop
+    }
+  }
+
   private[dse] def setSeedNodes(task: DSETask, hostname: String) {
     val seeds = cluster.tasks.collect {
       case cassandraNode: CassandraNodeTask => cassandraNode
@@ -276,12 +306,10 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     for (file <- new File(".").listFiles()) {
       if (file.getName.matches(Config.jarMask)) Config.jar = file
       if (file.getName.matches(Config.dseMask)) Config.dse = file
-      if (file.getName.matches(Config.jreMask) && !file.isDirectory) Config.jre = file
     }
 
     if (Config.jar == null) throw new IllegalStateException(Config.jarMask + " not found in current dir")
     if (Config.dse == null) throw new IllegalStateException(Config.dseMask + " not found in in current dir")
-    if (Config.jre == null) throw new IllegalStateException(Config.jreMask + " not found in in current dir")
   }
 
   private def initLogging() {

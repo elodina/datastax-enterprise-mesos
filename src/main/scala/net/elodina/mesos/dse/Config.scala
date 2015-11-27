@@ -36,6 +36,8 @@ object Config {
 
   var master: String = null
   var user: String = null
+  var principal: String = null
+  var secret: String = null
 
   var api: String = null
 

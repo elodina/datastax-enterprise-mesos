@@ -29,6 +29,8 @@ Installation
 Prerequisites
 -------------
 
+Minimum supported Mesos version is 0.23.0
+
 Clone and build the project
 
     # git clone https://github.com/elodina/datastax-enterprise-mesos
@@ -55,6 +57,10 @@ Starts the Datastax Enterprise Mesos Scheduler.
         Mesos Master addresses.
   --user <value>
         Mesos user. Defaults to current system user.
+  --principal <value>
+        Principal (username) used to register framework.
+  --secret <value>
+        Secret (password) used to register framework.
   --framework-name <value>
         Framework name. Defaults to datastax-enterprise
   --framework-role <value>
@@ -65,6 +71,8 @@ Starts the Datastax Enterprise Mesos Scheduler.
         Storage for cluster state. Examples: file:dse-mesos.json; zk:master:2181/dse-mesos.
   --debug <value>
         Run in debug mode.
+  --jre <value>
+	Path to JRE archive.
 ```
     
 Quick start

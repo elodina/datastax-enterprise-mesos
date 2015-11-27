@@ -92,12 +92,20 @@ trait DSETask extends Task with Constrained {
   }
 
   private def createExecutorInfo(name: String): ExecutorInfo = {
+    var java = "java"
     val commandBuilder = CommandInfo.newBuilder()
     commandBuilder
       .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/dse/" + Config.dse.getName).setExtract(true))
-      .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/jre/" + Config.jre.getName).setExtract(true))
+
+    if (Config.jre != null) {
+      commandBuilder
+	.addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/jre/" + Config.jre.getName).setExtract(true))
+      java = "$(find jre* -maxdepth 0 -type d)/bin/java"
+    }
+
+    commandBuilder
       .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/jar/" + Config.jar.getName))
-      .setValue(s"$$(find jre* -maxdepth 0 -type d)/bin/java -cp ${Config.jar.getName}${if (Config.debug) " -Ddebug" else ""} net.elodina.mesos.dse.Executor")
+      .setValue(s"$java -cp ${Config.jar.getName}${if (Config.debug) " -Ddebug" else ""} net.elodina.mesos.dse.Executor")
 
     ExecutorInfo.newBuilder()
       .setExecutorId(ExecutorID.newBuilder().setValue(s"$name-${System.currentTimeMillis()}"))

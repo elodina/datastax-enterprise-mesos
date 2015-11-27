@@ -1,6 +1,6 @@
 package net.elodina.mesos.dse.cli
 
-import java.io.{IOException, PrintStream}
+import java.io.{File, IOException, PrintStream}
 import java.net.{HttpURLConnection, URL}
 
 import net.elodina.mesos.dse._
@@ -46,11 +46,19 @@ object Cli {
 
     Config.master = config.master
     Config.user = config.user
+    Config.principal = if (config.principal.isEmpty) null else config.principal
+    Config.secret = if (config.secret.isEmpty) null else config.secret
     Config.frameworkName = config.frameworkName
     Config.frameworkRole = config.frameworkRole
     Config.frameworkTimeout = config.frameworkTimeout
     Config.storage = config.storage
     Config.debug = config.debug
+
+    if (!config.jre.isEmpty) {
+      Config.jre = new File(config.jre)
+      if (!Config.jre.exists()) throw new IllegalStateException("JRE file doesn't exists")
+      if (!Config.jre.isFile()) throw new IllegalStateException("JRE isn't a file")
+    }
 
     Scheduler.start()
   }
@@ -187,6 +195,14 @@ object Cli {
         config.asInstanceOf[SchedulerOptions].copy(user = value)
       },
 
+      opt[String]("principal").optional().text("Principal (username) used to register framework.").action { (value, config) =>
+        config.asInstanceOf[SchedulerOptions].copy(principal = value)
+      },
+
+      opt[String]("secret").optional().text("Secret (password) used to register framework.").action { (value, config) =>
+        config.asInstanceOf[SchedulerOptions].copy(secret = value)
+      },
+
       opt[String]("framework-name").optional().text("Framework name. Defaults to datastax-enterprise").action { (value, config) =>
         config.asInstanceOf[SchedulerOptions].copy(frameworkName = value)
       },
@@ -205,6 +221,10 @@ object Cli {
 
       opt[Boolean]("debug").optional().text("Run in debug mode.").action { (value, config) =>
         config.asInstanceOf[SchedulerOptions].copy(debug = value)
+      },
+
+      opt[String]("jre").optional().text("Path to JRE archive.").action { (value, config) =>
+	config.asInstanceOf[SchedulerOptions].copy(jre = value)
       }
     )
 
