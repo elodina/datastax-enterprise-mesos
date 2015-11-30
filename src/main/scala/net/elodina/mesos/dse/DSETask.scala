@@ -74,6 +74,22 @@ trait DSETask extends Task with Constrained {
       case None => return Some("no mem")
     }
 
+    offerResources.get("ports") match {
+      case Some(portsResource) =>
+        val ranges = portsResource
+          .getRanges
+          .getRangeList
+          .map(r => Range.inclusive(r.getBegin.toInt, r.getEnd.toInt))
+          .sortBy(_.start)
+
+        for ((name, port) <- DSETask.defaultPortMappings) {
+          if (!ranges.exists(r => r contains port)) {
+            return Some(s"unavailable port $port ($name)")
+          }
+        }
+      case None => return Some("no ports")
+    }
+
     None
   }
 
@@ -88,6 +104,21 @@ trait DSETask extends Task with Constrained {
       .setData(ByteString.copyFromUtf8(Json.stringify(Json.toJson(this))))
       .addResources(Protos.Resource.newBuilder().setName("cpus").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.cpu)))
       .addResources(Protos.Resource.newBuilder().setName("mem").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.mem)))
+      .addResources(
+        Protos.Resource.newBuilder()
+          .setName("ports")
+          .setType(Protos.Value.Type.RANGES)
+          .setRanges(
+            Protos.Value.Ranges.newBuilder()
+              .addAllRange(
+                DSETask.defaultPortMappings
+                  .values
+                  .toSeq
+                  .map { port => Protos.Value.Range.newBuilder().setBegin(port.toLong).setEnd(port.toLong).build()}
+              )
+              .build()
+          )
+      )
       .build()
   }
 
@@ -114,6 +145,21 @@ trait DSETask extends Task with Constrained {
 }
 
 object DSETask {
+
+  val STORAGE_PORT: String = "storage_port"
+  val SSL_STORAGE_PORT: String = "ssl_storage_port"
+  val NATIVE_TRANSPORT_PORT: String = "native_transport_port"
+  val RPC_PORT: String = "rpc_port"
+  val JMX_PORT: String = "jmx_port"
+
+  val defaultPortMappings: Map[String, Int] = Map(
+    STORAGE_PORT -> 7000,
+    SSL_STORAGE_PORT -> 7001,
+    JMX_PORT -> 7199,
+    NATIVE_TRANSPORT_PORT -> 9042,
+    RPC_PORT -> 9160
+  )
+
   def apply(id: String, opts: AddOptions): DSETask = {
     val task = opts.taskType match {
       case TaskTypes.CASSANDRA_NODE => CassandraNodeTask(id)

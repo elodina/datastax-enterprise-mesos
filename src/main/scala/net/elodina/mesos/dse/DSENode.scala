@@ -73,7 +73,7 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
   def awaitConsistentState(): Boolean = {
     while (!stopped) {
       try {
-        val probe = new NodeProbe("localhost", 7199) //TODO port should be configurable and come from mesos offers
+        val probe = new NodeProbe("localhost", DSETask.defaultPortMappings(DSETask.JMX_PORT)) // TODO port should be configurable and come from mesos offers
 
         val initialized = probe.isInitialized
         val joined = probe.isJoined
@@ -151,6 +151,10 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     cassandraYaml.put(DSENode.SAVED_CACHES_DIRECTORY_KEY, Array(task.savedCachesDir))
     cassandraYaml.put(DSENode.LISTEN_ADDRESS_KEY, hostname)
     cassandraYaml.put(DSENode.RPC_ADDRESS_KEY, hostname)
+
+    for ((key, port) <- DSETask.defaultPortMappings) {
+      cassandraYaml.put(key, port.asInstanceOf[AnyRef])
+    }
 
     setSeeds(cassandraYaml, task.seeds)
     if (task.broadcast != "") {
