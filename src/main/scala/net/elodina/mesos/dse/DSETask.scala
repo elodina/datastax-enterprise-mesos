@@ -56,6 +56,12 @@ trait DSETask extends Task with Constrained {
   var savedCachesDir: String = ""
   var awaitConsistentStateBackoff: Duration = 3 seconds
 
+  var storagePort = 7000
+  var sslStoragePort = 7001
+  var jmxPort = 7199
+  var nativeTransportPort = 9042
+  var rpcPort = 9160
+
   override def attribute(name: String): Option[String] = {
     if (name == "hostname") runtime.map(_.hostname)
     else runtime.flatMap(_.attributes.get(name))
@@ -82,9 +88,9 @@ trait DSETask extends Task with Constrained {
           .map(r => Range.inclusive(r.getBegin.toInt, r.getEnd.toInt))
           .sortBy(_.start)
 
-        for ((name, port) <- DSETask.defaultPortMappings) {
+        for (port <- ports) {
           if (!ranges.exists(r => r contains port)) {
-            return Some(s"unavailable port $port ($name)")
+            return Some(s"unavailable port $port")
           }
         }
       case None => return Some("no ports")
@@ -92,6 +98,19 @@ trait DSETask extends Task with Constrained {
 
     None
   }
+
+  def ports: Seq[Int] = {
+    Seq(storagePort, sslStoragePort, jmxPort, nativeTransportPort, rpcPort)
+  }
+
+  def portMappings: Map[String, Int] =
+    Map(
+      DSETask.STORAGE_PORT -> storagePort,
+      DSETask.SSL_STORAGE_PORT -> sslStoragePort,
+      DSETask.JMX_PORT -> jmxPort,
+      DSETask.NATIVE_TRANSPORT_PORT -> nativeTransportPort,
+      DSETask.RPC_PORT -> rpcPort
+    )
 
   def createTaskInfo(offer: Offer): TaskInfo = {
     val taskName = s"$taskType-$id"
@@ -111,10 +130,7 @@ trait DSETask extends Task with Constrained {
           .setRanges(
             Protos.Value.Ranges.newBuilder()
               .addAllRange(
-                DSETask.defaultPortMappings
-                  .values
-                  .toSeq
-                  .map { port => Protos.Value.Range.newBuilder().setBegin(port.toLong).setEnd(port.toLong).build()}
+                ports.map { port => Protos.Value.Range.newBuilder().setBegin(port.toLong).setEnd(port.toLong).build()}
               )
               .build()
           )
@@ -248,9 +264,11 @@ object CassandraNodeTask {
     (__ \ 'dataFileDirs).read[String] and
     (__ \ 'commitLogDir).read[String] and
     (__ \ 'savedCachesDir).read[String] and
-    (__ \ 'awaitConsistentStateBackoff).read[Duration])((id, state, runtime, cpu, mem, broadcast,
+    (__ \ 'awaitConsistentStateBackoff).read[Duration] and
+    (__ \ 'ports).read[Map[String, Int]])((id, state, runtime, cpu, mem, broadcast,
       nodeOut, agentOut, clusterName, seed, seeds, replaceAddress, constraints, seedConstraints,
-      dataFileDirs, commitLogDir, savedCachesDir, stateBackoff) => {
+      dataFileDirs, commitLogDir, savedCachesDir, stateBackoff,
+                                                         ports) => {
 
     val task = CassandraNodeTask(id)
     task.state = state
@@ -270,6 +288,12 @@ object CassandraNodeTask {
     task.commitLogDir = commitLogDir
     task.savedCachesDir = savedCachesDir
     task.awaitConsistentStateBackoff = stateBackoff
+
+    task.storagePort = ports(DSETask.STORAGE_PORT)
+    task.sslStoragePort = ports(DSETask.SSL_STORAGE_PORT)
+    task.jmxPort = ports(DSETask.JMX_PORT)
+    task.nativeTransportPort = ports(DSETask.NATIVE_TRANSPORT_PORT)
+    task.rpcPort = ports(DSETask.RPC_PORT)
 
     task
   })
@@ -295,7 +319,8 @@ object CassandraNodeTask {
         "dataFileDirs" -> o.dataFileDirs,
         "commitLogDir" -> o.commitLogDir,
         "savedCachesDir" -> o.savedCachesDir,
-        "awaitConsistentStateBackoff" -> Json.toJson(o.awaitConsistentStateBackoff)
+        "awaitConsistentStateBackoff" -> Json.toJson(o.awaitConsistentStateBackoff),
+        "ports" -> o.portMappings
       )
     }
   }
