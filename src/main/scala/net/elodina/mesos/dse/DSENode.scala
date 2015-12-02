@@ -36,7 +36,7 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.language.postfixOps
 
-case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
+case class DSENode(task: Task, driver: ExecutorDriver, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
 
   private val started = new AtomicBoolean(false)
@@ -45,8 +45,8 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
   private var process: Process = null
 
   def start() {
-    if (started.getAndSet(true)) throw new IllegalStateException(s"${task.taskType} ${task.id} already started")
-    logger.info(s"Starting ${task.taskType} ${task.id}")
+    if (started.getAndSet(true)) throw new IllegalStateException(s"task ${task.id} already started")
+    logger.info(s"Starting task ${task.id}")
 
     val dseDir = DSENode.findDSEDir()
     val workDir = new File(".")
@@ -56,7 +56,7 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     process = startProcess(task, dseDir)
   }
 
-  private def startProcess(task: DSETask, dseDir: File): Process = {
+  private def startProcess(task: Task, dseDir: File): Process = {
     val cmd = util.Arrays.asList("" + new File(dseDir, DSENode.DSE_CMD), "cassandra", "-f")
 
     val builder: ProcessBuilder = new ProcessBuilder(cmd)
@@ -112,7 +112,7 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
   def stop() {
     this.synchronized {
       if (!stopped) {
-        logger.info(s"Stopping ${task.taskType}")
+        logger.info(s"Stopping task ${task.id}")
 
         stopped = true
         process.destroy()
@@ -153,10 +153,10 @@ case class DSENode(task: DSETask, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     cassandraYaml.put(DSENode.RPC_ADDRESS_KEY, hostname)
 
     val portMappings = Seq(
-      DSETask.STORAGE_PORT -> task.storagePort,
-      DSETask.SSL_STORAGE_PORT -> task.sslStoragePort,
-      DSETask.NATIVE_TRANSPORT_PORT -> task.nativeTransportPort,
-      DSETask.RPC_PORT -> task.rpcPort
+      Task.STORAGE_PORT -> task.storagePort,
+      Task.SSL_STORAGE_PORT -> task.sslStoragePort,
+      Task.NATIVE_TRANSPORT_PORT -> task.nativeTransportPort,
+      Task.RPC_PORT -> task.rpcPort
     )
 
     for ((key, port) <- portMappings) {

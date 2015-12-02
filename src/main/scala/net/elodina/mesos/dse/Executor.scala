@@ -24,7 +24,6 @@ import _root_.net.elodina.mesos.utils.Pretty
 import org.apache.log4j._
 import org.apache.mesos.Protos._
 import org.apache.mesos.{ExecutorDriver, MesosExecutorDriver}
-import play.api.libs.json.Json
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent._
@@ -65,12 +64,12 @@ object Executor extends org.apache.mesos.Executor {
   def launchTask(driver: ExecutorDriver, taskInfo: TaskInfo) {
     logger.info("[launchTask] " + Pretty.task(taskInfo))
 
-    val task = Json.parse(taskInfo.getData.toStringUtf8).as[DSETask]
+    val task = new Task(Utils.parseJson(taskInfo.getData.toStringUtf8))
     driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_STARTING).build)
 
     new Thread {
       override def run() {
-        setName(task.taskType)
+        setName("task")
 
         var env = Map[String, String]()
         findJreDir().foreach { env += "JAVA_HOME" -> _ }

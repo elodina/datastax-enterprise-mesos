@@ -24,7 +24,7 @@ import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 
 import net.elodina.mesos.dse.cli._
 import net.elodina.mesos.utils.constraints.Constraint
-import net.elodina.mesos.utils.{State, Util}
+import net.elodina.mesos.utils.Util
 import org.apache.log4j.Logger
 import org.eclipse.jetty.server.{Server, ServerConnector}
 import org.eclipse.jetty.servlet.{ServletContextHandler, ServletHolder}
@@ -32,11 +32,41 @@ import org.eclipse.jetty.util.thread.QueuedThreadPool
 import play.api.libs.json._
 
 import scala.util.{Failure, Success, Try}
+import scala.util.parsing.json.JSONObject
+import scala.collection.mutable
 
-case class ApiResponse(success: Boolean, message: String, value: Option[Cluster])
+class ApiResponse {
+  var success: Boolean = false
+  var message: String = null
+  var cluster: Cluster = null
 
-object ApiResponse {
-  implicit val format = Json.format[ApiResponse]
+  def this(success: Boolean, message: String, cluster: Cluster) = {
+    this
+    this.success = success
+    this.message = message
+    this.cluster = cluster
+  }
+
+  def this(json: Map[String, Any]) = {
+    this
+    fromJson(json)
+  }
+
+  def fromJson(json: Map[String, Any]): Unit = {
+    success = json("success").asInstanceOf[Boolean]
+    message = json("message").asInstanceOf[String]
+    if (json.contains("cluster")) cluster = new Cluster(json("cluster").asInstanceOf[Map[String, Any]])
+  }
+
+  def toJson: JSONObject = {
+    val json = new mutable.LinkedHashMap[String, Any]()
+
+    json("success") = "" + success
+    json("message") = message
+    if (cluster != null) json("cluster") = cluster.toJson
+
+    new JSONObject(json.toMap)
+  }
 }
 
 object HttpServer {
@@ -122,18 +152,18 @@ object HttpServer {
       val opts = postBody(request).as[AddOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val existing = ids.filter(id => Scheduler.cluster.tasks.exists(_.id == id))
-      if (existing.nonEmpty) respond(ApiResponse(success = false, s"Tasks ${existing.mkString(",")} already exist", None), response)
+      val existing = ids.filter(id => Scheduler.cluster.getTasks.exists(_.id == id))
+      if (existing.nonEmpty) respond(new ApiResponse(success = false, s"Tasks ${existing.mkString(",")} already exist", null), response)
       else {
         val tasks = ids.map { id =>
-          val task = DSETask(id, opts)
-          Scheduler.cluster.tasks.add(task)
+          val task = Task(id, opts)
+          Scheduler.cluster.addTask(task)
           logger.info(s"Added task $task")
           task
         }
 
         Scheduler.cluster.save()
-        respond(ApiResponse(success = true, s"Added tasks ${opts.id}", Some(Cluster(tasks))), response)
+        respond(new ApiResponse(success = true, s"Added tasks ${opts.id}", new Cluster(tasks)), response)
       }
     }
 
@@ -141,11 +171,11 @@ object HttpServer {
       val opts = postBody(request).as[UpdateOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val missing = ids.filter(id => !Scheduler.cluster.tasks.exists(_.id == id))
-      if (missing.nonEmpty) respond(ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", None), response)
+      val missing = ids.filter(id => !Scheduler.cluster.getTasks.exists(_.id == id))
+      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", null), response)
       else {
         val tasks = ids.flatMap { id =>
-          Scheduler.cluster.tasks.find(_.id == id) match {
+          Scheduler.cluster.getTasks.find(_.id == id) match {
             case Some(task) =>
               opts.cpu.foreach(task.cpu = _)
               opts.mem.foreach(task.mem = _)
@@ -176,7 +206,7 @@ object HttpServer {
         }
 
         Scheduler.cluster.save()
-        respond(ApiResponse(success = true, s"Updated tasks ${opts.id}", Some(Cluster(tasks))), response)
+        respond(new ApiResponse(success = true, s"Updated tasks ${opts.id}", new Cluster(tasks)), response)
       }
     }
 
@@ -184,14 +214,14 @@ object HttpServer {
       val opts = postBody(request).as[StartOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val missing = ids.filter(id => !Scheduler.cluster.tasks.exists(_.id == id))
-      if (missing.nonEmpty) respond(ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", None), response)
+      val missing = ids.filter(id => !Scheduler.cluster.getTasks.exists(_.id == id))
+      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", null), response)
       else {
         val tasks = ids.flatMap { id =>
-          Scheduler.cluster.tasks.find(_.id == id) match {
+          Scheduler.cluster.getTasks.find(_.id == id) match {
             case Some(task) =>
-              if (task.state == State.Inactive) {
-                task.state = State.Stopped
+              if (task.state == Task.State.Inactive) {
+                task.state = Task.State.Stopped
                 logger.info(s"Starting task $id")
               } else logger.warn(s"Task $id already started")
               Some(task)
@@ -202,10 +232,10 @@ object HttpServer {
         }
 
         if (opts.timeout.toMillis > 0) {
-          val ok = tasks.forall(_.waitFor(State.Running, opts.timeout))
-          if (ok) respond(ApiResponse(success = true, s"Started tasks ${opts.id}", Some(Cluster(tasks))), response)
-          else respond(ApiResponse(success = true, s"Start tasks ${opts.id} timed out after ${opts.timeout}", None), response)
-        } else respond(ApiResponse(success = true, s"Servers ${opts.id} scheduled to start", Some(Cluster(tasks))), response)
+          val ok = tasks.forall(_.waitFor(Task.State.Running, opts.timeout))
+          if (ok) respond(new ApiResponse(success = true, s"Started tasks ${opts.id}", new Cluster(tasks)), response)
+          else respond(new ApiResponse(success = true, s"Start tasks ${opts.id} timed out after ${opts.timeout}", null), response)
+        } else respond(new ApiResponse(success = true, s"Servers ${opts.id} scheduled to start", new Cluster(tasks)), response)
       }
     }
 
@@ -213,12 +243,12 @@ object HttpServer {
       val opts = postBody(request).as[StopOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val missing = ids.filter(id => !Scheduler.cluster.tasks.exists(_.id == id))
-      if (missing.nonEmpty) respond(ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", None), response)
+      val missing = ids.filter(id => !Scheduler.cluster.getTasks.exists(_.id == id))
+      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", null), response)
       else {
         val tasks = ids.flatMap(Scheduler.stopTask)
         Scheduler.cluster.save()
-        respond(ApiResponse(success = true, s"Stopped tasks ${opts.id}", Some(Cluster(tasks))), response)
+        respond(new ApiResponse(success = true, s"Stopped tasks ${opts.id}", new Cluster(tasks)), response)
       }
     }
 
@@ -226,17 +256,17 @@ object HttpServer {
       val opts = postBody(request).as[RemoveOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val missing = ids.filter(id => !Scheduler.cluster.tasks.exists(_.id == id))
-      if (missing.nonEmpty) respond(ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", None), response)
+      val missing = ids.filter(id => !Scheduler.cluster.getTasks.exists(_.id == id))
+      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", null), response)
       else {
         val tasks = ids.flatMap(Scheduler.removeTask)
         Scheduler.cluster.save()
-        respond(ApiResponse(success = true, s"Removed tasks ${opts.id}", Some(Cluster(tasks))), response)
+        respond(new ApiResponse(success = true, s"Removed tasks ${opts.id}", new Cluster(tasks)), response)
       }
     }
 
     def handleClusterStatus(request: HttpServletRequest, response: HttpServletResponse) {
-      respond(ApiResponse(success = true, s"Retrieved current cluster status", Some(Scheduler.cluster)), response)
+      respond(new ApiResponse(success = true, s"Retrieved current cluster status", Scheduler.cluster), response)
     }
 
     private def handleHealth(response: HttpServletResponse) {
@@ -254,7 +284,7 @@ object HttpServer {
     }
 
     private def respond(apiResponse: ApiResponse, response: HttpServletResponse) {
-      response.getWriter.println(Json.toJson(apiResponse))
+      response.getWriter.println("" + apiResponse.toJson)
     }
   }
 

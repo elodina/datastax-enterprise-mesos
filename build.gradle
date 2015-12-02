@@ -31,6 +31,7 @@ dependencies {
     compile "org.eclipse.jetty:jetty-util:9.0.4.v20130625"
     compile "javax.servlet:javax.servlet-api:3.0.1"
     compile 'com.github.scopt:scopt_2.10:3.3.0'
+    compile "net.sf.jopt-simple:jopt-simple:4.8"
     compile "log4j:log4j:1.2.16"
     compile name: 'scala-mesos-utils-0.0.1'
     compile "com.101tec:zkclient:0.6"

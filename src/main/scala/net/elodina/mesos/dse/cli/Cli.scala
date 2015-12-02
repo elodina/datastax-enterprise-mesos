@@ -1,11 +1,11 @@
 package net.elodina.mesos.dse.cli
 
 import java.io.{File, IOException, PrintStream}
-import java.net.{HttpURLConnection, URL}
+import java.net.{URLEncoder, HttpURLConnection, URL}
 
 import net.elodina.mesos.dse._
 import net.elodina.mesos.utils
-import net.elodina.mesos.utils.{TaskRuntime, Util}
+import net.elodina.mesos.utils.Util
 import play.api.libs.json.{Json, Writes}
 import scopt.{OptionParser, Read}
 
@@ -16,6 +16,15 @@ object Cli {
   private[cli] var out: PrintStream = System.out
 
   def main(args: Array[String]) {
+    if (args.length == 0) {
+      throw new Error("command required")
+    }
+
+    val cmd = args(0)
+    val _args:Array[String] = args.slice(1, args.length)
+
+    if (cmd == "ring") { RingCli.handle(cmd, _args); return }
+
     try {
       parser.parse(args, NoOptions) match {
         case None =>
@@ -65,11 +74,11 @@ object Cli {
   def handleApi[T <: Options : Writes](url: String, data: T) {
     resolveApi(data.api)
 
-    val response = sendRequest(url, data)
+    val response = sendJsonRequest(url, data)
     printResponse(response)
   }
 
-  private[dse] def sendRequest[T: Writes](uri: String, data: T): ApiResponse = {
+  private[dse] def sendJsonRequest[T: Writes](uri: String, data: T): ApiResponse = {
     val url: String = Config.api + (if (Config.api.endsWith("/")) "" else "/") + "api" + uri
 
     val connection: HttpURLConnection = new URL(url).openConnection().asInstanceOf[HttpURLConnection]
@@ -95,7 +104,51 @@ object Cli {
       connection.disconnect()
     }
 
-    Json.parse(response).as[ApiResponse]
+    new ApiResponse(Utils.parseJson(response))
+  }
+
+  private[cli] def sendRequest(uri: String, params: Map[String, String]): Map[String, Any] = {
+    def queryString(params: Map[String, String]): String = {
+      var s = ""
+      for ((name, value) <- params) {
+        if (!s.isEmpty) s += "&"
+        s += URLEncoder.encode(name, "utf-8")
+        if (value != null) s += "=" + URLEncoder.encode(value, "utf-8")
+      }
+      s
+    }
+
+    val qs: String = queryString(params)
+    val url: String = Config.api + (if (Config.api.endsWith("/")) "" else "/") + "api" + uri
+
+    val connection: HttpURLConnection = new URL(url).openConnection().asInstanceOf[HttpURLConnection]
+    var response: String = null
+    try {
+      connection.setRequestMethod("POST")
+      connection.setDoOutput(true)
+
+      val data = qs.getBytes("utf-8")
+      connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+      connection.setRequestProperty("Content-Length", "" + data.length)
+      connection.getOutputStream.write(data)
+
+      try { response = Source.fromInputStream(connection.getInputStream).getLines().mkString}
+      catch {
+        case e: IOException =>
+          if (connection.getResponseCode != 200) throw new IOException(connection.getResponseCode + " - " + connection.getResponseMessage)
+          else throw e
+      }
+    } finally {
+      connection.disconnect()
+    }
+
+    if (response.trim().isEmpty) return null
+
+    var json: Map[String, Object] = null
+    try { json = Utils.parseJson(response)}
+    catch { case e: IllegalArgumentException => throw new IOException(e) }
+
+    json
   }
 
   private def resolveApi(api: String) {
@@ -116,21 +169,20 @@ object Cli {
 
   private def printResponse(response: ApiResponse) {
     printLine(response.message)
-    response.value.foreach { cluster =>
+    if (response.cluster != null) {
       printLine()
-      printCluster(cluster)
+      printCluster(response.cluster)
     }
   }
 
   private def printCluster(cluster: Cluster) {
     printLine("cluster:")
-    cluster.tasks.foreach(printTask(_, 1))
+    cluster.getTasks.foreach(printTask(_, 1))
   }
 
-  private def printTask(task: DSETask, indent: Int = 0) {
+  private def printTask(task: Task, indent: Int = 0) {
     printLine("task:", indent)
     printLine(s"id: ${task.id}", indent + 1)
-    printLine(s"type: ${task.taskType}", indent + 1)
     printLine(s"state: ${task.state}", indent + 1)
     printLine(s"cpu: ${task.cpu}", indent + 1)
     printLine(s"mem: ${task.mem}", indent + 1)
@@ -147,13 +199,12 @@ object Cli {
     if (task.dataFileDirs != "") printLine(s"data file dirs: ${task.dataFileDirs}", indent + 1)
     if (task.commitLogDir != "") printLine(s"commit log dir: ${task.commitLogDir}", indent + 1)
     if (task.savedCachesDir != "") printLine(s"saved caches dir: ${task.savedCachesDir}", indent + 1)
-
-    task.runtime.foreach(printTaskRuntime(_, indent + 1))
+    if (task.runtime != null) printTaskRuntime(task.runtime, indent + 1)
 
     printLine()
   }
 
-  private def printTaskRuntime(runtime: TaskRuntime, indent: Int = 0) {
+  private def printTaskRuntime(runtime: Task.Runtime, indent: Int = 0) {
     printLine(s"runtime:", indent)
     printLine(s"task id: ${runtime.taskId}", indent + 1)
     printLine(s"slave id: ${runtime.slaveId}", indent + 1)
@@ -162,7 +213,7 @@ object Cli {
     printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
   }
 
-  private def printLine(s: AnyRef = "", indent: Int = 0) = out.println("  " * indent + s)
+  private[dse] def printLine(s: AnyRef = "", indent: Int = 0) = out.println("  " * indent + s)
 
   def reads[A](f: String => A): Read[A] = new Read[A] {
     val arity = 1
@@ -228,77 +279,69 @@ object Cli {
     )
 
     cmd("add").text("Adds a task to the cluster.").children(
-      arg[String]("<task-type>").text("Task type to add").action { (taskType, config) =>
-        taskType match {
-          case TaskTypes.CASSANDRA_NODE => AddOptions(taskType = taskType, nodeOut = s"$taskType.log")
-          //other types go here
-          case _ => throw new CliError(s"Unknown task type $taskType")
-        }
-      }.children(
-        arg[List[utils.Range]]("<id>").text("ID expression to add").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(id = value.mkString(","))
-        },
+      arg[List[utils.Range]]("<id>").text("ID expression to add").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(id = value.mkString(","))
+      },
 
-        opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(api = value)
-        },
+      opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(api = value)
+      },
 
-        opt[Double]("cpu").optional().text("CPU amount (0.5, 1, 2).").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(cpu = value)
-        },
+      opt[Double]("cpu").optional().text("CPU amount (0.5, 1, 2).").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(cpu = value)
+      },
 
-        opt[Long]("mem").optional().text("Mem amount in Mb.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(mem = value)
-        },
+      opt[Long]("mem").optional().text("Mem amount in Mb.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(mem = value)
+      },
 
-        opt[String]("broadcast").optional().text("Network interface to broadcast for nodes.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(broadcast = value)
-        },
+      opt[String]("broadcast").optional().text("Network interface to broadcast for nodes.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(broadcast = value)
+      },
 
-        opt[String]("constraints").optional().text("Constraints (hostname=like:^master$,rack=like:^1.*$).").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(constraints = value)
-        },
+      opt[String]("constraints").optional().text("Constraints (hostname=like:^master$,rack=like:^1.*$).").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(constraints = value)
+      },
 
-        opt[String]("seed-constraints").optional().text("Seed node constraints. Will be evaluated only across seed nodes.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(seedConstraints = value)
-        },
+      opt[String]("seed-constraints").optional().text("Seed node constraints. Will be evaluated only across seed nodes.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(seedConstraints = value)
+      },
 
-        opt[String]("node-out").optional().text("File name to redirect Datastax Node output to.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(nodeOut = value)
-        },
+      opt[String]("node-out").optional().text("File name to redirect Datastax Node output to.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(nodeOut = value)
+      },
 
-        opt[String]("agent-out").optional().text("File name to redirect Datastax Agent output to.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(agentOut = value)
-        },
+      opt[String]("agent-out").optional().text("File name to redirect Datastax Agent output to.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(agentOut = value)
+      },
 
-        opt[String]("cluster-name").optional().text("The name of the cluster.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(clusterName = value)
-        },
+      opt[String]("cluster-name").optional().text("The name of the cluster.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(clusterName = value)
+      },
 
-        opt[Boolean]("seed").optional().text("Flags whether this Datastax Node is a seed node.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(seed = value)
-        },
+      opt[Boolean]("seed").optional().text("Flags whether this Datastax Node is a seed node.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(seed = value)
+      },
 
-        opt[String]("replace-address").optional().text("Replace address for the dead Datastax Node").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(replaceAddress = value)
-        },
+      opt[String]("replace-address").optional().text("Replace address for the dead Datastax Node").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(replaceAddress = value)
+      },
 
-        opt[String]("data-file-dirs").optional().text("Cassandra data file directories separated by comma. Defaults to sandbox if not set").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(dataFileDirs = value)
-        },
+      opt[String]("data-file-dirs").optional().text("Cassandra data file directories separated by comma. Defaults to sandbox if not set").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(dataFileDirs = value)
+      },
 
-        opt[String]("commit-log-dir").optional().text("Cassandra commit log dir. Defaults to sandbox if not set").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(commitLogDir = value)
-        },
+      opt[String]("commit-log-dir").optional().text("Cassandra commit log dir. Defaults to sandbox if not set").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(commitLogDir = value)
+      },
 
-        opt[String]("saved-caches-dir").optional().text("Cassandra saved caches dir. Defaults to sandbox if not set").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(savedCachesDir = value)
-        },
+      opt[String]("saved-caches-dir").optional().text("Cassandra saved caches dir. Defaults to sandbox if not set").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(savedCachesDir = value)
+      },
 
-        opt[Duration]("state-backoff").optional().text("Backoff between checks for consistent node state.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(awaitConsistentStateBackoff = value)
-        }
-      )
+      opt[Duration]("state-backoff").optional().text("Backoff between checks for consistent node state.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(awaitConsistentStateBackoff = value)
+      }
     )
 
     cmd("update").text("Update task configuration.").action { (_, c) =>

@@ -25,7 +25,7 @@ import scala.collection.JavaConversions._
 import org.apache.log4j.Logger
 import java.util
 
-case class DatastaxAgent(task: DSETask, env: Map[String, String] = Map.empty) {
+case class DatastaxAgent(task: Task, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
 
   private val started = new AtomicBoolean(false)
@@ -40,7 +40,7 @@ case class DatastaxAgent(task: DSETask, env: Map[String, String] = Map.empty) {
     process = startProcess(task, DSENode.findDSEDir())
   }
 
-  private def startProcess(task: DSETask, dseDir: File): Process = {
+  private def startProcess(task: Task, dseDir: File): Process = {
     val cmd = util.Arrays.asList("" + new File(dseDir, DSENode.DSE_AGENT_CMD), "-f")
 
     val builder: ProcessBuilder = new ProcessBuilder(cmd)

@@ -22,8 +22,8 @@ import java.io.File
 import java.util
 import java.util.concurrent.TimeUnit
 
-import _root_.net.elodina.mesos.utils.constraints.Constraints
-import _root_.net.elodina.mesos.utils.{Pretty, Reconciliation, State, TaskRuntime}
+import net.elodina.mesos.utils.constraints.Constraints
+import net.elodina.mesos.utils.Pretty
 import com.google.protobuf.ByteString
 import org.apache.log4j._
 import org.apache.mesos.Protos._
@@ -33,10 +33,10 @@ import scala.collection.JavaConversions._
 import scala.concurrent.duration.{Duration, _}
 import scala.language.postfixOps
 
-object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] with Reconciliation[DSETask] {
+object Scheduler extends org.apache.mesos.Scheduler with Constraints[Task] with Reconciliation[Task] {
   private val logger = Logger.getLogger(this.getClass)
 
-  private[dse] val cluster = Cluster()
+  private[dse] val cluster = new Cluster()
   private var driver: SchedulerDriver = null
 
   override protected val reconcileDelay: Duration = 20 seconds
@@ -52,7 +52,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
 
     val frameworkBuilder = FrameworkInfo.newBuilder()
     frameworkBuilder.setUser(Config.user)
-    cluster.frameworkId.foreach(id => frameworkBuilder.setId(FrameworkID.newBuilder().setValue(id)))
+    if (cluster.frameworkId != null) frameworkBuilder.setId(FrameworkID.newBuilder().setValue(cluster.frameworkId))
     frameworkBuilder.setRole(Config.frameworkRole)
 
     frameworkBuilder.setName(Config.frameworkName)
@@ -85,7 +85,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     logger.info("[registered] framework:" + Pretty.id(id.getValue) + " master:" + Pretty.master(master))
     checkMesosVersion(master, driver)
 
-    cluster.frameworkId = Some(id.getValue)
+    cluster.frameworkId = id.getValue
     cluster.save()
 
     this.driver = driver
@@ -137,7 +137,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     logger.info("[executorLost] executor:" + Pretty.id(executorId.getValue) + " slave:" + Pretty.id(slaveId.getValue) + " status:" + status)
   }
 
-  override def tasks: Traversable[DSETask] = cluster.tasks
+  override def tasks: Traversable[Task] = cluster.getTasks
 
   private def onResourceOffers(offers: List[Offer]) {
     offers.foreach { offer =>
@@ -152,10 +152,10 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
   }
 
   private def acceptOffer(offer: Offer): Option[String] = {
-    cluster.tasks.filter(_.state == State.Stopped).toList.sortBy(_.id.toInt) match {
+    cluster.getTasks.filter(_.state == Task.State.Stopped).toList.sortBy(_.id.toInt) match {
       case Nil => Some("all tasks are running")
       case tasks =>
-        if (cluster.tasks.exists(task => task.state == State.Staging || task.state == State.Starting))
+        if (cluster.getTasks.exists(task => task.state == Task.State.Staging || task.state == Task.State.Starting))
           Some("should wait until other tasks are started")
         else {
           // Consider starting seeds first
@@ -180,23 +180,23 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     }
   }
 
-  private def checkSeedConstraints(offer: Offer, task: DSETask): Option[String] = {
+  private def checkSeedConstraints(offer: Offer, task: Task): Option[String] = {
     if (task.seed) checkConstraintsWith(offer, task, _.seedConstraints, name => tasks.filter(_.seed).flatMap(_.attribute(name)).toList)
     else None
   }
 
-  private def launchTask(task: DSETask, offer: Offer) {
+  private def launchTask(task: Task, offer: Offer) {
     val taskInfo = task.createTaskInfo(offer)
 
-    task.runtime = Some(new TaskRuntime(taskInfo, offer))
-    task.state = State.Staging
+    task.runtime = new Task.Runtime(taskInfo, offer)
+    task.state = Task.State.Staging
 
     driver.launchTasks(util.Arrays.asList(offer.getId), util.Arrays.asList(taskInfo), Filters.newBuilder().setRefuseSeconds(1).build)
     logger.info(s"Starting task ${task.id} with taskid ${taskInfo.getTaskId.getValue} for offer ${offer.getId.getValue}")
   }
 
   private def onTaskStatus(driver: SchedulerDriver, status: TaskStatus) {
-    val task = cluster.tasks.find(_.id == DSETask.idFromTaskId(status.getTaskId.getValue))
+    val task = cluster.getTasks.find(_.id == Task.idFromTaskId(status.getTaskId.getValue))
 
     status.getState match {
       case TaskState.TASK_RUNNING => onTaskStarted(task, driver, status)
@@ -209,10 +209,10 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     cluster.save()
   }
 
-  private def onTaskStarted(taskOpt: Option[DSETask], driver: SchedulerDriver, status: TaskStatus) {
+  private def onTaskStarted(taskOpt: Option[Task], driver: SchedulerDriver, status: TaskStatus) {
     taskOpt match {
       case Some(task) =>
-        task.state = State.Running
+        task.state = Task.State.Running
         task.replaceAddress = ""
       case None =>
         logger.info(s"Got ${status.getState} for unknown/stopped task, killing task ${status.getTaskId.getValue}")
@@ -220,35 +220,35 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     }
   }
 
-  private def onTaskFailed(taskOpt: Option[DSETask], status: TaskStatus) {
+  private def onTaskFailed(taskOpt: Option[Task], status: TaskStatus) {
     taskOpt match {
       case Some(task) =>
-        task.state = State.Stopped
-        task.runtime = None
+        task.state = Task.State.Stopped
+        task.runtime = null
       case None => logger.info(s"Got ${status.getState} for unknown/stopped task with task id ${status.getTaskId.getValue}")
     }
   }
 
-  private def onTaskFinished(taskOpt: Option[DSETask], status: TaskStatus) {
+  private def onTaskFinished(taskOpt: Option[Task], status: TaskStatus) {
     taskOpt match {
       case Some(task) =>
-        task.state = State.Inactive
-        task.runtime = None
+        task.state = Task.State.Inactive
+        task.runtime = null
         logger.info(s"Task ${task.id} has finished")
       case None => logger.info(s"Got ${status.getState} for unknown/stopped task with task id ${status.getTaskId.getValue}")
     }
   }
 
-  def stopTask(id: String): Option[DSETask] = {
-    cluster.tasks.find(_.id == id) match {
+  def stopTask(id: String): Option[Task] = {
+    cluster.getTasks.find(_.id == id) match {
       case Some(task) =>
         task.state match {
-          case State.Staging | State.Starting | State.Running =>
-            driver.killTask(TaskID.newBuilder().setValue(task.runtime.get.taskId).build)
+          case Task.State.Staging | Task.State.Starting | Task.State.Running =>
+            driver.killTask(TaskID.newBuilder().setValue(task.runtime.taskId).build)
           case _ =>
         }
 
-        task.state = State.Inactive
+        task.state = Task.State.Inactive
         Some(task)
       case None =>
         logger.warn(s"Task $id was removed, ignoring its stop call")
@@ -256,12 +256,12 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     }
   }
 
-  def removeTask(id: String): Option[DSETask] = {
-    cluster.tasks.find(_.id == id) match {
+  def removeTask(id: String): Option[Task] = {
+    cluster.getTasks.find(_.id == id) match {
       case Some(task) =>
         stopTask(id)
 
-        cluster.tasks -= task
+        cluster.removeTask(task)
         Some(task)
       case None =>
         logger.warn(s"Task $id is already removed")
@@ -285,11 +285,11 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[DSETask] wi
     }
   }
 
-  private[dse] def setSeedNodes(task: DSETask, hostname: String) {
-    val seeds = cluster.tasks.collect {
-      case cassandraNode: CassandraNodeTask => cassandraNode
+  private[dse] def setSeedNodes(task: Task, hostname: String) {
+    val seeds = cluster.getTasks.collect {
+      case cassandraNode: Task => cassandraNode
     }.filter(c => c.seed && c.clusterName == task.clusterName)
-      .filter(c => c.state == State.Staging || c.state == State.Starting || c.state == State.Running)
+      .filter(c => c.state == Task.State.Staging || c.state == Task.State.Starting || c.state == Task.State.Running)
       .flatMap(_.attribute("hostname")).toList
 
     if (seeds.isEmpty) {

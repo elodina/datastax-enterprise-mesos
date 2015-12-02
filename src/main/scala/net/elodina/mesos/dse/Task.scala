@@ -21,23 +21,20 @@ package net.elodina.mesos.dse
 import com.google.protobuf.ByteString
 import net.elodina.mesos.dse.cli.AddOptions
 import net.elodina.mesos.utils.constraints.{Constrained, Constraint}
-import net.elodina.mesos.utils.{State, Task, TaskRuntime, Util}
+import net.elodina.mesos.utils.Util
 import org.apache.mesos.Protos
 import org.apache.mesos.Protos._
-import play.api.libs.functional.syntax._
-import play.api.libs.json._
 
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.language.postfixOps
+import scala.util.parsing.json.JSONObject
 
-object TaskTypes {
-  final val CASSANDRA_NODE: String = "cassandra-node"
-}
-
-trait DSETask extends Task with Constrained {
-  val taskType: String
+class Task extends Constrained {
+  var id: String = null
+  var state: Task.State.Value = Task.State.Inactive
+  var runtime: Task.Runtime = null
 
   var cpu: Double = 0.5
   var mem: Long = 512
@@ -48,8 +45,8 @@ trait DSETask extends Task with Constrained {
   var seed: Boolean = false
   var replaceAddress: String = ""
   var seeds: String = ""
-  val constraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
-  val seedConstraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
+  var constraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
+  var seedConstraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
 
   var dataFileDirs: String = ""
   var commitLogDir: String = ""
@@ -62,9 +59,15 @@ trait DSETask extends Task with Constrained {
   var nativeTransportPort = 9042
   var rpcPort = 9160
 
+  def this(json: Map[String, Any]) = {
+    this
+    fromJson(json)
+  }
+
   override def attribute(name: String): Option[String] = {
-    if (name == "hostname") runtime.map(_.hostname)
-    else runtime.flatMap(_.attributes.get(name))
+    if (runtime == null) return None
+    if (name == "hostname") Some(runtime.hostname)
+    else Some(runtime.attributes(name))
   }
 
   def matches(offer: Offer): Option[String] = {
@@ -105,22 +108,22 @@ trait DSETask extends Task with Constrained {
 
   def portMappings: Map[String, Int] =
     Map(
-      DSETask.STORAGE_PORT -> storagePort,
-      DSETask.SSL_STORAGE_PORT -> sslStoragePort,
-      DSETask.JMX_PORT -> jmxPort,
-      DSETask.NATIVE_TRANSPORT_PORT -> nativeTransportPort,
-      DSETask.RPC_PORT -> rpcPort
+      Task.STORAGE_PORT -> storagePort,
+      Task.SSL_STORAGE_PORT -> sslStoragePort,
+      Task.JMX_PORT -> jmxPort,
+      Task.NATIVE_TRANSPORT_PORT -> nativeTransportPort,
+      Task.RPC_PORT -> rpcPort
     )
 
   def createTaskInfo(offer: Offer): TaskInfo = {
-    val taskName = s"$taskType-$id"
+    val taskName = s"task-$id"
     val taskId = TaskID.newBuilder().setValue(s"$taskName-${System.currentTimeMillis()}").build()
 
     Scheduler.setSeedNodes(this, offer.getHostname)
 
     TaskInfo.newBuilder().setName(taskName).setTaskId(taskId).setSlaveId(offer.getSlaveId)
       .setExecutor(createExecutorInfo(taskName))
-      .setData(ByteString.copyFromUtf8(Json.stringify(Json.toJson(this))))
+      .setData(ByteString.copyFromUtf8("" + this.toJson))
       .addResources(Protos.Resource.newBuilder().setName("cpus").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.cpu)))
       .addResources(Protos.Resource.newBuilder().setName("mem").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.mem)))
       .addResources(
@@ -158,10 +161,79 @@ trait DSETask extends Task with Constrained {
       .setName(name)
       .build
   }
+
+  def waitFor(state: Task.State.Value, timeout: Duration): Boolean = {
+    var t = timeout.toMillis
+    while (t > 0 && this.state != state) {
+      val delay = Math.min(100, t)
+      Thread.sleep(delay)
+      t -= delay
+    }
+
+    this.state == state
+  }
+
+  def fromJson(json: Map[String, Any]): Unit = {
+    id = json("id").asInstanceOf[String]
+    state = Task.State.withName(json("state").asInstanceOf[String])
+    if (json.contains("runtime")) runtime = new Task.Runtime(json("runtime").asInstanceOf[Map[String, Any]])
+
+    cpu = json("cpu").asInstanceOf[Number].doubleValue()
+    mem = json("mem").asInstanceOf[Number].longValue()
+
+    broadcast = json("broadcast").asInstanceOf[String]
+    nodeOut = json("nodeOut").asInstanceOf[String]
+    agentOut = json("agentOut").asInstanceOf[String]
+
+    clusterName = json("clusterName").asInstanceOf[String]
+    seed = json("seed").asInstanceOf[Boolean]
+    replaceAddress = json("replaceAddress").asInstanceOf[String]
+    seeds = json("seeds").asInstanceOf[String]
+
+    constraints.clear()
+    constraints ++= Constraint.parse(json("constraints").asInstanceOf[String])
+
+    seedConstraints.clear()
+    seedConstraints ++= Constraint.parse(json("seedConstraints").asInstanceOf[String])
+
+    dataFileDirs = json("dataFileDirs").asInstanceOf[String]
+    commitLogDir = json("commitLogDir").asInstanceOf[String]
+    savedCachesDir = json("savedCachesDir").asInstanceOf[String]
+    awaitConsistentStateBackoff = Duration.create(json("awaitConsistentStateBackoff").asInstanceOf[String])
+  }
+
+  def toJson: JSONObject = {
+    val json = new mutable.LinkedHashMap[String, Any]()
+
+    json("id") = id
+    json("state") = "" + state
+    if (runtime != null) json("runtime") = runtime.toJson
+
+    json("cpu") = "" + cpu
+    json("mem") = "" + mem
+
+    json("broadcast") = broadcast
+    json("nodeOut") = nodeOut
+    json("agentOut") = agentOut
+
+    json("clusterName") = clusterName
+    json("seed") = "" + seed
+    json("replaceAddress") = replaceAddress
+    json("seeds") = seeds
+
+    json("constraints") = Util.formatConstraints(constraints)
+    json("seedConstraints") = Util.formatConstraints(seedConstraints)
+
+    json("dataFileDirs") = dataFileDirs
+    json("commitLogDir") = commitLogDir
+    json("savedCachesDir") = savedCachesDir
+    json("awaitConsistentStateBackoff") = "" + awaitConsistentStateBackoff
+
+    new JSONObject(json.toMap)
+  }
 }
 
-object DSETask {
-
+object Task {
   val STORAGE_PORT: String = "storage_port"
   val SSL_STORAGE_PORT: String = "ssl_storage_port"
   val NATIVE_TRANSPORT_PORT: String = "native_transport_port"
@@ -176,11 +248,8 @@ object DSETask {
     RPC_PORT -> 9160
   )
 
-  def apply(id: String, opts: AddOptions): DSETask = {
-    val task = opts.taskType match {
-      case TaskTypes.CASSANDRA_NODE => CassandraNodeTask(id)
-      case _ => throw new IllegalArgumentException(s"Unknown task type ${opts.taskType}")
-    }
+  def apply(id: String, opts: AddOptions): Task = {
+    val task = new Task()
 
     task.cpu = opts.cpu
     task.mem = opts.mem
@@ -207,121 +276,61 @@ object DSETask {
     }
   }
 
-  implicit val stateFormats = new Format[State.Value] {
-    override def writes(o: State.Value): JsValue = JsString(o.toString)
-
-    override def reads(json: JsValue): JsResult[State.Value] = json.validate[String].map(State.withName)
+  object State extends Enumeration {
+    val Inactive = Value("Inactive")
+    val Stopped = Value("Stopped")
+    val Staging = Value("Staging")
+    val Starting = Value("Starting")
+    val Running = Value("Running")
+    val Reconciling = Value("Reconciling")
   }
 
-  implicit val taskRuntimeFormats = Json.format[TaskRuntime]
+  class Runtime() {
+    var taskId: String = null
+    var slaveId: String = null
+    var executorId: String = null
 
-  implicit val reader = new Reads[DSETask] {
-    implicit val listReader: Reads[List[DSETask]] = Reads.list(this)
+    var hostname: String = null
+    var attributes: Map[String, String] = null
 
-    override def reads(json: JsValue): JsResult[DSETask] = {
-      (json \ "type").asOpt[String] match {
-        case Some(t) => t match {
-          case TaskTypes.CASSANDRA_NODE => CassandraNodeTask.reader.reads(json)
-        }
-        case None => play.api.libs.json.JsError("Missing type for DSETask")
-      }
+    def this(taskId: String, slaveId: String, executorId: String, hostname: String, attributes: Map[String, String]) {
+      this
+      this.taskId = taskId
+      this.slaveId = slaveId
+      this.executorId = executorId
+
+      this.hostname = hostname
+      this.attributes = attributes
     }
-  }
 
-  implicit val writer = new Writes[DSETask] {
-    override def writes(obj: DSETask): JsValue = {
-      obj match {
-        case cassandra: CassandraNodeTask => CassandraNodeTask.writer.writes(cassandra)
-      }
+    def this(info: TaskInfo, offer: Offer) = {
+      this(info.getTaskId.getValue, info.getSlaveId.getValue, info.getExecutor.getExecutorId.getValue, offer.getHostname,
+        offer.getAttributesList.toList.filter(_.hasText).map(attr => attr.getName -> attr.getText.getValue).toMap)
     }
-  }
-}
 
-case class CassandraNodeTask(id: String) extends DSETask {
-  val taskType = TaskTypes.CASSANDRA_NODE
-}
+    def this(json: Map[String, Any]) = {
+      this
+      fromJson(json)
+    }
 
-object CassandraNodeTask {
+    def fromJson(json: Map[String, Any]): Unit = {
+      taskId = json("taskId").asInstanceOf[String]
+      slaveId = json("slaveId").asInstanceOf[String]
+      executorId = json("executorId").asInstanceOf[String]
 
-  import DSETask._
-  import net.elodina.mesos.dse.cli.DurationFormats.formats
+      hostname = json("hostname").asInstanceOf[String]
+      attributes = json("attributes").asInstanceOf[Map[String, String]]
+    }
 
-  implicit val reader = (
-    (__ \ 'id).read[String] and
-    (__ \ 'state).read[State.Value] and
-    (__ \ 'runtime).readNullable[TaskRuntime] and
-    (__ \ 'cpu).read[Double] and
-    (__ \ 'mem).read[Long] and
-    (__ \ 'broadcast).read[String] and
-    (__ \ 'nodeOut).read[String] and
-    (__ \ 'agentOut).read[String] and
-    (__ \ 'clusterName).read[String] and
-    (__ \ 'seed).read[Boolean] and
-    (__ \ 'seeds).read[String] and
-    (__ \ 'replaceAddress).read[String] and
-    (__ \ 'constraints).read[String].map(Constraint.parse) and
-    (__ \ 'seedConstraints).read[String].map(Constraint.parse) and
-    (__ \ 'dataFileDirs).read[String] and
-    (__ \ 'commitLogDir).read[String] and
-    (__ \ 'savedCachesDir).read[String] and
-    (__ \ 'awaitConsistentStateBackoff).read[Duration] and
-    (__ \ 'ports).read[Map[String, Int]])((id, state, runtime, cpu, mem, broadcast,
-      nodeOut, agentOut, clusterName, seed, seeds, replaceAddress, constraints, seedConstraints,
-      dataFileDirs, commitLogDir, savedCachesDir, stateBackoff,
-                                                         ports) => {
+    def toJson: JSONObject = {
+      val json = new mutable.LinkedHashMap[String, Any]()
+      json("taskId") = taskId
+      json("slaveId") = slaveId
+      json("executorId") = executorId
 
-    val task = CassandraNodeTask(id)
-    task.state = state
-    task.runtime = runtime
-    task.cpu = cpu
-    task.mem = mem
-    task.broadcast = broadcast
-    task.nodeOut = nodeOut
-    task.agentOut = agentOut
-    task.clusterName = clusterName
-    task.seed = seed
-    task.seeds = seeds
-    task.replaceAddress = replaceAddress
-    constraints.foreach(task.constraints +=)
-    seedConstraints.foreach(task.seedConstraints +=)
-    task.dataFileDirs = dataFileDirs
-    task.commitLogDir = commitLogDir
-    task.savedCachesDir = savedCachesDir
-    task.awaitConsistentStateBackoff = stateBackoff
-
-    task.storagePort = ports(DSETask.STORAGE_PORT)
-    task.sslStoragePort = ports(DSETask.SSL_STORAGE_PORT)
-    task.jmxPort = ports(DSETask.JMX_PORT)
-    task.nativeTransportPort = ports(DSETask.NATIVE_TRANSPORT_PORT)
-    task.rpcPort = ports(DSETask.RPC_PORT)
-
-    task
-  })
-
-  implicit val writer = new Writes[CassandraNodeTask] {
-    override def writes(o: CassandraNodeTask): JsValue = {
-      Json.obj(
-        "type" -> o.taskType,
-        "id" -> o.id,
-        "state" -> Json.toJson(o.state),
-        "runtime" -> Json.toJson(o.runtime),
-        "cpu" -> o.cpu,
-        "mem" -> o.mem,
-        "broadcast" -> o.broadcast,
-        "nodeOut" -> o.nodeOut,
-        "agentOut" -> o.agentOut,
-        "clusterName" -> o.clusterName,
-        "seed" -> o.seed,
-        "seeds" -> o.seeds,
-        "replaceAddress" -> o.replaceAddress,
-        "constraints" -> Util.formatConstraints(o.constraints),
-        "seedConstraints" -> Util.formatConstraints(o.seedConstraints),
-        "dataFileDirs" -> o.dataFileDirs,
-        "commitLogDir" -> o.commitLogDir,
-        "savedCachesDir" -> o.savedCachesDir,
-        "awaitConsistentStateBackoff" -> Json.toJson(o.awaitConsistentStateBackoff),
-        "ports" -> o.portMappings
-      )
+      json("hostname") = hostname
+      json("attributes") = new JSONObject(attributes)
+      new JSONObject(json.toMap)
     }
   }
 }
