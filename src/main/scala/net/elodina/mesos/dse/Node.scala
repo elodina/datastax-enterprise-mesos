@@ -49,13 +49,18 @@ class Node extends Constrained {
   var dataFileDirs: String = ""
   var commitLogDir: String = ""
   var savedCachesDir: String = ""
-  var awaitConsistentStateBackoff: Duration = 3 seconds
+  var awaitConsistentStateBackoff: Duration = Duration("3 seconds")
 
   var storagePort = 7000
   var sslStoragePort = 7001
   var jmxPort = 7199
   var nativeTransportPort = 9042
   var rpcPort = 9160
+
+  def this(id: String) = {
+    this
+    this.id = id
+  }
 
   def this(json: Map[String, Any]) = {
     this
@@ -206,15 +211,15 @@ class Node extends Constrained {
     json("state") = "" + state
     if (runtime != null) json("runtime") = runtime.toJson
 
-    json("cpu") = "" + cpu
-    json("mem") = "" + mem
+    json("cpu") = cpu
+    json("mem") = mem
 
     json("broadcast") = broadcast
     json("nodeOut") = nodeOut
     json("agentOut") = agentOut
 
     json("clusterName") = clusterName
-    json("seed") = "" + seed
+    json("seed") = seed
     json("replaceAddress") = replaceAddress
     json("seeds") = seeds
 
@@ -301,8 +306,10 @@ object Node {
     }
 
     def this(info: TaskInfo, offer: Offer) = {
-      this(info.getTaskId.getValue, info.getSlaveId.getValue, info.getExecutor.getExecutorId.getValue, offer.getHostname,
-        offer.getAttributesList.toList.filter(_.hasText).map(attr => attr.getName -> attr.getText.getValue).toMap)
+      this(
+        info.getTaskId.getValue, info.getSlaveId.getValue, info.getExecutor.getExecutorId.getValue,
+        offer.getHostname, offer.getAttributesList.toList.filter(_.hasText).map(attr => attr.getName -> attr.getText.getValue).toMap
+      )
     }
 
     def this(json: Map[String, Any]) = {
