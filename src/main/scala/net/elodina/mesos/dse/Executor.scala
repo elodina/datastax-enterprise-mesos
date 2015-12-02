@@ -64,18 +64,18 @@ object Executor extends org.apache.mesos.Executor {
   def launchTask(driver: ExecutorDriver, taskInfo: TaskInfo) {
     logger.info("[launchTask] " + Pretty.task(taskInfo))
 
-    val task = new Task(Utils.parseJson(taskInfo.getData.toStringUtf8))
+    val node = new Node(Util.parseJson(taskInfo.getData.toStringUtf8))
     driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_STARTING).build)
 
     new Thread {
       override def run() {
-        setName("task")
+        setName("executor-processes")
 
         var env = Map[String, String]()
         findJreDir().foreach { env += "JAVA_HOME" -> _ }
 
-        dseProcess = DSEProcess(task, driver, taskInfo, hostname, env)
-        agentProcess = AgentProcess(task, env)
+        dseProcess = DSEProcess(node, driver, taskInfo, hostname, env)
+        agentProcess = AgentProcess(node, env)
 
         dseProcess.start()
         agentProcess.start()

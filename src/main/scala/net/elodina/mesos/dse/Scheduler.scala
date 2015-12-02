@@ -22,7 +22,6 @@ import java.io.File
 import java.util
 import java.util.concurrent.TimeUnit
 
-import net.elodina.mesos.utils.constraints.Constraints
 import net.elodina.mesos.utils.Pretty
 import com.google.protobuf.ByteString
 import org.apache.log4j._
@@ -33,7 +32,7 @@ import scala.collection.JavaConversions._
 import scala.concurrent.duration.{Duration, _}
 import scala.language.postfixOps
 
-object Scheduler extends org.apache.mesos.Scheduler with Constraints[Task] with Reconciliation[Task] {
+object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with Reconciliation[Node] {
   private val logger = Logger.getLogger(this.getClass)
 
   private[dse] val cluster = new Cluster()
@@ -137,7 +136,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Task] with 
     logger.info("[executorLost] executor:" + Pretty.id(executorId.getValue) + " slave:" + Pretty.id(slaveId.getValue) + " status:" + status)
   }
 
-  override def tasks: Traversable[Task] = cluster.getTasks
+  override def nodes: Traversable[Node] = cluster.getNodes
 
   private def onResourceOffers(offers: List[Offer]) {
     offers.foreach { offer =>
@@ -152,25 +151,25 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Task] with 
   }
 
   private def acceptOffer(offer: Offer): Option[String] = {
-    cluster.getTasks.filter(_.state == Task.State.Stopped).toList.sortBy(_.id.toInt) match {
-      case Nil => Some("all tasks are running")
-      case tasks =>
-        if (cluster.getTasks.exists(task => task.state == Task.State.Staging || task.state == Task.State.Starting))
-          Some("should wait until other tasks are started")
+    cluster.getNodes.filter(_.state == Node.State.Stopped).toList.sortBy(_.id.toInt) match {
+      case Nil => Some("all nodes are running")
+      case nodes =>
+        if (cluster.getNodes.exists(node => node.state == Node.State.Staging || node.state == Node.State.Starting))
+          Some("should wait until other nodes are started")
         else {
           // Consider starting seeds first
-          val filteredTasks = tasks.filter(_.seed) match {
-            case Nil => tasks
+          val filteredNodes = nodes.filter(_.seed) match {
+            case Nil => nodes
             case seeds =>
               logger.info("There are seed nodes to be launched so will prefer them first.")
               seeds
           }
 
-          val reason = filteredTasks.flatMap { task =>
-            checkSeedConstraints(offer, task).orElse(checkConstraints(offer, task)).orElse(task.matches(offer)) match {
-              case Some(declineReason) => Some(s"task ${task.id}: $declineReason")
+          val reason = filteredNodes.flatMap { node =>
+            checkSeedConstraints(offer, node).orElse(checkConstraints(offer, node)).orElse(node.matches(offer)) match {
+              case Some(declineReason) => Some(s"node ${node.id}: $declineReason")
               case None =>
-                launchTask(task, offer)
+                launchTask(node, offer)
                 None
             }
           }.mkString(", ")
@@ -180,91 +179,91 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Task] with 
     }
   }
 
-  private def checkSeedConstraints(offer: Offer, task: Task): Option[String] = {
-    if (task.seed) checkConstraintsWith(offer, task, _.seedConstraints, name => tasks.filter(_.seed).flatMap(_.attribute(name)).toList)
+  private def checkSeedConstraints(offer: Offer, node: Node): Option[String] = {
+    if (node.seed) checkConstraintsWith(offer, node, _.seedConstraints, name => nodes.filter(_.seed).flatMap(_.attribute(name)).toList)
     else None
   }
 
-  private def launchTask(task: Task, offer: Offer) {
-    val taskInfo = task.createTaskInfo(offer)
+  private def launchTask(node: Node, offer: Offer) {
+    val taskInfo = node.createTaskInfo(offer)
 
-    task.runtime = new Task.Runtime(taskInfo, offer)
-    task.state = Task.State.Staging
+    node.runtime = new Node.Runtime(taskInfo, offer)
+    node.state = Node.State.Staging
 
     driver.launchTasks(util.Arrays.asList(offer.getId), util.Arrays.asList(taskInfo), Filters.newBuilder().setRefuseSeconds(1).build)
-    logger.info(s"Starting task ${task.id} with taskid ${taskInfo.getTaskId.getValue} for offer ${offer.getId.getValue}")
+    logger.info(s"Starting node ${node.id} with task ${node.runtime.taskId} for offer ${offer.getId.getValue}")
   }
 
   private def onTaskStatus(driver: SchedulerDriver, status: TaskStatus) {
-    val task = cluster.getTasks.find(_.id == Task.idFromTaskId(status.getTaskId.getValue))
+    val node = cluster.getNodes.find(_.id == Node.idFromTaskId(status.getTaskId.getValue))
 
     status.getState match {
-      case TaskState.TASK_RUNNING => onTaskStarted(task, driver, status)
-      case TaskState.TASK_LOST | TaskState.TASK_FAILED | TaskState.TASK_ERROR => onTaskFailed(task, status)
-      case TaskState.TASK_FINISHED | TaskState.TASK_KILLED => onTaskFinished(task, status)
+      case TaskState.TASK_RUNNING => onTaskStarted(node, driver, status)
+      case TaskState.TASK_LOST | TaskState.TASK_FAILED | TaskState.TASK_ERROR => onTaskFailed(node, status)
+      case TaskState.TASK_FINISHED | TaskState.TASK_KILLED => onTaskFinished(node, status)
       case TaskState.TASK_STAGING | TaskState.TASK_STARTING =>
-      case _ => logger.warn("Got unexpected task state: " + status.getState)
+      case _ => logger.warn("Got unexpected node state: " + status.getState)
     }
 
     cluster.save()
   }
 
-  private def onTaskStarted(taskOpt: Option[Task], driver: SchedulerDriver, status: TaskStatus) {
-    taskOpt match {
-      case Some(task) =>
-        task.state = Task.State.Running
-        task.replaceAddress = ""
+  private def onTaskStarted(nodeOpt: Option[Node], driver: SchedulerDriver, status: TaskStatus) {
+    nodeOpt match {
+      case Some(node) =>
+        node.state = Node.State.Running
+        node.replaceAddress = ""
       case None =>
-        logger.info(s"Got ${status.getState} for unknown/stopped task, killing task ${status.getTaskId.getValue}")
+        logger.info(s"Got ${status.getState} for unknown/stopped node, killing task ${status.getTaskId.getValue}")
         driver.killTask(status.getTaskId)
     }
   }
 
-  private def onTaskFailed(taskOpt: Option[Task], status: TaskStatus) {
-    taskOpt match {
-      case Some(task) =>
-        task.state = Task.State.Stopped
-        task.runtime = null
-      case None => logger.info(s"Got ${status.getState} for unknown/stopped task with task id ${status.getTaskId.getValue}")
+  private def onTaskFailed(nodeOpt: Option[Node], status: TaskStatus) {
+    nodeOpt match {
+      case Some(node) =>
+        node.state = Node.State.Stopped
+        node.runtime = null
+      case None => logger.info(s"Got ${status.getState} for unknown/stopped node with task id ${status.getTaskId.getValue}")
     }
   }
 
-  private def onTaskFinished(taskOpt: Option[Task], status: TaskStatus) {
-    taskOpt match {
-      case Some(task) =>
-        task.state = Task.State.Inactive
-        task.runtime = null
-        logger.info(s"Task ${task.id} has finished")
-      case None => logger.info(s"Got ${status.getState} for unknown/stopped task with task id ${status.getTaskId.getValue}")
+  private def onTaskFinished(nodeOpt: Option[Node], status: TaskStatus) {
+    nodeOpt match {
+      case Some(node) =>
+        node.state = Node.State.Inactive
+        node.runtime = null
+        logger.info(s"Node ${node.id} has finished")
+      case None => logger.info(s"Got ${status.getState} for unknown/stopped node with task id ${status.getTaskId.getValue}")
     }
   }
 
-  def stopTask(id: String): Option[Task] = {
-    cluster.getTasks.find(_.id == id) match {
-      case Some(task) =>
-        task.state match {
-          case Task.State.Staging | Task.State.Starting | Task.State.Running =>
-            driver.killTask(TaskID.newBuilder().setValue(task.runtime.taskId).build)
+  def stopNode(id: String): Option[Node] = {
+    cluster.getNodes.find(_.id == id) match {
+      case Some(node) =>
+        node.state match {
+          case Node.State.Staging | Node.State.Starting | Node.State.Running =>
+            driver.killTask(TaskID.newBuilder().setValue(node.runtime.taskId).build)
           case _ =>
         }
 
-        task.state = Task.State.Inactive
-        Some(task)
+        node.state = Node.State.Inactive
+        Some(node)
       case None =>
-        logger.warn(s"Task $id was removed, ignoring its stop call")
+        logger.warn(s"Node $id was removed, ignoring its stop call")
         None
     }
   }
 
-  def removeTask(id: String): Option[Task] = {
-    cluster.getTasks.find(_.id == id) match {
-      case Some(task) =>
-        stopTask(id)
+  def removeNode(id: String): Option[Node] = {
+    cluster.getNodes.find(_.id == id) match {
+      case Some(node) =>
+        stopNode(id)
 
-        cluster.removeTask(task)
-        Some(task)
+        cluster.removeNode(node)
+        Some(node)
       case None =>
-        logger.warn(s"Task $id is already removed")
+        logger.warn(s"Node $id is already removed")
         None
     }
   }
@@ -285,21 +284,21 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Task] with 
     }
   }
 
-  private[dse] def setSeedNodes(task: Task, hostname: String) {
-    val seeds = cluster.getTasks.collect {
-      case cassandraNode: Task => cassandraNode
-    }.filter(c => c.seed && c.clusterName == task.clusterName)
-      .filter(c => c.state == Task.State.Staging || c.state == Task.State.Starting || c.state == Task.State.Running)
+  private[dse] def setSeedNodes(node: Node, hostname: String) {
+    val seeds = cluster.getNodes.collect {
+      case cassandraNode: Node => cassandraNode
+    }.filter(c => c.seed && c.clusterName == node.clusterName)
+      .filter(c => c.state == Node.State.Staging || c.state == Node.State.Starting || c.state == Node.State.Running)
       .flatMap(_.attribute("hostname")).toList
 
     if (seeds.isEmpty) {
-      if (!task.seed) {
-        logger.warn(s"No seed nodes available and current not is not seed node. Forcing seed for node ${task.id}")
-        task.seed = true
+      if (!node.seed) {
+        logger.warn(s"No seed nodes available and current not is not seed node. Forcing seed for node ${node.id}")
+        node.seed = true
       }
 
-      task.seeds = hostname
-    } else task.seeds = seeds.sorted.mkString(",")
+      node.seeds = hostname
+    } else node.seeds = seeds.sorted.mkString(",")
   }
 
   private def resolveDeps() {

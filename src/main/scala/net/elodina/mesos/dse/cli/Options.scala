@@ -47,7 +47,7 @@ case class SchedulerOptions(api: String = "",
                             debug: Boolean = false,
                             jre: String = "") extends Options
 
-case class AddOptions(taskType: String = "", id: String = "", api: String = "", cpu: Double = 2, mem: Long = 8192,
+case class AddOptions(id: String = "", api: String = "", cpu: Double = 2, mem: Long = 8192,
                       broadcast: String = "", constraints: String = "", seedConstraints: String = "",
                       nodeOut: String = "cassandra-node.log", agentOut: String = "datastax-agent.log",
                       clusterName: String = "Test Cluster", seed: Boolean = false, replaceAddress: String = "",

@@ -27,11 +27,11 @@ import org.apache.mesos.SchedulerDriver
 import scala.collection.JavaConversions._
 import scala.concurrent.duration.Duration
 
-trait Reconciliation[T <: Task] {
+trait Reconciliation[T <: Node] {
   protected val reconcileDelay: Duration
   protected val reconcileMaxTries: Int
 
-  protected def tasks: Traversable[T]
+  protected def nodes: Traversable[T]
 
   private val logger = Logger.getLogger(this.getClass)
   private[dse] var reconciles = 0
@@ -47,29 +47,29 @@ trait Reconciliation[T <: Task] {
 
   private def reconcile(driver: SchedulerDriver, isImplicit: Boolean, now: Date = new Date()) {
     if (now.getTime - reconcileTime.getTime >= reconcileDelay.toMillis) {
-      if (!tasks.exists(t => t.state == Task.State.Reconciling && t.runtime != null)) reconciles = 0
+      if (!nodes.exists(t => t.state == Node.State.Reconciling && t.runtime != null)) reconciles = 0
       reconciles += 1
       reconcileTime = now
 
-      tasks.filter(_.runtime != null).foreach { task =>
-        if (task.state == Task.State.Staging || task.state == Task.State.Running) task.state = Task.State.Stopped
+      nodes.filter(_.runtime != null).foreach { node =>
+        if (node.state == Node.State.Staging || node.state == Node.State.Running) node.state = Node.State.Stopped
       }
 
       if (reconciles > reconcileMaxTries) {
-        tasks.filter(_.state == Task.State.Reconciling).foreach { task =>
-          logger.info(s"Reconciling exceeded $reconcileMaxTries tries for task ${task.id}, sending killTask for task ${task.id}")
-          driver.killTask(TaskID.newBuilder().setValue(task.id).build())
+        nodes.filter(_.state == Node.State.Reconciling).foreach { node =>
+          logger.info(s"Reconciling exceeded $reconcileMaxTries tries for node ${node.id}, sending killTask for node ${node.id}")
+          driver.killTask(TaskID.newBuilder().setValue(node.id).build())
         }
       } else {
         if (isImplicit) {
-          tasks.foreach(_.state = Task.State.Reconciling)
+          nodes.foreach(_.state = Node.State.Reconciling)
           driver.reconcileTasks(Collections.emptyList())
         } else {
-          val statuses = tasks.filter(_.runtime != null).flatMap { task =>
-            if (task.state == Task.State.Reconciling) {
-              logger.info(s"Reconciling $reconciles/$reconcileMaxTries state of task ${task.id} with task id ${task.runtime.taskId}")
+          val statuses = nodes.filter(_.runtime != null).flatMap { node =>
+            if (node.state == Node.State.Reconciling) {
+              logger.info(s"Reconciling $reconciles/$reconcileMaxTries state of node ${node.id} with node id ${node.runtime.taskId}")
               Some(TaskStatus.newBuilder()
-                .setTaskId(TaskID.newBuilder().setValue(task.runtime.taskId))
+                .setTaskId(TaskID.newBuilder().setValue(node.runtime.taskId))
                 .setState(TaskState.TASK_STAGING)
                 .build)
             } else None

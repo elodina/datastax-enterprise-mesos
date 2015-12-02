@@ -23,8 +23,6 @@ import java.util.Scanner
 import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 
 import net.elodina.mesos.dse.cli._
-import net.elodina.mesos.utils.constraints.Constraint
-import net.elodina.mesos.utils.Util
 import org.apache.log4j.Logger
 import org.eclipse.jetty.server.{Server, ServerConnector}
 import org.eclipse.jetty.servlet.{ServletContextHandler, ServletHolder}
@@ -139,129 +137,129 @@ object HttpServer {
       var uri: String = request.getRequestURI.substring("/api".length)
       if (uri.startsWith("/")) uri = uri.substring(1)
 
-      if (uri == "add") handleAddTask(request, response)
-      else if (uri == "update") handleUpdateTask(request, response)
-      else if (uri == "start") handleStartTask(request, response)
-      else if (uri == "stop") handleStopTask(request, response)
-      else if (uri == "remove") handleRemoveTask(request, response)
+      if (uri == "add") handleAddNode(request, response)
+      else if (uri == "update") handleUpdateNode(request, response)
+      else if (uri == "start") handleStartNode(request, response)
+      else if (uri == "stop") handleStopNode(request, response)
+      else if (uri == "remove") handleRemoveNode(request, response)
       else if (uri == "status") handleClusterStatus(request, response)
       else response.sendError(404)
     }
 
-    def handleAddTask(request: HttpServletRequest, response: HttpServletResponse) {
+    def handleAddNode(request: HttpServletRequest, response: HttpServletResponse) {
       val opts = postBody(request).as[AddOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val existing = ids.filter(id => Scheduler.cluster.getTasks.exists(_.id == id))
-      if (existing.nonEmpty) respond(new ApiResponse(success = false, s"Tasks ${existing.mkString(",")} already exist", null), response)
+      val existing = ids.filter(id => Scheduler.cluster.getNodes.exists(_.id == id))
+      if (existing.nonEmpty) respond(new ApiResponse(success = false, s"Nodes ${existing.mkString(",")} already exist", null), response)
       else {
-        val tasks = ids.map { id =>
-          val task = Task(id, opts)
-          Scheduler.cluster.addTask(task)
-          logger.info(s"Added task $task")
-          task
+        val nodes = ids.map { id =>
+          val node = Node(id, opts)
+          Scheduler.cluster.addNode(node)
+          logger.info(s"Added node $node")
+          node
         }
 
         Scheduler.cluster.save()
-        respond(new ApiResponse(success = true, s"Added tasks ${opts.id}", new Cluster(tasks)), response)
+        respond(new ApiResponse(success = true, s"Added nodes ${opts.id}", new Cluster(nodes)), response)
       }
     }
 
-    def handleUpdateTask(request: HttpServletRequest, response: HttpServletResponse) {
+    def handleUpdateNode(request: HttpServletRequest, response: HttpServletResponse) {
       val opts = postBody(request).as[UpdateOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val missing = ids.filter(id => !Scheduler.cluster.getTasks.exists(_.id == id))
-      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", null), response)
+      val missing = ids.filter(id => !Scheduler.cluster.getNodes.exists(_.id == id))
+      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Nodes ${missing.mkString(",")} do not exist", null), response)
       else {
-        val tasks = ids.flatMap { id =>
-          Scheduler.cluster.getTasks.find(_.id == id) match {
-            case Some(task) =>
-              opts.cpu.foreach(task.cpu = _)
-              opts.mem.foreach(task.mem = _)
-              opts.broadcast.foreach(task.broadcast = _)
+        val nodes = ids.flatMap { id =>
+          Scheduler.cluster.getNodes.find(_.id == id) match {
+            case Some(node_) =>
+              opts.cpu.foreach(node_.cpu = _)
+              opts.mem.foreach(node_.mem = _)
+              opts.broadcast.foreach(node_.broadcast = _)
               opts.constraints.foreach { constraints =>
-                task.constraints.clear()
-                task.constraints ++= Constraint.parse(constraints)
+                node_.constraints.clear()
+                node_.constraints ++= Constraint.parse(constraints)
               }
               opts.seedConstraints.foreach { seedConstraints =>
-                task.seedConstraints.clear()
-                task.seedConstraints ++= Constraint.parse(seedConstraints)
+                node_.seedConstraints.clear()
+                node_.seedConstraints ++= Constraint.parse(seedConstraints)
               }
-              opts.nodeOut.foreach(task.nodeOut = _)
-              opts.clusterName.foreach(task.clusterName = _)
-              opts.seed.foreach(task.seed = _)
-              opts.replaceAddress.foreach(task.replaceAddress = _)
-              opts.dataFileDirs.foreach(task.dataFileDirs = _)
-              opts.commitLogDir.foreach(task.commitLogDir = _)
-              opts.savedCachesDir.foreach(task.savedCachesDir = _)
-              opts.awaitConsistentStateBackoff.foreach(task.awaitConsistentStateBackoff = _)
+              opts.nodeOut.foreach(node_.nodeOut = _)
+              opts.clusterName.foreach(node_.clusterName = _)
+              opts.seed.foreach(node_.seed = _)
+              opts.replaceAddress.foreach(node_.replaceAddress = _)
+              opts.dataFileDirs.foreach(node_.dataFileDirs = _)
+              opts.commitLogDir.foreach(node_.commitLogDir = _)
+              opts.savedCachesDir.foreach(node_.savedCachesDir = _)
+              opts.awaitConsistentStateBackoff.foreach(node_.awaitConsistentStateBackoff = _)
 
-              logger.info(s"Updated task $id")
-              Some(task)
+              logger.info(s"Updated node $id")
+              Some(node_)
             case None =>
-              logger.warn(s"Task $id was removed, ignoring its update call")
+              logger.warn(s"Node $id was removed, ignoring its update call")
               None
           }
         }
 
         Scheduler.cluster.save()
-        respond(new ApiResponse(success = true, s"Updated tasks ${opts.id}", new Cluster(tasks)), response)
+        respond(new ApiResponse(success = true, s"Updated nodes ${opts.id}", new Cluster(nodes)), response)
       }
     }
 
-    def handleStartTask(request: HttpServletRequest, response: HttpServletResponse) {
+    def handleStartNode(request: HttpServletRequest, response: HttpServletResponse) {
       val opts = postBody(request).as[StartOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val missing = ids.filter(id => !Scheduler.cluster.getTasks.exists(_.id == id))
-      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", null), response)
+      val missing = ids.filter(id => !Scheduler.cluster.getNodes.exists(_.id == id))
+      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Nodes ${missing.mkString(",")} do not exist", null), response)
       else {
-        val tasks = ids.flatMap { id =>
-          Scheduler.cluster.getTasks.find(_.id == id) match {
-            case Some(task) =>
-              if (task.state == Task.State.Inactive) {
-                task.state = Task.State.Stopped
-                logger.info(s"Starting task $id")
-              } else logger.warn(s"Task $id already started")
-              Some(task)
+        val nodes = ids.flatMap { id =>
+          Scheduler.cluster.getNodes.find(_.id == id) match {
+            case Some(node_) =>
+              if (node_.state == Node.State.Inactive) {
+                node_.state = Node.State.Stopped
+                logger.info(s"Starting node $id")
+              } else logger.warn(s"Node $id already started")
+              Some(node_)
             case None =>
-              logger.warn(s"Task $id was removed, ignoring its start call")
+              logger.warn(s"Node $id was removed, ignoring its start call")
               None
           }
         }
 
         if (opts.timeout.toMillis > 0) {
-          val ok = tasks.forall(_.waitFor(Task.State.Running, opts.timeout))
-          if (ok) respond(new ApiResponse(success = true, s"Started tasks ${opts.id}", new Cluster(tasks)), response)
-          else respond(new ApiResponse(success = true, s"Start tasks ${opts.id} timed out after ${opts.timeout}", null), response)
-        } else respond(new ApiResponse(success = true, s"Servers ${opts.id} scheduled to start", new Cluster(tasks)), response)
+          val ok = nodes.forall(_.waitFor(Node.State.Running, opts.timeout))
+          if (ok) respond(new ApiResponse(success = true, s"Started nodes ${opts.id}", new Cluster(nodes)), response)
+          else respond(new ApiResponse(success = true, s"Start nodes ${opts.id} timed out after ${opts.timeout}", null), response)
+        } else respond(new ApiResponse(success = true, s"Servers ${opts.id} scheduled to start", new Cluster(nodes)), response)
       }
     }
 
-    def handleStopTask(request: HttpServletRequest, response: HttpServletResponse) {
+    def handleStopNode(request: HttpServletRequest, response: HttpServletResponse) {
       val opts = postBody(request).as[StopOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val missing = ids.filter(id => !Scheduler.cluster.getTasks.exists(_.id == id))
-      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", null), response)
+      val missing = ids.filter(id => !Scheduler.cluster.getNodes.exists(_.id == id))
+      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Nodes ${missing.mkString(",")} do not exist", null), response)
       else {
-        val tasks = ids.flatMap(Scheduler.stopTask)
+        val nodes = ids.flatMap(Scheduler.stopNode)
         Scheduler.cluster.save()
-        respond(new ApiResponse(success = true, s"Stopped tasks ${opts.id}", new Cluster(tasks)), response)
+        respond(new ApiResponse(success = true, s"Stopped nodes ${opts.id}", new Cluster(nodes)), response)
       }
     }
 
-    def handleRemoveTask(request: HttpServletRequest, response: HttpServletResponse) {
+    def handleRemoveNode(request: HttpServletRequest, response: HttpServletResponse) {
       val opts = postBody(request).as[RemoveOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val missing = ids.filter(id => !Scheduler.cluster.getTasks.exists(_.id == id))
-      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", null), response)
+      val missing = ids.filter(id => !Scheduler.cluster.getNodes.exists(_.id == id))
+      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Nodes ${missing.mkString(",")} do not exist", null), response)
       else {
-        val tasks = ids.flatMap(Scheduler.removeTask)
+        val nodes = ids.flatMap(Scheduler.removeNode)
         Scheduler.cluster.save()
-        respond(new ApiResponse(success = true, s"Removed tasks ${opts.id}", new Cluster(tasks)), response)
+        respond(new ApiResponse(success = true, s"Removed nodes ${opts.id}", new Cluster(nodes)), response)
       }
     }
 

@@ -5,7 +5,6 @@ import java.net.{URLEncoder, HttpURLConnection, URL}
 
 import net.elodina.mesos.dse._
 import net.elodina.mesos.utils
-import net.elodina.mesos.utils.Util
 import play.api.libs.json.{Json, Writes}
 import scopt.{OptionParser, Read}
 
@@ -104,7 +103,7 @@ object Cli {
       connection.disconnect()
     }
 
-    new ApiResponse(Utils.parseJson(response))
+    new ApiResponse(Util.parseJson(response))
   }
 
   private[cli] def sendRequest(uri: String, params: Map[String, String]): Map[String, Any] = {
@@ -145,7 +144,7 @@ object Cli {
     if (response.trim().isEmpty) return null
 
     var json: Map[String, Object] = null
-    try { json = Utils.parseJson(response)}
+    try { json = Util.parseJson(response)}
     catch { case e: IllegalArgumentException => throw new IOException(e) }
 
     json
@@ -177,34 +176,34 @@ object Cli {
 
   private def printCluster(cluster: Cluster) {
     printLine("cluster:")
-    cluster.getTasks.foreach(printTask(_, 1))
+    cluster.getNodes.foreach(printNode(_, 1))
   }
 
-  private def printTask(task: Task, indent: Int = 0) {
-    printLine("task:", indent)
-    printLine(s"id: ${task.id}", indent + 1)
-    printLine(s"state: ${task.state}", indent + 1)
-    printLine(s"cpu: ${task.cpu}", indent + 1)
-    printLine(s"mem: ${task.mem}", indent + 1)
+  private def printNode(node: Node, indent: Int = 0) {
+    printLine("node:", indent)
+    printLine(s"id: ${node.id}", indent + 1)
+    printLine(s"state: ${node.state}", indent + 1)
+    printLine(s"cpu: ${node.cpu}", indent + 1)
+    printLine(s"mem: ${node.mem}", indent + 1)
 
-    if (task.broadcast != "") printLine(s"broadcast: ${task.broadcast}", indent + 1)
-    printLine(s"node out: ${task.nodeOut}", indent + 1)
-    printLine(s"agent out: ${task.agentOut}", indent + 1)
-    printLine(s"cluster name: ${task.clusterName}", indent + 1)
-    printLine(s"seed: ${task.seed}", indent + 1)
-    if (task.seeds != "") printLine(s"seeds: ${task.seeds}", indent + 1)
-    if (task.replaceAddress != "") printLine(s"replace-address: ${task.replaceAddress}", indent + 1)
-    if (task.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(task.constraints)}", indent + 1)
-    if (task.seed && task.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(task.seedConstraints)}", indent + 1)
-    if (task.dataFileDirs != "") printLine(s"data file dirs: ${task.dataFileDirs}", indent + 1)
-    if (task.commitLogDir != "") printLine(s"commit log dir: ${task.commitLogDir}", indent + 1)
-    if (task.savedCachesDir != "") printLine(s"saved caches dir: ${task.savedCachesDir}", indent + 1)
-    if (task.runtime != null) printTaskRuntime(task.runtime, indent + 1)
+    if (node.broadcast != "") printLine(s"broadcast: ${node.broadcast}", indent + 1)
+    printLine(s"node out: ${node.nodeOut}", indent + 1)
+    printLine(s"agent out: ${node.agentOut}", indent + 1)
+    printLine(s"cluster name: ${node.clusterName}", indent + 1)
+    printLine(s"seed: ${node.seed}", indent + 1)
+    if (node.seeds != "") printLine(s"seeds: ${node.seeds}", indent + 1)
+    if (node.replaceAddress != "") printLine(s"replace-address: ${node.replaceAddress}", indent + 1)
+    if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent + 1)
+    if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent + 1)
+    if (node.dataFileDirs != "") printLine(s"data file dirs: ${node.dataFileDirs}", indent + 1)
+    if (node.commitLogDir != "") printLine(s"commit log dir: ${node.commitLogDir}", indent + 1)
+    if (node.savedCachesDir != "") printLine(s"saved caches dir: ${node.savedCachesDir}", indent + 1)
+    if (node.runtime != null) printNodeRuntime(node.runtime, indent + 1)
 
     printLine()
   }
 
-  private def printTaskRuntime(runtime: Task.Runtime, indent: Int = 0) {
+  private def printNodeRuntime(runtime: Node.Runtime, indent: Int = 0) {
     printLine(s"runtime:", indent)
     printLine(s"task id: ${runtime.taskId}", indent + 1)
     printLine(s"slave id: ${runtime.slaveId}", indent + 1)
@@ -278,7 +277,7 @@ object Cli {
       }
     )
 
-    cmd("add").text("Adds a task to the cluster.").children(
+    cmd("add").text("Adds a node to the cluster.").children(
       arg[List[utils.Range]]("<id>").text("ID expression to add").action { (value, opts) =>
         opts.asInstanceOf[AddOptions].copy(id = value.mkString(","))
       },
@@ -344,7 +343,7 @@ object Cli {
       }
     )
 
-    cmd("update").text("Update task configuration.").action { (_, c) =>
+    cmd("update").text("Update node configuration.").action { (_, c) =>
       UpdateOptions()
     }.children(
       arg[List[utils.Range]]("<id>").text("ID expression to update").action { (value, opts) =>
@@ -412,7 +411,7 @@ object Cli {
       }
     )
 
-    cmd("start").text("Starts tasks in the cluster.").action { (_, c) =>
+    cmd("start").text("Starts nodes in the cluster.").action { (_, c) =>
       StartOptions()
     }.children(
       arg[List[utils.Range]]("<id>").text("ID expression to add").action { (value, opts) =>
@@ -423,12 +422,12 @@ object Cli {
         opts.asInstanceOf[StartOptions].copy(api = value)
       },
 
-      opt[Duration]("timeout").optional().text("Time to wait until task starts. Should be a parsable Scala Duration value. Defaults to 2m. Optional").action { (value, config) =>
+      opt[Duration]("timeout").optional().text("Time to wait until node starts. Should be a parsable Scala Duration value. Defaults to 2m. Optional").action { (value, config) =>
         config.asInstanceOf[StartOptions].copy(timeout = value)
       }
     )
 
-    cmd("stop").text("Stops tasks in the cluster.").action { (_, c) =>
+    cmd("stop").text("Stops nodes in the cluster.").action { (_, c) =>
       StopOptions()
     }.children(
       arg[List[utils.Range]]("<id>").text("ID expression to stop").action { (value, opts) =>
@@ -440,7 +439,7 @@ object Cli {
       }
     )
 
-    cmd("remove").text("Removes tasks in the cluster.").action { (_, c) =>
+    cmd("remove").text("Removes nodes in the cluster.").action { (_, c) =>
       RemoveOptions()
     }.children(
       arg[List[utils.Range]]("<id>").text("ID expression to remove").action { (value, opts) =>

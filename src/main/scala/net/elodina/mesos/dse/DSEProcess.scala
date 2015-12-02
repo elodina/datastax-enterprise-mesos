@@ -36,7 +36,7 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.language.postfixOps
 
-case class DSEProcess(task: Task, driver: ExecutorDriver, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
+case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
 
   private val started = new AtomicBoolean(false)
@@ -45,26 +45,26 @@ case class DSEProcess(task: Task, driver: ExecutorDriver, taskInfo: TaskInfo, ho
   private var process: Process = null
 
   def start() {
-    if (started.getAndSet(true)) throw new IllegalStateException(s"task ${task.id} already started")
-    logger.info(s"Starting task ${task.id}")
+    if (started.getAndSet(true)) throw new IllegalStateException(s"Process ${node.id} already started")
+    logger.info(s"Starting process ${node.id}")
 
     val dseDir = DSEProcess.findDSEDir()
     val workDir = new File(".")
     makeDseDirs(workDir)
     editCassandraYaml(new File(dseDir, DSEProcess.CASSANDRA_YAML_LOCATION))
 
-    process = startProcess(task, dseDir)
+    process = startProcess(node, dseDir)
   }
 
-  private def startProcess(task: Task, dseDir: File): Process = {
+  private def startProcess(node: Node, dseDir: File): Process = {
     val cmd = util.Arrays.asList("" + new File(dseDir, DSEProcess.DSE_CMD), "cassandra", "-f")
 
     val builder: ProcessBuilder = new ProcessBuilder(cmd)
-      .redirectOutput(new File(task.nodeOut))
-      .redirectError(new File(task.nodeOut))
+      .redirectOutput(new File(node.nodeOut))
+      .redirectError(new File(node.nodeOut))
 
-    if (task.replaceAddress != "")
-      builder.environment().put("JVM_OPTS", s"-Dcassandra.replace_address=${task.replaceAddress}")
+    if (node.replaceAddress != "")
+      builder.environment().put("JVM_OPTS", s"-Dcassandra.replace_address=${node.replaceAddress}")
 
     builder.environment().putAll(env)
     builder.start()
@@ -73,7 +73,7 @@ case class DSEProcess(task: Task, driver: ExecutorDriver, taskInfo: TaskInfo, ho
   def awaitConsistentState(): Boolean = {
     while (!stopped) {
       try {
-        val probe = new NodeProbe("localhost", task.jmxPort) // TODO port should be configurable and come from mesos offers
+        val probe = new NodeProbe("localhost", node.jmxPort) // TODO port should be configurable and come from mesos offers
 
         val initialized = probe.isInitialized
         val joined = probe.isJoined
@@ -99,7 +99,7 @@ case class DSEProcess(task: Task, driver: ExecutorDriver, taskInfo: TaskInfo, ho
           logger.trace("", e)
       }
 
-      Thread.sleep(task.awaitConsistentStateBackoff.toMillis)
+      Thread.sleep(node.awaitConsistentStateBackoff.toMillis)
     }
 
     false
@@ -112,7 +112,7 @@ case class DSEProcess(task: Task, driver: ExecutorDriver, taskInfo: TaskInfo, ho
   def stop() {
     this.synchronized {
       if (!stopped) {
-        logger.info(s"Stopping task ${task.id}")
+        logger.info(s"Stopping process ${node.id}")
 
         stopped = true
         process.destroy()
@@ -126,13 +126,13 @@ case class DSEProcess(task: Task, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     makeDir(new File(currentDir, DSEProcess.SPARK_LIB_DIR))
     makeDir(new File(currentDir, DSEProcess.SPARK_LOG_DIR))
 
-    if (task.dataFileDirs.isEmpty) task.dataFileDirs = "" + new File(currentDir, DSEProcess.DSE_DATA_DIR)
-    if (task.commitLogDir.isEmpty) task.commitLogDir = "" + new File(currentDir, DSEProcess.COMMIT_LOG_DIR)
-    if (task.savedCachesDir.isEmpty) task.savedCachesDir = "" + new File(currentDir, DSEProcess.SAVED_CACHES_DIR)
+    if (node.dataFileDirs.isEmpty) node.dataFileDirs = "" + new File(currentDir, DSEProcess.DSE_DATA_DIR)
+    if (node.commitLogDir.isEmpty) node.commitLogDir = "" + new File(currentDir, DSEProcess.COMMIT_LOG_DIR)
+    if (node.savedCachesDir.isEmpty) node.savedCachesDir = "" + new File(currentDir, DSEProcess.SAVED_CACHES_DIR)
 
-    task.dataFileDirs.split(",").foreach(dir => makeDir(new File(dir)))
-    makeDir(new File(task.commitLogDir))
-    makeDir(new File(task.savedCachesDir))
+    node.dataFileDirs.split(",").foreach(dir => makeDir(new File(dir)))
+    makeDir(new File(node.commitLogDir))
+    makeDir(new File(node.savedCachesDir))
   }
 
   private def makeDir(dir: File) {
@@ -145,27 +145,27 @@ case class DSEProcess(task: Task, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     val yaml = new Yaml()
     val cassandraYaml = mutable.Map(yaml.load(Source.fromFile(file).reader()).asInstanceOf[util.Map[String, AnyRef]].toSeq: _*)
 
-    cassandraYaml.put(DSEProcess.CLUSTER_NAME_KEY, task.clusterName)
-    cassandraYaml.put(DSEProcess.DATA_FILE_DIRECTORIES_KEY, task.dataFileDirs.split(","))
-    cassandraYaml.put(DSEProcess.COMMIT_LOG_DIRECTORY_KEY, Array(task.commitLogDir))
-    cassandraYaml.put(DSEProcess.SAVED_CACHES_DIRECTORY_KEY, Array(task.savedCachesDir))
+    cassandraYaml.put(DSEProcess.CLUSTER_NAME_KEY, node.clusterName)
+    cassandraYaml.put(DSEProcess.DATA_FILE_DIRECTORIES_KEY, node.dataFileDirs.split(","))
+    cassandraYaml.put(DSEProcess.COMMIT_LOG_DIRECTORY_KEY, Array(node.commitLogDir))
+    cassandraYaml.put(DSEProcess.SAVED_CACHES_DIRECTORY_KEY, Array(node.savedCachesDir))
     cassandraYaml.put(DSEProcess.LISTEN_ADDRESS_KEY, hostname)
     cassandraYaml.put(DSEProcess.RPC_ADDRESS_KEY, hostname)
 
     val portMappings = Seq(
-      Task.STORAGE_PORT -> task.storagePort,
-      Task.SSL_STORAGE_PORT -> task.sslStoragePort,
-      Task.NATIVE_TRANSPORT_PORT -> task.nativeTransportPort,
-      Task.RPC_PORT -> task.rpcPort
+      Node.STORAGE_PORT -> node.storagePort,
+      Node.SSL_STORAGE_PORT -> node.sslStoragePort,
+      Node.NATIVE_TRANSPORT_PORT -> node.nativeTransportPort,
+      Node.RPC_PORT -> node.rpcPort
     )
 
     for ((key, port) <- portMappings) {
       cassandraYaml.put(key, port.asInstanceOf[AnyRef])
     }
 
-    setSeeds(cassandraYaml, task.seeds)
-    if (task.broadcast != "") {
-      val ip = getIP(task.broadcast)
+    setSeeds(cassandraYaml, node.seeds)
+    if (node.broadcast != "") {
+      val ip = getIP(node.broadcast)
       cassandraYaml.put(DSEProcess.BROADCAST_ADDRESS_KEY, ip)
     }
 

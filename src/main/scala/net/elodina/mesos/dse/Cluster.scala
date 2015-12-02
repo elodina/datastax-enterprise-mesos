@@ -42,13 +42,13 @@ class Cluster {
 
   var frameworkId: String = null
 
-  private val tasks = new mutable.TreeSet[Task]()(Ordering.by(_.id.toInt))
+  private val nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]
   private val rings: mutable.ListBuffer[Ring] = new mutable.ListBuffer[Ring]
 
-  def this(bootstrapTasks: List[Task] = Nil, frameworkId: String = null) {
+  def this(bootstrapNodes: List[Node] = Nil, frameworkId: String = null) {
     this
     this.frameworkId = frameworkId
-    bootstrapTasks.foreach(tasks.add)
+    bootstrapNodes.foreach(addNode)
   }
   
   def this(json: Map[String, Any]) {
@@ -61,7 +61,7 @@ class Cluster {
     else {
       expr.split(",").flatMap { part =>
         utils.Range(part) match {
-          case utils.Range.* => tasks.map(_.id).toList
+          case utils.Range.* => nodes.map(_.id).toList
           case range => range.values.map(_.toString)
         }
       }.distinct.sorted.toList
@@ -79,20 +79,20 @@ class Cluster {
   def removeRing(ring: Ring): Unit = { rings -= ring }
 
 
-  def getTasks: List[Task] = tasks.toList
+  def getNodes: List[Node] = nodes.toList
 
-  def addTask(task: Task): Task = {
-    tasks += task
-    task
+  def addNode(node: Node): Node = {
+    nodes += node
+    node
   }
 
-  def removeTask(task:Task): Unit = { tasks -= task }
+  def removeNode(node: Node): Unit = { nodes -= node }
 
 
   def fromJson(json: Map[String, Any]): Unit = {
-    if (json.contains("tasks")) {
-      for (taskJson <- json("tasks").asInstanceOf[List[Map[String, Object]]]) {
-        addTask(new Task(taskJson))
+    if (json.contains("nodes")) {
+      for (nodeJson <- json("nodes").asInstanceOf[List[Map[String, Object]]]) {
+        addNode(new Node(nodeJson))
       }
     }
 
@@ -109,10 +109,10 @@ class Cluster {
   def toJson: JSONObject = {
     val json = new mutable.LinkedHashMap[String, Object]()
 
-    if (!tasks.isEmpty) {
-      val tasksJson = new ListBuffer[JSONObject]()
-      tasks.foreach(tasksJson += _.toJson)
-      json("tasks") = new JSONArray(tasksJson.toList)
+    if (!nodes.isEmpty) {
+      val nodesJson = new ListBuffer[JSONObject]()
+      nodes.foreach(nodesJson += _.toJson)
+      json("nodes") = new JSONArray(nodesJson.toList)
     }
 
     if (!rings.isEmpty) {

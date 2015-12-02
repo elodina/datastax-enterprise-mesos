@@ -20,8 +20,6 @@ package net.elodina.mesos.dse
 
 import com.google.protobuf.ByteString
 import net.elodina.mesos.dse.cli.AddOptions
-import net.elodina.mesos.utils.constraints.{Constrained, Constraint}
-import net.elodina.mesos.utils.Util
 import org.apache.mesos.Protos
 import org.apache.mesos.Protos._
 
@@ -31,10 +29,10 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.parsing.json.JSONObject
 
-class Task extends Constrained {
+class Node extends Constrained {
   var id: String = null
-  var state: Task.State.Value = Task.State.Inactive
-  var runtime: Task.Runtime = null
+  var state: Node.State.Value = Node.State.Inactive
+  var runtime: Node.Runtime = null
 
   var cpu: Double = 0.5
   var mem: Long = 512
@@ -108,21 +106,20 @@ class Task extends Constrained {
 
   def portMappings: Map[String, Int] =
     Map(
-      Task.STORAGE_PORT -> storagePort,
-      Task.SSL_STORAGE_PORT -> sslStoragePort,
-      Task.JMX_PORT -> jmxPort,
-      Task.NATIVE_TRANSPORT_PORT -> nativeTransportPort,
-      Task.RPC_PORT -> rpcPort
+      Node.STORAGE_PORT -> storagePort,
+      Node.SSL_STORAGE_PORT -> sslStoragePort,
+      Node.JMX_PORT -> jmxPort,
+      Node.NATIVE_TRANSPORT_PORT -> nativeTransportPort,
+      Node.RPC_PORT -> rpcPort
     )
 
   def createTaskInfo(offer: Offer): TaskInfo = {
-    val taskName = s"task-$id"
-    val taskId = TaskID.newBuilder().setValue(s"$taskName-${System.currentTimeMillis()}").build()
+    val name = s"node-${this.id}"
+    val id = s"$name-${System.currentTimeMillis()}"
 
     Scheduler.setSeedNodes(this, offer.getHostname)
-
-    TaskInfo.newBuilder().setName(taskName).setTaskId(taskId).setSlaveId(offer.getSlaveId)
-      .setExecutor(createExecutorInfo(taskName))
+    TaskInfo.newBuilder().setName(name).setTaskId(TaskID.newBuilder().setValue(id).build()).setSlaveId(offer.getSlaveId)
+      .setExecutor(createExecutorInfo(name))
       .setData(ByteString.copyFromUtf8("" + this.toJson))
       .addResources(Protos.Resource.newBuilder().setName("cpus").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.cpu)))
       .addResources(Protos.Resource.newBuilder().setName("mem").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.mem)))
@@ -162,7 +159,7 @@ class Task extends Constrained {
       .build
   }
 
-  def waitFor(state: Task.State.Value, timeout: Duration): Boolean = {
+  def waitFor(state: Node.State.Value, timeout: Duration): Boolean = {
     var t = timeout.toMillis
     while (t > 0 && this.state != state) {
       val delay = Math.min(100, t)
@@ -175,8 +172,8 @@ class Task extends Constrained {
 
   def fromJson(json: Map[String, Any]): Unit = {
     id = json("id").asInstanceOf[String]
-    state = Task.State.withName(json("state").asInstanceOf[String])
-    if (json.contains("runtime")) runtime = new Task.Runtime(json("runtime").asInstanceOf[Map[String, Any]])
+    state = Node.State.withName(json("state").asInstanceOf[String])
+    if (json.contains("runtime")) runtime = new Node.Runtime(json("runtime").asInstanceOf[Map[String, Any]])
 
     cpu = json("cpu").asInstanceOf[Number].doubleValue()
     mem = json("mem").asInstanceOf[Number].longValue()
@@ -233,7 +230,7 @@ class Task extends Constrained {
   }
 }
 
-object Task {
+object Node {
   val STORAGE_PORT: String = "storage_port"
   val SSL_STORAGE_PORT: String = "ssl_storage_port"
   val NATIVE_TRANSPORT_PORT: String = "native_transport_port"
@@ -248,25 +245,25 @@ object Task {
     RPC_PORT -> 9160
   )
 
-  def apply(id: String, opts: AddOptions): Task = {
-    val task = new Task()
+  def apply(id: String, opts: AddOptions): Node = {
+    val node = new Node()
 
-    task.cpu = opts.cpu
-    task.mem = opts.mem
-    task.broadcast = opts.broadcast
-    Constraint.parse(opts.constraints).foreach(task.constraints +=)
-    Constraint.parse(opts.seedConstraints).foreach(task.seedConstraints +=)
-    task.nodeOut = opts.nodeOut
-    task.agentOut = opts.agentOut
-    task.clusterName = opts.clusterName
-    task.seed = opts.seed
-    task.replaceAddress = opts.replaceAddress
-    task.dataFileDirs = opts.dataFileDirs
-    task.commitLogDir = opts.commitLogDir
-    task.savedCachesDir = opts.savedCachesDir
-    task.awaitConsistentStateBackoff = opts.awaitConsistentStateBackoff
+    node.cpu = opts.cpu
+    node.mem = opts.mem
+    node.broadcast = opts.broadcast
+    Constraint.parse(opts.constraints).foreach(node.constraints +=)
+    Constraint.parse(opts.seedConstraints).foreach(node.seedConstraints +=)
+    node.nodeOut = opts.nodeOut
+    node.agentOut = opts.agentOut
+    node.clusterName = opts.clusterName
+    node.seed = opts.seed
+    node.replaceAddress = opts.replaceAddress
+    node.dataFileDirs = opts.dataFileDirs
+    node.commitLogDir = opts.commitLogDir
+    node.savedCachesDir = opts.savedCachesDir
+    node.awaitConsistentStateBackoff = opts.awaitConsistentStateBackoff
 
-    task
+    node
   }
 
   def idFromTaskId(taskId: String): String = {

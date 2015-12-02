@@ -43,7 +43,7 @@ case class FileStorage(file: String) extends Storage {
     else {
       val source = Source.fromFile(file, "utf-8")
       try {
-        new Cluster(Utils.parseJson(source.mkString))
+        new Cluster(Util.parseJson(source.mkString))
       } finally {
         source.close()
       }
@@ -86,7 +86,7 @@ case class ZkStorage[T](zk: String) extends Storage {
     val client = zkClient
     try {
       val bytes: Array[Byte] = client.readData(path, true).asInstanceOf[Array[Byte]]
-      new Cluster(Utils.parseJson(new String(bytes, "utf-8")))
+      new Cluster(Util.parseJson(new String(bytes, "utf-8")))
     } finally {
       client.close()
     }
