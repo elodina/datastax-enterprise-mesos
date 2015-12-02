@@ -51,11 +51,11 @@ class Node extends Constrained {
   var savedCachesDir: String = ""
   var awaitConsistentStateBackoff: Duration = Duration("3 seconds")
 
-  var storagePort = 31000
-  var sslStoragePort = 31001
-  var jmxPort = 31099
-  var nativeTransportPort = 31042
-  var rpcPort = 31060
+  var storagePort = 7000
+  var sslStoragePort = 7001
+  var jmxPort = 7199
+  var nativeTransportPort = 9042
+  var rpcPort = 9160
 
   def this(id: String) = {
     this
@@ -250,11 +250,11 @@ object Node {
   val JMX_PORT: String = "jmx_port"
 
   val defaultPortMappings: Map[String, Int] = Map(
-    STORAGE_PORT -> 31000,
-    SSL_STORAGE_PORT -> 31001,
-    JMX_PORT -> 31099,
-    NATIVE_TRANSPORT_PORT -> 31042,
-    RPC_PORT -> 31060
+    STORAGE_PORT -> 7000,
+    SSL_STORAGE_PORT -> 7001,
+    JMX_PORT -> 7199,
+    NATIVE_TRANSPORT_PORT -> 9042,
+    RPC_PORT -> 9160
   )
 
   def apply(id: String, opts: AddOptions): Node = {

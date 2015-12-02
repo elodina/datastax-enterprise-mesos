@@ -47,11 +47,11 @@ trait Reconciliation[T <: Node] {
 
   private def reconcile(driver: SchedulerDriver, isImplicit: Boolean, now: Date = new Date()) {
     if (now.getTime - reconcileTime.getTime >= reconcileDelay.toMillis) {
-      if (!nodes.exists(t => t.state == Node.State.Reconciling && t.runtime != null)) reconciles = 0
+      if (!nodes.exists(node => node.state == Node.State.Reconciling && node.runtime != null)) reconciles = 0
       reconciles += 1
       reconcileTime = now
 
-      nodes.filter(_.runtime != null).foreach { node =>
+      nodes.filter(_.runtime == null).foreach { node =>
         if (node.state == Node.State.Staging || node.state == Node.State.Running) node.state = Node.State.Stopped
       }
 

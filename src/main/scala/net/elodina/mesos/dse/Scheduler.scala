@@ -38,7 +38,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   private[dse] val cluster = new Cluster()
   private var driver: SchedulerDriver = null
 
-  override protected val reconcileDelay: Duration = 20 seconds
+  override protected val reconcileDelay: Duration = Duration("20 seconds")
   override protected val reconcileMaxTries: Int = 5
 
   def start() {
@@ -97,7 +97,6 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
 
   override def disconnected(driver: SchedulerDriver) {
     logger.info("[disconnected]")
-
     this.driver = null
   }
 
@@ -118,7 +117,6 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
 
   override def statusUpdate(driver: SchedulerDriver, status: TaskStatus) {
     logger.info("[statusUpdate] " + Pretty.taskStatus(status))
-
     onTaskStatus(driver, status)
   }
 
@@ -128,7 +126,6 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
 
   override def resourceOffers(driver: SchedulerDriver, offers: util.List[Offer]) {
     logger.debug("[resourceOffers]\n" + Pretty.offers(offers))
-
     onResourceOffers(offers.toList)
   }
 
