@@ -277,7 +277,9 @@ object Cli {
       }
     )
 
-    cmd("add").text("Adds a node to the cluster.").children(
+    cmd("add").text("Adds a node to the cluster.").action { (_, c) =>
+      AddOptions()
+    }.children(
       arg[List[utils.Range]]("<id>").text("ID expression to add").action { (value, opts) =>
         opts.asInstanceOf[AddOptions].copy(id = value.mkString(","))
       },

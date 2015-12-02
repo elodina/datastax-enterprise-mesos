@@ -59,7 +59,7 @@ class ApiResponse {
   def toJson: JSONObject = {
     val json = new mutable.LinkedHashMap[String, Any]()
 
-    json("success") = "" + success
+    json("success") = success
     json("message") = message
     if (cluster != null) json("cluster") = cluster.toJson
 

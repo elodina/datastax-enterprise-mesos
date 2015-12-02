@@ -138,6 +138,6 @@ class Cluster {
       return
     }
 
-    this.fromJson(cluster.toJson.obj)
+    this.fromJson(Util.parseJson("" + cluster.toJson))
   }
 }
