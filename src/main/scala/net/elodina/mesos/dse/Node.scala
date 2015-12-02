@@ -233,6 +233,13 @@ class Node extends Constrained {
 
     new JSONObject(json.toMap)
   }
+
+  override def hashCode(): Int = id.hashCode
+
+  override def equals(obj: scala.Any): Boolean = {
+    if (!obj.isInstanceOf[Node]) false
+    id == obj.asInstanceOf[Node].id
+  }
 }
 
 object Node {

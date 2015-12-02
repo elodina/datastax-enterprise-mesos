@@ -25,4 +25,11 @@ class Ring {
     json("id") = id
     new JSONObject(json.toMap)
   }
+
+  override def hashCode(): Int = id.hashCode
+
+  override def equals(obj: scala.Any): Boolean = {
+    if (!obj.isInstanceOf[Ring]) false
+    id == obj.asInstanceOf[Ring].id
+  }
 }

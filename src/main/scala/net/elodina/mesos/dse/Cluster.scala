@@ -88,6 +88,10 @@ class Cluster {
 
   def removeNode(node: Node): Unit = { nodes -= node }
 
+  def clear(): Unit = {
+    nodes.clear()
+    rings.clear()
+  }
 
   def fromJson(json: Map[String, Any]): Unit = {
     if (json.contains("nodes")) {
