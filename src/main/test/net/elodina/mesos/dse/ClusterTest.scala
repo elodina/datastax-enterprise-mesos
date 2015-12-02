@@ -13,7 +13,7 @@ class ClusterTest {
     cluster.addRing(new Ring("1"))
     cluster.addRing(new Ring("2"))
 
-    val read = new Cluster(Util.parseJson("" + cluster.toJson))
+    val read = new Cluster(Util.parseJsonAsMap("" + cluster.toJson))
     assertClusterEquals(cluster, read)
   }
 

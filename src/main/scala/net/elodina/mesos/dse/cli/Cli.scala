@@ -10,6 +10,7 @@ import scopt.{OptionParser, Read}
 
 import scala.concurrent.duration.Duration
 import scala.io.Source
+import joptsimple.{OptionException, OptionSet}
 
 object Cli {
   private[cli] var out: PrintStream = System.out
@@ -20,10 +21,12 @@ object Cli {
     }
 
     val cmd = args(0)
-    val _args:Array[String] = args.slice(1, args.length)
+    var _args:Array[String] = args.slice(1, args.length)
+    _args = handleGenericOptions(_args)
 
     if (cmd == "help") { handleHelp(_args); return }
     if (cmd == "scheduler") { SchedulerCli.handle(_args); return }
+    if (cmd == "node") { NodeCli.handle(_args); return }
     if (cmd == "ring") { RingCli.handle(_args); return }
 
     try {
@@ -35,12 +38,11 @@ object Cli {
           case NoOptions =>
             printLine("Failed to parse arguments.")
             parser.showUsage
-          case addOpts: AddOptions => handleApi("/add", addOpts)
-          case updateOpts: UpdateOptions => handleApi("/update", updateOpts)
-          case startOpts: StartOptions => handleApi("/start", startOpts)
-          case stopOpts: StopOptions => handleApi("/stop", stopOpts)
-          case removeOpts: RemoveOptions => handleApi("/remove", removeOpts)
-          case statusOpts: StatusOptions => handleApi("/status", statusOpts)
+          case addOpts: AddOptions => handleApi("/node/add", addOpts)
+          case updateOpts: UpdateOptions => handleApi("/node/update", updateOpts)
+          case startOpts: StartOptions => handleApi("/node/start", startOpts)
+          case stopOpts: StopOptions => handleApi("/node/stop", stopOpts)
+          case removeOpts: RemoveOptions => handleApi("/node/remove", removeOpts)
         }
       }
     } catch {
@@ -65,6 +67,8 @@ object Cli {
         printLine("Print general or command-specific help\nUsage: help [cmd [cmd]]")
       case "scheduler" =>
         SchedulerCli.handle(args_, help = true)
+      case "node" =>
+        NodeCli.handle(args_, help = true)
       case "ring" =>
         RingCli.handle(args_, help = true)
       case _ =>
@@ -76,6 +80,7 @@ object Cli {
     printLine("Commands:")
     printLine("help [cmd [cmd]] - print general or command-specific help", 1)
     printLine("scheduler        - start scheduler", 1)
+    printLine("node             - node management commands", 1)
     printLine("ring             - ring management commands", 1)
   }
 
@@ -112,10 +117,10 @@ object Cli {
       connection.disconnect()
     }
 
-    new ApiResponse(Util.parseJson(response))
+    new ApiResponse(Util.parseJsonAsMap(response))
   }
 
-  private[cli] def sendRequest(uri: String, params: Map[String, String]): Map[String, Any] = {
+  private[cli] def sendRequest(uri: String, params: Map[String, String]): Any = {
     def queryString(params: Map[String, String]): String = {
       var s = ""
       for ((name, value) <- params) {
@@ -152,7 +157,7 @@ object Cli {
 
     if (response.trim().isEmpty) return null
 
-    var json: Map[String, Object] = null
+    var json: Any = null
     try { json = Util.parseJson(response)}
     catch { case e: IllegalArgumentException => throw new IOException(e) }
 
@@ -413,14 +418,32 @@ object Cli {
         opts.asInstanceOf[RemoveOptions].copy(api = value)
       }
     )
+  }
 
-    cmd("status").text("Retrieves current cluster status.").action { (_, c) =>
-      StatusOptions()
-    }.children(
-      opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
-        opts.asInstanceOf[StopOptions].copy(api = value)
-      }
-    )
+  private[dse] def handleGenericOptions(args: Array[String], help: Boolean = false): Array[String] = {
+    val parser = new joptsimple.OptionParser()
+    parser.accepts("api", s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.")
+      .withOptionalArg().ofType(classOf[String])
+
+    parser.allowsUnrecognizedOptions()
+
+    if (help) {
+      printLine("Generic Options")
+      parser.printHelpOn(out)
+      return args
+    }
+
+    var options: OptionSet = null
+    try { options = parser.parse(args: _*) }
+    catch {
+      case e: OptionException =>
+        parser.printHelpOn(out)
+        printLine()
+        throw new CliError(e.getMessage)
+    }
+
+    resolveApi(options.valueOf("api").asInstanceOf[String])
+    options.nonOptionArguments().toArray(new Array[String](0))
   }
 
   case class CliError(message: String) extends RuntimeException(message)

@@ -10,9 +10,6 @@ object SchedulerCli {
   def handle(args: Array[String], help: Boolean = false): Unit = {
     val parser = new OptionParser()
 
-    parser.accepts("api", s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.")
-      .withOptionalArg().ofType(classOf[String])
-
     parser.accepts("master", "Mesos Master addresses.").withRequiredArg().required().ofType(classOf[String])
     parser.accepts("user", "Mesos user. Defaults to current system user.").withRequiredArg().ofType(classOf[String])
     parser.accepts("principal", "Principal (username) used to register framework.").withRequiredArg().ofType(classOf[String])
@@ -29,6 +26,9 @@ object SchedulerCli {
     if (help) {
       printLine("Start scheduler \nUsage: scheduler [options]\n")
       parser.printHelpOn(out)
+
+      printLine()
+      Cli.handleGenericOptions(args, help = true)
       return
     }
 

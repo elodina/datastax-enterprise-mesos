@@ -64,7 +64,7 @@ object Executor extends org.apache.mesos.Executor {
   def launchTask(driver: ExecutorDriver, taskInfo: TaskInfo) {
     logger.info("[launchTask] " + Pretty.task(taskInfo))
 
-    val node = new Node(Util.parseJson(taskInfo.getData.toStringUtf8))
+    val node = new Node(Util.parseJsonAsMap(taskInfo.getData.toStringUtf8))
     driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_STARTING).build)
 
     new Thread {

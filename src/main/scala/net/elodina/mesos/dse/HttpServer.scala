@@ -30,8 +30,9 @@ import org.eclipse.jetty.util.thread.QueuedThreadPool
 import play.api.libs.json._
 
 import scala.util.{Failure, Success, Try}
-import scala.util.parsing.json.JSONObject
+import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
 class ApiResponse {
   var success: Boolean = false
@@ -120,8 +121,9 @@ object HttpServer {
       if (uri.startsWith("/health")) handleHealth(response)
       else if (uri.startsWith("/jar/")) downloadFile(Config.jar, response)
       else if (uri.startsWith("/dse/")) downloadFile(Config.dse, response)
-      else if (uri.startsWith("/jre/")) downloadFile(Config.jre, response)
-      else if (uri.startsWith("/api")) handleApi(request, response)
+      else if (Config.jre != null && uri.startsWith("/jre/")) downloadFile(Config.jre, response)
+      else if (uri.startsWith("/api/node")) handleNodeApi(request, response)
+      else if (uri.startsWith("/api/ring")) handleRingApi(request, response)
       else response.sendError(404)
     }
 
@@ -131,10 +133,9 @@ object HttpServer {
       response.setHeader("Content-Disposition", "attachment; filename=\"" + file.getName + "\"")
       Util.copyAndClose(new FileInputStream(file), response.getOutputStream)
     }
-
-    def handleApi(request: HttpServletRequest, response: HttpServletResponse) {
-      response.setContentType("application/json; charset=utf-8")
-      var uri: String = request.getRequestURI.substring("/api".length)
+    
+    def handleNodeApi(request: HttpServletRequest, response: HttpServletResponse) {
+      var uri: String = request.getRequestURI.substring("/api/node".length)
       if (uri.startsWith("/")) uri = uri.substring(1)
 
       if (uri == "add") handleAddNode(request, response)
@@ -142,8 +143,12 @@ object HttpServer {
       else if (uri == "start") handleStartNode(request, response)
       else if (uri == "stop") handleStopNode(request, response)
       else if (uri == "remove") handleRemoveNode(request, response)
-      else if (uri == "status") handleClusterStatus(request, response)
+      else if (uri == "list") handleListNodes(request, response)
       else response.sendError(404)
+    }
+    
+    def handleRingApi(request: HttpServletRequest, response: HttpServletResponse) {
+      // todo
     }
 
     def handleAddNode(request: HttpServletRequest, response: HttpServletResponse) {
@@ -263,8 +268,11 @@ object HttpServer {
       }
     }
 
-    def handleClusterStatus(request: HttpServletRequest, response: HttpServletResponse) {
-      respond(new ApiResponse(success = true, s"Retrieved current cluster status", Scheduler.cluster), response)
+    def handleListNodes(request: HttpServletRequest, response: HttpServletResponse) {
+      val nodes = new ListBuffer[JSONObject]
+      Scheduler.cluster.getNodes.foreach(nodes += _.toJson)
+
+      response.getWriter.println("" + new JSONArray(nodes.toList))
     }
 
     private def handleHealth(response: HttpServletResponse) {

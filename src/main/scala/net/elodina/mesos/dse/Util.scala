@@ -100,11 +100,18 @@ object Util {
     values.map(name -> _)
   })
 
-  private val jsonLock = new Object
+  def parseJsonAsMap(json: String): Map[String, Any] = {
+    parseJson(json).asInstanceOf[Map[String, Any]]
+  }
 
-  def parseJson(json: String): Map[String, Object] = {
+  def parseJsonAsList(json: String): List[Any] = {
+    parseJson(json).asInstanceOf[List[Any]]
+  }
+
+  private val jsonLock = new Object
+  def parseJson(json: String): Any = {
     jsonLock synchronized {
-      val node: Map[String, Object] = JSON.parseFull(json).getOrElse(null).asInstanceOf[Map[String, Object]]
+      val node: Any = JSON.parseFull(json).getOrElse(null)
       if (node == null) throw new IllegalArgumentException("Failed to parse json: " + json)
       node
     }

@@ -8,7 +8,7 @@ class NodeTest {
   @Test
   def toJSON_fromJSON {
     val node: Node = new Node("1")
-    var read = new Node(Util.parseJson("" + node.toJson))
+    var read = new Node(Util.parseJsonAsMap("" + node.toJson))
     assertNodeEquals(node, read)
 
     node.state = Node.State.Running
@@ -33,13 +33,13 @@ class NodeTest {
     node.savedCachesDir = "saveCachesDir"
     node.awaitConsistentStateBackoff = Duration("5 seconds")
 
-    read = new Node(Util.parseJson("" + node.toJson))
+    read = new Node(Util.parseJsonAsMap("" + node.toJson))
     assertNodeEquals(read, node)
   }
 
   def Runtime_toJson_fromJson {
     val runtime = new Node.Runtime("task", "slave", "executor", "host", Map("a" -> "1"))
-    val read = new Node.Runtime(Util.parseJson(runtime.toJson.toString()))
+    val read = new Node.Runtime(Util.parseJsonAsMap(runtime.toJson.toString()))
     assertRuntimeEquals(runtime, read)
   }
 

@@ -82,9 +82,3 @@ case class RemoveOptions(id: String = "", api: String = "") extends Options
 object RemoveOptions {
   implicit val formats = Json.format[RemoveOptions]
 }
-
-case class StatusOptions(api: String = "") extends Options
-
-object StatusOptions {
-  implicit val formats = Json.format[StatusOptions]
-}

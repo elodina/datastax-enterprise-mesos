@@ -59,7 +59,7 @@ object RingCli {
     }
 
     var json: Map[String, Any] = null
-    try { json = Cli.sendRequest("/ring/list", Map()) }
+    try { json = Cli.sendRequest("/ring/list", Map()).asInstanceOf[Map[String, Any]] }
     catch { case e: IOException => throw new CliError("" + e) }
     val cluster: Cluster = new Cluster(json)
 
