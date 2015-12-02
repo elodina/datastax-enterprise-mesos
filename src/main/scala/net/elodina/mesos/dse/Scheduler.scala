@@ -29,7 +29,7 @@ import org.apache.mesos.Protos._
 import org.apache.mesos.{MesosSchedulerDriver, SchedulerDriver}
 
 import scala.collection.JavaConversions._
-import scala.concurrent.duration.{Duration, _}
+import scala.concurrent.duration.Duration
 import scala.language.postfixOps
 
 object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with Reconciliation[Node] {
@@ -50,7 +50,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     HttpServer.start()
 
     val frameworkBuilder = FrameworkInfo.newBuilder()
-    frameworkBuilder.setUser(Config.user)
+    frameworkBuilder.setUser(if (Config.user != null) Config.user else "")
     if (cluster.frameworkId != null) frameworkBuilder.setId(FrameworkID.newBuilder().setValue(cluster.frameworkId))
     frameworkBuilder.setRole(Config.frameworkRole)
 

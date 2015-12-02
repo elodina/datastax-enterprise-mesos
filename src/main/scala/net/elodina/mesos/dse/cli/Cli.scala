@@ -1,6 +1,6 @@
 package net.elodina.mesos.dse.cli
 
-import java.io.{File, IOException, PrintStream}
+import java.io.{IOException, PrintStream}
 import java.net.{URLEncoder, HttpURLConnection, URL}
 
 import net.elodina.mesos.dse._
@@ -16,13 +16,15 @@ object Cli {
 
   def main(args: Array[String]) {
     if (args.length == 0) {
-      throw new Error("command required")
+      throw new CliError("command required")
     }
 
     val cmd = args(0)
     val _args:Array[String] = args.slice(1, args.length)
 
-    if (cmd == "ring") { RingCli.handle(cmd, _args); return }
+    if (cmd == "help") { handleHelp(_args); return }
+    if (cmd == "scheduler") { SchedulerCli.handle(_args); return }
+    if (cmd == "ring") { RingCli.handle(_args); return }
 
     try {
       parser.parse(args, NoOptions) match {
@@ -33,7 +35,6 @@ object Cli {
           case NoOptions =>
             printLine("Failed to parse arguments.")
             parser.showUsage
-          case schedulerOpts: SchedulerOptions => handleScheduler(schedulerOpts)
           case addOpts: AddOptions => handleApi("/add", addOpts)
           case updateOpts: UpdateOptions => handleApi("/update", updateOpts)
           case startOpts: StartOptions => handleApi("/start", startOpts)
@@ -49,25 +50,33 @@ object Cli {
     }
   }
 
-  def handleScheduler(config: SchedulerOptions) {
-    resolveApi(config.api)
+  def handleHelp(args: Array[String]): Unit = {
+    val cmd = if (args.length > 0) args(0) else null
+    val args_ = args.slice(1, args.length)
 
-    Config.master = config.master
-    Config.user = config.user
-    Config.principal = if (config.principal.isEmpty) null else config.principal
-    Config.secret = if (config.secret.isEmpty) null else config.secret
-    Config.frameworkName = config.frameworkName
-    Config.frameworkRole = config.frameworkRole
-    Config.frameworkTimeout = config.frameworkTimeout
-    Config.storage = config.storage
-    Config.debug = config.debug
+    cmd match {
+      case null =>
+        printLine("Usage: <cmd>\n")
+        printCmds()
 
-    if (!config.jre.isEmpty) {
-      Config.jre = new File(config.jre)
-      if (!Config.jre.exists() || !Config.jre.isFile) throw new IllegalStateException("JRE file doesn't exist")
+        printLine()
+        printLine("Run `help <cmd>` to see details of specific command")
+      case "help" =>
+        printLine("Print general or command-specific help\nUsage: help [cmd [cmd]]")
+      case "scheduler" =>
+        SchedulerCli.handle(args_, help = true)
+      case "ring" =>
+        RingCli.handle(args_, help = true)
+      case _ =>
+        throw new Error(s"unsupported command $cmd")
     }
+  }
 
-    Scheduler.start()
+  private def printCmds(): Unit = {
+    printLine("Commands:")
+    printLine("help [cmd [cmd]] - print general or command-specific help", 1)
+    printLine("scheduler        - start scheduler", 1)
+    printLine("ring             - ring management commands", 1)
   }
 
   def handleApi[T <: Options : Writes](url: String, data: T) {
@@ -150,10 +159,10 @@ object Cli {
     json
   }
 
-  private def resolveApi(api: String) {
+  def resolveApi(api: String) {
     if (Config.api != null) return
 
-    if (api != "") {
+    if (api != null && api != "") {
       Config.api = api
       return
     }
@@ -228,54 +237,6 @@ object Cli {
     }
 
     help("help").text("Prints this usage text.")
-
-    cmd("scheduler").text("Starts the Datastax Enterprise Mesos Scheduler.").action { (_, c) =>
-      SchedulerOptions()
-    }.children(
-      opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(api = value)
-      },
-
-      opt[String]("master").required().text("Mesos Master addresses.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(master = value)
-      },
-
-      opt[String]("user").optional().text("Mesos user. Defaults to current system user.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(user = value)
-      },
-
-      opt[String]("principal").optional().text("Principal (username) used to register framework.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(principal = value)
-      },
-
-      opt[String]("secret").optional().text("Secret (password) used to register framework.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(secret = value)
-      },
-
-      opt[String]("framework-name").optional().text("Framework name. Defaults to datastax-enterprise").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(frameworkName = value)
-      },
-
-      opt[String]("framework-role").optional().text("Framework role. Defaults to *").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(frameworkRole = value)
-      },
-
-      opt[Duration]("framework-timeout").optional().text("Framework failover timeout. Defaults to 30 days.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(frameworkTimeout = value)
-      },
-
-      opt[String]("storage").optional().text("Storage for cluster state. Examples: file:dse-mesos.json; zk:master:2181/dse-mesos.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(storage = value)
-      },
-
-      opt[Boolean]("debug").optional().text("Run in debug mode.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(debug = value)
-      },
-
-      opt[String]("jre").optional().text("Path to JRE archive.").action { (value, config) =>
-	config.asInstanceOf[SchedulerOptions].copy(jre = value)
-      }
-    )
 
     cmd("add").text("Adds a node to the cluster.").action { (_, c) =>
       AddOptions()

@@ -6,13 +6,19 @@ import java.io.IOException
 import net.elodina.mesos.dse.{Ring, Cluster}
 
 object RingCli {
-  def handle(cmd: String, _args: Array[String], help: Boolean = false): Unit = {
+  def handle(_args: Array[String], help: Boolean = false): Unit = {
     var args = _args
 
     if (help) {
-      handleHelp(cmd)
+      handleHelp(args)
       return
     }
+
+    if (args.length == 0)
+      throw new Error("command required")
+
+    val cmd: String = args(0)
+    args = args.slice(1, args.length)
 
     var arg: String = null
     if (args.length > 0 && !args(0).startsWith("-")) {
@@ -20,10 +26,8 @@ object RingCli {
       args = args.slice(1, args.length)
     }
 
-    if (arg == null && cmd != "list") {
-      handleHelp(cmd); printLine()
+    if (arg == null && cmd != "list")
       throw new Error("argument required")
-    }
 
     cmd match {
       case "list" => handleList()
@@ -31,7 +35,9 @@ object RingCli {
     }
   }
 
-  def handleHelp(cmd: String): Unit = {
+  def handleHelp(args: Array[String]): Unit = {
+    val cmd = if (args != null && args.length > 0) args(0) else null
+
     cmd match {
       case null =>
         printLine("Ring management commands\nUsage: ring <command>\n")

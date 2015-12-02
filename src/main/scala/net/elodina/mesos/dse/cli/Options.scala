@@ -39,14 +39,6 @@ object NoOptions extends Options {
   val api = ""
 }
 
-case class SchedulerOptions(api: String = "",
-                            master: String = "", user: String = "",
-                            principal: String = "", secret: String = "",
-                            frameworkRole: String = "*", frameworkName: String = "datastax-enterprise", frameworkTimeout: Duration = 30 days,
-                            storage: String = "file:dse-mesos.json",
-                            debug: Boolean = false,
-                            jre: String = "") extends Options
-
 case class AddOptions(id: String = "", api: String = "", cpu: Double = 2, mem: Long = 8192,
                       broadcast: String = "", constraints: String = "", seedConstraints: String = "",
                       nodeOut: String = "cassandra-node.log", agentOut: String = "datastax-agent.log",
