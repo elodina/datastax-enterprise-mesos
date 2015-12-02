@@ -25,7 +25,7 @@ import scala.collection.JavaConversions._
 import org.apache.log4j.Logger
 import java.util
 
-case class DatastaxAgent(task: Task, env: Map[String, String] = Map.empty) {
+case class AgentProcess(task: Task, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
 
   private val started = new AtomicBoolean(false)
@@ -37,11 +37,11 @@ case class DatastaxAgent(task: Task, env: Map[String, String] = Map.empty) {
     if (started.getAndSet(true)) throw new IllegalStateException("Datastax Agent already started")
     logger.info("Starting Datastax Agent")
 
-    process = startProcess(task, DSENode.findDSEDir())
+    process = startProcess(task, DSEProcess.findDSEDir())
   }
 
   private def startProcess(task: Task, dseDir: File): Process = {
-    val cmd = util.Arrays.asList("" + new File(dseDir, DSENode.DSE_AGENT_CMD), "-f")
+    val cmd = util.Arrays.asList("" + new File(dseDir, DSEProcess.DSE_AGENT_CMD), "-f")
 
     val builder: ProcessBuilder = new ProcessBuilder(cmd)
       .redirectOutput(new File(task.agentOut))
