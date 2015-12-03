@@ -19,7 +19,6 @@
 package net.elodina.mesos.dse
 
 import com.google.protobuf.ByteString
-import net.elodina.mesos.dse.cli.AddOptions
 import org.apache.mesos.Protos
 import org.apache.mesos.Protos._
 
@@ -36,20 +35,19 @@ class Node extends Constrained {
 
   var cpu: Double = 0.5
   var mem: Long = 512
-  var broadcast: String = ""
-  var nodeOut: String = ""
-  var agentOut: String = ""
-  var clusterName: String = ""
+
+  var broadcast: String = null
+  var clusterName: String = null
   var seed: Boolean = false
-  var replaceAddress: String = ""
+  var replaceAddress: String = null
+
   var seeds: String = ""
   var constraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
   var seedConstraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
 
-  var dataFileDirs: String = ""
-  var commitLogDir: String = ""
-  var savedCachesDir: String = ""
-  var awaitConsistentStateBackoff: Duration = Duration("3 seconds")
+  var dataFileDirs: String = null
+  var commitLogDir: String = null
+  var savedCachesDir: String = null
 
   var storagePort = 7000
   var sslStoragePort = 7001
@@ -179,25 +177,21 @@ class Node extends Constrained {
     cpu = json("cpu").asInstanceOf[Number].doubleValue()
     mem = json("mem").asInstanceOf[Number].longValue()
 
-    broadcast = json("broadcast").asInstanceOf[String]
-    nodeOut = json("nodeOut").asInstanceOf[String]
-    agentOut = json("agentOut").asInstanceOf[String]
-
-    clusterName = json("clusterName").asInstanceOf[String]
+    if (json.contains("broadcast")) broadcast = json("broadcast").asInstanceOf[String]
+    if (json.contains("clusterName")) clusterName = json("clusterName").asInstanceOf[String]
     seed = json("seed").asInstanceOf[Boolean]
-    replaceAddress = json("replaceAddress").asInstanceOf[String]
+    if (json.contains("replaceAddress")) replaceAddress = json("replaceAddress").asInstanceOf[String]
     seeds = json("seeds").asInstanceOf[String]
 
     constraints.clear()
-    constraints ++= Constraint.parse(json("constraints").asInstanceOf[String])
+    if (json.contains("constraints")) constraints ++= Constraint.parse(json("constraints").asInstanceOf[String])
 
     seedConstraints.clear()
-    seedConstraints ++= Constraint.parse(json("seedConstraints").asInstanceOf[String])
+    if (json.contains("seedConstraints")) seedConstraints ++= Constraint.parse(json("seedConstraints").asInstanceOf[String])
 
-    dataFileDirs = json("dataFileDirs").asInstanceOf[String]
-    commitLogDir = json("commitLogDir").asInstanceOf[String]
-    savedCachesDir = json("savedCachesDir").asInstanceOf[String]
-    awaitConsistentStateBackoff = Duration.create(json("awaitConsistentStateBackoff").asInstanceOf[String])
+    if (json.contains("dataFileDirs")) dataFileDirs = json("dataFileDirs").asInstanceOf[String]
+    if (json.contains("commitLogDir")) commitLogDir = json("commitLogDir").asInstanceOf[String]
+    if (json.contains("savedCachesDir")) savedCachesDir = json("savedCachesDir").asInstanceOf[String]
   }
 
   def toJson: JSONObject = {
@@ -210,22 +204,18 @@ class Node extends Constrained {
     json("cpu") = cpu
     json("mem") = mem
 
-    json("broadcast") = broadcast
-    json("nodeOut") = nodeOut
-    json("agentOut") = agentOut
-
-    json("clusterName") = clusterName
+    if (broadcast != null) json("broadcast") = broadcast
+    if (clusterName != null) json("clusterName") = clusterName
     json("seed") = seed
-    json("replaceAddress") = replaceAddress
+    if (replaceAddress != null) json("replaceAddress") = replaceAddress
     json("seeds") = seeds
 
-    json("constraints") = Util.formatConstraints(constraints)
-    json("seedConstraints") = Util.formatConstraints(seedConstraints)
+    if (!constraints.isEmpty) json("constraints") = Util.formatConstraints(constraints)
+    if (!seedConstraints.isEmpty) json("seedConstraints") = Util.formatConstraints(seedConstraints)
 
-    json("dataFileDirs") = dataFileDirs
-    json("commitLogDir") = commitLogDir
-    json("savedCachesDir") = savedCachesDir
-    json("awaitConsistentStateBackoff") = "" + awaitConsistentStateBackoff
+    if (dataFileDirs != null) json("dataFileDirs") = dataFileDirs
+    if (commitLogDir != null) json("commitLogDir") = commitLogDir
+    if (savedCachesDir != null) json("savedCachesDir") = savedCachesDir
 
     new JSONObject(json.toMap)
   }
@@ -239,27 +229,6 @@ class Node extends Constrained {
 }
 
 object Node {
-  def apply(id: String, opts: AddOptions): Node = {
-    val node = new Node(id)
-
-    node.cpu = opts.cpu
-    node.mem = opts.mem
-    node.broadcast = opts.broadcast
-    Constraint.parse(opts.constraints).foreach(node.constraints +=)
-    Constraint.parse(opts.seedConstraints).foreach(node.seedConstraints +=)
-    node.nodeOut = opts.nodeOut
-    node.agentOut = opts.agentOut
-    node.clusterName = opts.clusterName
-    node.seed = opts.seed
-    node.replaceAddress = opts.replaceAddress
-    node.dataFileDirs = opts.dataFileDirs
-    node.commitLogDir = opts.commitLogDir
-    node.savedCachesDir = opts.savedCachesDir
-    node.awaitConsistentStateBackoff = opts.awaitConsistentStateBackoff
-
-    node
-  }
-
   def idFromTaskId(taskId: String): String = {
     taskId.split("-", 3) match {
       case Array(_, value, _) => value

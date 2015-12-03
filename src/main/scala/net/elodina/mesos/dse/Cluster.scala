@@ -81,6 +81,8 @@ class Cluster {
 
   def getNodes: List[Node] = nodes.toList
 
+  def getNode(id: String) = nodes.filter(id == _.id).headOption.getOrElse(null)
+
   def addNode(node: Node): Node = {
     nodes += node
     node

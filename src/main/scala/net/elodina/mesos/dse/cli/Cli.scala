@@ -38,8 +38,6 @@ object Cli {
           case NoOptions =>
             printLine("Failed to parse arguments.")
             parser.showUsage
-          case addOpts: AddOptions => handleApi("/node/add", addOpts)
-          case updateOpts: UpdateOptions => handleApi("/node/update", updateOpts)
           case startOpts: StartOptions => handleApi("/node/start", startOpts)
           case stopOpts: StopOptions => handleApi("/node/stop", stopOpts)
           case removeOpts: RemoveOptions => handleApi("/node/remove", removeOpts)
@@ -200,18 +198,16 @@ object Cli {
     printLine(s"cpu: ${node.cpu}", indent + 1)
     printLine(s"mem: ${node.mem}", indent + 1)
 
-    if (node.broadcast != "") printLine(s"broadcast: ${node.broadcast}", indent + 1)
-    printLine(s"node out: ${node.nodeOut}", indent + 1)
-    printLine(s"agent out: ${node.agentOut}", indent + 1)
-    printLine(s"cluster name: ${node.clusterName}", indent + 1)
+    if (node.broadcast != null) printLine(s"broadcast: ${node.broadcast}", indent + 1)
+    if (node.clusterName != null) printLine(s"cluster name: ${node.clusterName}", indent + 1)
     printLine(s"seed: ${node.seed}", indent + 1)
     if (node.seeds != "") printLine(s"seeds: ${node.seeds}", indent + 1)
-    if (node.replaceAddress != "") printLine(s"replace-address: ${node.replaceAddress}", indent + 1)
+    if (node.replaceAddress != null) printLine(s"replace-address: ${node.replaceAddress}", indent + 1)
     if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent + 1)
     if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent + 1)
-    if (node.dataFileDirs != "") printLine(s"data file dirs: ${node.dataFileDirs}", indent + 1)
-    if (node.commitLogDir != "") printLine(s"commit log dir: ${node.commitLogDir}", indent + 1)
-    if (node.savedCachesDir != "") printLine(s"saved caches dir: ${node.savedCachesDir}", indent + 1)
+    if (node.dataFileDirs != null) printLine(s"data file dirs: ${node.dataFileDirs}", indent + 1)
+    if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent + 1)
+    if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent + 1)
     if (node.runtime != null) printNodeRuntime(node.runtime, indent + 1)
 
     printLine()
@@ -242,142 +238,6 @@ object Cli {
     }
 
     help("help").text("Prints this usage text.")
-
-    cmd("add").text("Adds a node to the cluster.").action { (_, c) =>
-      AddOptions()
-    }.children(
-      arg[List[utils.Range]]("<id>").text("ID expression to add").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(id = value.mkString(","))
-      },
-
-      opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(api = value)
-      },
-
-      opt[Double]("cpu").optional().text("CPU amount (0.5, 1, 2).").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(cpu = value)
-      },
-
-      opt[Long]("mem").optional().text("Mem amount in Mb.").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(mem = value)
-      },
-
-      opt[String]("broadcast").optional().text("Network interface to broadcast for nodes.").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(broadcast = value)
-      },
-
-      opt[String]("constraints").optional().text("Constraints (hostname=like:^master$,rack=like:^1.*$).").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(constraints = value)
-      },
-
-      opt[String]("seed-constraints").optional().text("Seed node constraints. Will be evaluated only across seed nodes.").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(seedConstraints = value)
-      },
-
-      opt[String]("node-out").optional().text("File name to redirect Datastax Node output to.").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(nodeOut = value)
-      },
-
-      opt[String]("agent-out").optional().text("File name to redirect Datastax Agent output to.").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(agentOut = value)
-      },
-
-      opt[String]("cluster-name").optional().text("The name of the cluster.").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(clusterName = value)
-      },
-
-      opt[Boolean]("seed").optional().text("Flags whether this Datastax Node is a seed node.").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(seed = value)
-      },
-
-      opt[String]("replace-address").optional().text("Replace address for the dead Datastax Node").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(replaceAddress = value)
-      },
-
-      opt[String]("data-file-dirs").optional().text("Cassandra data file directories separated by comma. Defaults to sandbox if not set").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(dataFileDirs = value)
-      },
-
-      opt[String]("commit-log-dir").optional().text("Cassandra commit log dir. Defaults to sandbox if not set").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(commitLogDir = value)
-      },
-
-      opt[String]("saved-caches-dir").optional().text("Cassandra saved caches dir. Defaults to sandbox if not set").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(savedCachesDir = value)
-      },
-
-      opt[Duration]("state-backoff").optional().text("Backoff between checks for consistent node state.").action { (value, opts) =>
-        opts.asInstanceOf[AddOptions].copy(awaitConsistentStateBackoff = value)
-      }
-    )
-
-    cmd("update").text("Update node configuration.").action { (_, c) =>
-      UpdateOptions()
-    }.children(
-      arg[List[utils.Range]]("<id>").text("ID expression to update").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(id = value.mkString(","))
-      },
-
-      opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(api = value)
-      },
-
-      opt[Double]("cpu").optional().text("CPU amount (0.5, 1, 2).").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(cpu = Some(value))
-      },
-
-      opt[Long]("mem").optional().text("Mem amount in Mb.").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(mem = Some(value))
-      },
-
-      opt[String]("broadcast").optional().text("Network interface to broadcast for nodes.").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(broadcast = Some(value))
-      },
-
-      opt[String]("constraints").optional().text("Constraints (hostname=like:^master$,rack=like:^1.*$).").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(constraints = Some(value))
-      },
-
-      opt[String]("seed-constraints").optional().text("Seed node constraints. Will be evaluated only across seed nodes.").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(seedConstraints = Some(value))
-      },
-
-      opt[String]("node-out").optional().text("File name to redirect Datastax Node output to.").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(nodeOut = Some(value))
-      },
-
-      opt[String]("agent-out").optional().text("File name to redirect Datastax Agent output to.").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(agentOut = Some(value))
-      },
-
-      opt[String]("cluster-name").optional().text("The name of the cluster.").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(clusterName = Some(value))
-      },
-
-      opt[Boolean]("seed").optional().text("Flags whether this Datastax Node is a seed node.").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(seed = Some(value))
-      },
-
-      opt[String]("replace-address").optional().text("Replace address for the dead Datastax Node").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(replaceAddress = Some(value))
-      },
-
-      opt[String]("data-file-dirs").optional().text("Cassandra data file directories separated by comma. Defaults to sandbox if not set").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(dataFileDirs = Some(value))
-      },
-
-      opt[String]("commit-log-dir").optional().text("Cassandra commit log dir. Defaults to sandbox if not set").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(commitLogDir = Some(value))
-      },
-
-      opt[String]("saved-caches-dir").optional().text("Cassandra saved caches dir. Defaults to sandbox if not set").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(savedCachesDir = Some(value))
-      },
-
-      opt[Duration]("state-backoff").optional().text("Backoff between checks for consistent node state.").action { (value, opts) =>
-        opts.asInstanceOf[UpdateOptions].copy(awaitConsistentStateBackoff = Some(value))
-      }
-    )
 
     cmd("start").text("Starts nodes in the cluster.").action { (_, c) =>
       StartOptions()

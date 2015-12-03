@@ -209,7 +209,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     nodeOpt match {
       case Some(node) =>
         node.state = Node.State.Running
-        node.replaceAddress = ""
+        node.replaceAddress = null
       case None =>
         logger.info(s"Got ${status.getState} for unknown/stopped node, killing task ${status.getTaskId.getValue}")
         driver.killTask(status.getTaskId)

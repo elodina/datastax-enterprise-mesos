@@ -29,7 +29,6 @@ import org.eclipse.jetty.servlet.{ServletContextHandler, ServletHolder}
 import org.eclipse.jetty.util.thread.QueuedThreadPool
 import play.api.libs.json._
 
-import scala.util.{Failure, Success, Try}
 import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.collection.mutable
 import scala.collection.mutable.ListBuffer
@@ -107,12 +106,18 @@ object HttpServer {
     override def doPost(request: HttpServletRequest, response: HttpServletResponse) = doGet(request, response)
 
     override def doGet(request: HttpServletRequest, response: HttpServletResponse) {
-      Try(handle(request, response)) match {
-        case Success(_) =>
-        case Failure(e) =>
-          logger.warn("", e)
+      val url = request.getRequestURL + (if (request.getQueryString != null) "?" + request.getQueryString else "")
+      logger.info("handling - " + url)
+
+      try {
+        handle(request, response)
+        logger.info("finished handling")
+      } catch {
+        case e: HttpError =>
+          response.sendError(e.getCode, e.getMessage)
+        case e: Exception =>
+          logger.error("error handling", e)
           response.sendError(500, "" + e)
-          throw e
       }
     }
 
@@ -135,11 +140,11 @@ object HttpServer {
     }
     
     def handleNodeApi(request: HttpServletRequest, response: HttpServletResponse) {
+      response.setContentType("application/json; charset=utf-8")
       var uri: String = request.getRequestURI.substring("/api/node".length)
       if (uri.startsWith("/")) uri = uri.substring(1)
 
-      if (uri == "add") handleAddNode(request, response)
-      else if (uri == "update") handleUpdateNode(request, response)
+      if (uri == "add" || uri == "update") handleAddUpdateNode(uri == "add", request, response)
       else if (uri == "start") handleStartNode(request, response)
       else if (uri == "stop") handleStopNode(request, response)
       else if (uri == "remove") handleRemoveNode(request, response)
@@ -151,66 +156,91 @@ object HttpServer {
       // todo
     }
 
-    def handleAddNode(request: HttpServletRequest, response: HttpServletResponse) {
-      val opts = postBody(request).as[AddOptions]
+    def handleAddUpdateNode(add: Boolean, request: HttpServletRequest, response: HttpServletResponse) {
+      val expr: String = request.getParameter("node")
+      if (expr == null || expr.isEmpty) throw new HttpError(400, "node required")
 
-      val ids = Scheduler.cluster.expandIds(opts.id)
-      val existing = ids.filter(id => Scheduler.cluster.getNodes.exists(_.id == id))
-      if (existing.nonEmpty) respond(new ApiResponse(success = false, s"Nodes ${existing.mkString(",")} already exist", null), response)
-      else {
-        val nodes = ids.map { id =>
-          val node = Node(id, opts)
-          Scheduler.cluster.addNode(node)
-          logger.info(s"Added node $node")
-          node
+      var ids: List[String] = null
+      try { ids = Scheduler.cluster.expandIds(expr) }
+      catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
+
+      var cpu: java.lang.Double = null
+      if (request.getParameter("cpu") != null)
+        try { cpu = java.lang.Double.valueOf(request.getParameter("cpu")) }
+        catch { case e: NumberFormatException => throw new HttpError(400, "invalid cpu") }
+
+      var mem: java.lang.Long = null
+      if (request.getParameter("mem") != null)
+        try { mem = java.lang.Long.valueOf(request.getParameter("mem")) }
+        catch { case e: NumberFormatException => throw new HttpError(400, "invalid mem") }
+
+      val broadcast: String = request.getParameter("broadcast")
+
+
+      var constraints: Map[String, List[Constraint]] = null
+      if (request.getParameter("constraints") != null) {
+        try { constraints = Constraint.parse(request.getParameter("constraints")) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid constraints") }
+      }
+
+      var seedConstraints: Map[String, List[Constraint]] = null
+      if (request.getParameter("seedConstraints") != null) {
+        try { seedConstraints = Constraint.parse(request.getParameter("seedConstraints")) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid seedConstraints") }
+      }
+
+      val clusterName: String = request.getParameter("clusterName")
+      var seed: java.lang.Boolean = null
+      if (request.getParameter("seed") != null) seed = "true" == request.getParameter("seed")
+      val replaceAddress: String = request.getParameter("replaceAddress")
+
+      val dataFileDirs = request.getParameter("dataFileDirs")
+      val commitLogDir = request.getParameter("commitLogDir")
+      val savedCachesDir = request.getParameter("savedCachesDir")
+
+      // collect nodes and check existence & state
+      val nodes = new ListBuffer[Node]()
+      for (id <- ids) {
+        val node = Scheduler.cluster.getNode(id)
+        if (add && node != null) throw new HttpError(400, s"node $id exists")
+        if (!add && node == null) throw new HttpError(400, s"node $id not exists")
+        if (!add && node.state != Node.State.Inactive) throw new HttpError(400, s"node should be inactive")
+        nodes += (if (add) new Node(id) else node)
+      }
+
+      // add|update nodes
+      def updateNode(node: Node) {
+        if (cpu != null) node.cpu = cpu
+        if (mem != null) node.mem = mem
+        if (broadcast != null) node.broadcast = if (broadcast != "") broadcast else null
+
+        if (constraints != null) {
+          node.constraints.clear()
+          node.constraints ++= constraints
+        }
+        if (seedConstraints != null) {
+          node.seedConstraints.clear()
+          node.seedConstraints ++= seedConstraints
         }
 
-        Scheduler.cluster.save()
-        respond(new ApiResponse(success = true, s"Added nodes ${opts.id}", new Cluster(nodes)), response)
+        if (clusterName != null) node.clusterName = if (clusterName != "") clusterName else null
+        if (seed != null) node.seed = seed
+        if (replaceAddress != null) node.replaceAddress = if (replaceAddress != "") replaceAddress else null
+
+        if (dataFileDirs != null) node.dataFileDirs = if (dataFileDirs != "") dataFileDirs else null
+        if (commitLogDir != null) node.commitLogDir = if (commitLogDir != "") commitLogDir else null
+        if (savedCachesDir != null) node.savedCachesDir = if (savedCachesDir != "") savedCachesDir else null
       }
-    }
 
-    def handleUpdateNode(request: HttpServletRequest, response: HttpServletResponse) {
-      val opts = postBody(request).as[UpdateOptions]
-
-      val ids = Scheduler.cluster.expandIds(opts.id)
-      val missing = ids.filter(id => !Scheduler.cluster.getNodes.exists(_.id == id))
-      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Nodes ${missing.mkString(",")} do not exist", null), response)
-      else {
-        val nodes = ids.flatMap { id =>
-          Scheduler.cluster.getNodes.find(_.id == id) match {
-            case Some(node_) =>
-              opts.cpu.foreach(node_.cpu = _)
-              opts.mem.foreach(node_.mem = _)
-              opts.broadcast.foreach(node_.broadcast = _)
-              opts.constraints.foreach { constraints =>
-                node_.constraints.clear()
-                node_.constraints ++= Constraint.parse(constraints)
-              }
-              opts.seedConstraints.foreach { seedConstraints =>
-                node_.seedConstraints.clear()
-                node_.seedConstraints ++= Constraint.parse(seedConstraints)
-              }
-              opts.nodeOut.foreach(node_.nodeOut = _)
-              opts.clusterName.foreach(node_.clusterName = _)
-              opts.seed.foreach(node_.seed = _)
-              opts.replaceAddress.foreach(node_.replaceAddress = _)
-              opts.dataFileDirs.foreach(node_.dataFileDirs = _)
-              opts.commitLogDir.foreach(node_.commitLogDir = _)
-              opts.savedCachesDir.foreach(node_.savedCachesDir = _)
-              opts.awaitConsistentStateBackoff.foreach(node_.awaitConsistentStateBackoff = _)
-
-              logger.info(s"Updated node $id")
-              Some(node_)
-            case None =>
-              logger.warn(s"Node $id was removed, ignoring its update call")
-              None
-          }
-        }
-
-        Scheduler.cluster.save()
-        respond(new ApiResponse(success = true, s"Updated nodes ${opts.id}", new Cluster(nodes)), response)
+      for (node <- nodes) {
+        updateNode(node)
+        if (add) Scheduler.cluster.addNode(node)
       }
+
+      // return result
+      val nodesJson = new ListBuffer[JSONObject]
+      nodes.foreach(nodesJson += _.toJson)
+      response.getWriter.println("" + new JSONArray(nodesJson.toList))
     }
 
     def handleStartNode(request: HttpServletRequest, response: HttpServletResponse) {
@@ -291,6 +321,10 @@ object HttpServer {
 
     private def respond(apiResponse: ApiResponse, response: HttpServletResponse) {
       response.getWriter.println("" + apiResponse.toJson)
+    }
+
+    class HttpError(code: Int, message: String) extends Exception(message) {
+      def getCode: Int = code
     }
   }
 
