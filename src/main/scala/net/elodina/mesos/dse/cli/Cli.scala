@@ -40,7 +40,6 @@ object Cli {
             parser.showUsage
           case startOpts: StartOptions => handleApi("/node/start", startOpts)
           case stopOpts: StopOptions => handleApi("/node/stop", stopOpts)
-          case removeOpts: RemoveOptions => handleApi("/node/remove", removeOpts)
         }
       }
     } catch {
@@ -264,18 +263,6 @@ object Cli {
 
       opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
         opts.asInstanceOf[StopOptions].copy(api = value)
-      }
-    )
-
-    cmd("remove").text("Removes nodes in the cluster.").action { (_, c) =>
-      RemoveOptions()
-    }.children(
-      arg[List[utils.Range]]("<id>").text("ID expression to remove").action { (value, opts) =>
-        opts.asInstanceOf[RemoveOptions].copy(id = value.mkString(","))
-      },
-
-      opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
-        opts.asInstanceOf[RemoveOptions].copy(api = value)
       }
     )
   }

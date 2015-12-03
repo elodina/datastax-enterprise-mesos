@@ -1,6 +1,6 @@
 package net.elodina.mesos.dse.cli
 
-import net.elodina.mesos.dse.cli.Cli._
+import net.elodina.mesos.dse.cli.Cli.{out, printLine}
 import net.elodina.mesos.dse.cli.Cli.CliError
 import java.io.IOException
 import net.elodina.mesos.dse.{Util, Node}
@@ -34,6 +34,7 @@ object NodeCli {
     cmd match {
       case "list" => handleList()
       case "add" | "update" => handleAddUpdate(cmd, arg, args)
+      case "remove" => handleRemove(arg)
       case _ => throw new Error("unsupported ring command " + cmd)
     }
   }
@@ -52,6 +53,8 @@ object NodeCli {
         handleList(help = true)
       case "add" | "update" =>
         handleAddUpdate(cmd, null, args, help = true)
+      case "remove" =>
+        handleRemove(null, help = true)
       case _ =>
         throw new CliError(s"unsupported node command $cmd")
     }
@@ -164,6 +167,20 @@ object NodeCli {
       printNode(node, 1)
       printLine()
     }
+  }
+
+  def handleRemove(expr: String, help: Boolean = false): Unit = {
+    if (help) {
+      printLine("Remove node(s) \nUsage: remove <id>\n")
+      printLine()
+      Cli.handleGenericOptions(null, help = true)
+      return
+    }
+
+    try { Cli.sendRequest(s"/node/remove", Map("node" -> expr)) }
+    catch { case e: IOException => throw new CliError("" + e) }
+
+    println("nodes removed")
   }
 
   def printCmds(): Unit = {

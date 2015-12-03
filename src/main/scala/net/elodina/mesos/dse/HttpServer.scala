@@ -236,11 +236,32 @@ object HttpServer {
         updateNode(node)
         if (add) Scheduler.cluster.addNode(node)
       }
+      Scheduler.cluster.save()
 
       // return result
       val nodesJson = new ListBuffer[JSONObject]
       nodes.foreach(nodesJson += _.toJson)
       response.getWriter.println("" + new JSONArray(nodesJson.toList))
+    }
+
+    def handleRemoveNode(request: HttpServletRequest, response: HttpServletResponse) {
+      val expr: String = request.getParameter("node")
+      if (expr == null || expr.isEmpty) throw new HttpError(400, "node required")
+
+      var ids: List[String] = null
+      try { ids = Scheduler.cluster.expandIds(expr) }
+      catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
+
+      val nodes = new ListBuffer[Node]
+      for (id <- ids) {
+        val node: Node = Scheduler.cluster.getNode(id)
+        if (node == null) throw new HttpError(400, s"node $id not found")
+        if (node.state != Node.State.Inactive) throw new HttpError(400, s"node $id is active")
+        nodes += node
+      }
+
+      nodes.foreach(Scheduler.cluster.removeNode)
+      Scheduler.cluster.save()
     }
 
     def handleStartNode(request: HttpServletRequest, response: HttpServletResponse) {
@@ -282,19 +303,6 @@ object HttpServer {
         val nodes = ids.flatMap(Scheduler.stopNode)
         Scheduler.cluster.save()
         respond(new ApiResponse(success = true, s"Stopped nodes ${opts.id}", new Cluster(nodes)), response)
-      }
-    }
-
-    def handleRemoveNode(request: HttpServletRequest, response: HttpServletResponse) {
-      val opts = postBody(request).as[RemoveOptions]
-
-      val ids = Scheduler.cluster.expandIds(opts.id)
-      val missing = ids.filter(id => !Scheduler.cluster.getNodes.exists(_.id == id))
-      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Nodes ${missing.mkString(",")} do not exist", null), response)
-      else {
-        val nodes = ids.flatMap(Scheduler.removeNode)
-        Scheduler.cluster.save()
-        respond(new ApiResponse(success = true, s"Removed nodes ${opts.id}", new Cluster(nodes)), response)
       }
     }
 
