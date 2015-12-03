@@ -105,17 +105,13 @@ class Node extends Constrained {
     None
   }
 
-  def ports: Seq[Int] = {
-    Seq(storagePort, sslStoragePort, jmxPort, nativeTransportPort, rpcPort)
-  }
-
-  def portMappings: Map[String, Int] =
+  def ports: Map[String, Int] =
     Map(
-      Node.STORAGE_PORT -> storagePort,
-      Node.SSL_STORAGE_PORT -> sslStoragePort,
-      Node.JMX_PORT -> jmxPort,
-      Node.NATIVE_TRANSPORT_PORT -> nativeTransportPort,
-      Node.RPC_PORT -> rpcPort
+      DSEProcess.STORAGE_PORT -> storagePort,
+      DSEProcess.SSL_STORAGE_PORT -> sslStoragePort,
+      DSEProcess.JMX_PORT -> jmxPort,
+      DSEProcess.NATIVE_TRANSPORT_PORT -> nativeTransportPort,
+      DSEProcess.RPC_PORT -> rpcPort
     )
 
   def createTaskInfo(offer: Offer): TaskInfo = {
@@ -135,7 +131,7 @@ class Node extends Constrained {
           .setRanges(
             Protos.Value.Ranges.newBuilder()
               .addAllRange(
-                ports.map { port => Protos.Value.Range.newBuilder().setBegin(port.toLong).setEnd(port.toLong).build()}
+                ports.values.toSeq.map { port => Protos.Value.Range.newBuilder().setBegin(port.toLong).setEnd(port.toLong).build()}
               )
               .build()
           )
@@ -243,20 +239,6 @@ class Node extends Constrained {
 }
 
 object Node {
-  val STORAGE_PORT: String = "storage_port"
-  val SSL_STORAGE_PORT: String = "ssl_storage_port"
-  val NATIVE_TRANSPORT_PORT: String = "native_transport_port"
-  val RPC_PORT: String = "rpc_port"
-  val JMX_PORT: String = "jmx_port"
-
-  val defaultPortMappings: Map[String, Int] = Map(
-    STORAGE_PORT -> 7000,
-    SSL_STORAGE_PORT -> 7001,
-    JMX_PORT -> 7199,
-    NATIVE_TRANSPORT_PORT -> 9042,
-    RPC_PORT -> 9160
-  )
-
   def apply(id: String, opts: AddOptions): Node = {
     val node = new Node(id)
 

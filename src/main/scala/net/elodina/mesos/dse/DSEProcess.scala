@@ -73,7 +73,7 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
   def awaitConsistentState(): Boolean = {
     while (!stopped) {
       try {
-        val probe = new NodeProbe("localhost", node.jmxPort) // TODO port should be configurable and come from mesos offers
+        val probe = new NodeProbe("localhost", node.jmxPort)
 
         val initialized = probe.isInitialized
         val joined = probe.isJoined
@@ -152,14 +152,7 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     cassandraYaml.put(DSEProcess.LISTEN_ADDRESS_KEY, hostname)
     cassandraYaml.put(DSEProcess.RPC_ADDRESS_KEY, hostname)
 
-    val portMappings = Seq(
-      Node.STORAGE_PORT -> node.storagePort,
-      Node.SSL_STORAGE_PORT -> node.sslStoragePort,
-      Node.NATIVE_TRANSPORT_PORT -> node.nativeTransportPort,
-      Node.RPC_PORT -> node.rpcPort
-    )
-
-    for ((key, port) <- portMappings) {
+    for ((key, port) <- node.ports if key != DSEProcess.JMX_PORT) {
       cassandraYaml.put(key, port.asInstanceOf[AnyRef])
     }
 
@@ -201,6 +194,12 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
 }
 
 object DSEProcess {
+  final val STORAGE_PORT: String = "storage_port"
+  final val SSL_STORAGE_PORT: String = "ssl_storage_port"
+  final val NATIVE_TRANSPORT_PORT: String = "native_transport_port"
+  final val RPC_PORT: String = "rpc_port"
+  final val JMX_PORT: String = "jmx_port"
+
   final private val CASSANDRA_LIB_DIR = "lib/cassandra"
   final private val CASSANDRA_LOG_DIR = "log/cassandra"
   final private val SPARK_LIB_DIR = "lib/spark"
