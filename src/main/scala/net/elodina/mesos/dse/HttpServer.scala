@@ -23,8 +23,6 @@ import java.util.Scanner
 import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 
 import net.elodina.mesos.dse.cli._
-import net.elodina.mesos.utils.constraints.Constraint
-import net.elodina.mesos.utils.{State, Util}
 import org.apache.log4j.Logger
 import org.eclipse.jetty.server.{Server, ServerConnector}
 import org.eclipse.jetty.servlet.{ServletContextHandler, ServletHolder}
@@ -32,11 +30,42 @@ import org.eclipse.jetty.util.thread.QueuedThreadPool
 import play.api.libs.json._
 
 import scala.util.{Failure, Success, Try}
+import scala.util.parsing.json.{JSONArray, JSONObject}
+import scala.collection.mutable
+import scala.collection.mutable.ListBuffer
 
-case class ApiResponse(success: Boolean, message: String, value: Option[Cluster])
+class ApiResponse {
+  var success: Boolean = false
+  var message: String = null
+  var cluster: Cluster = null
 
-object ApiResponse {
-  implicit val format = Json.format[ApiResponse]
+  def this(success: Boolean, message: String, cluster: Cluster) = {
+    this
+    this.success = success
+    this.message = message
+    this.cluster = cluster
+  }
+
+  def this(json: Map[String, Any]) = {
+    this
+    fromJson(json)
+  }
+
+  def fromJson(json: Map[String, Any]): Unit = {
+    success = json("success").asInstanceOf[Boolean]
+    message = json("message").asInstanceOf[String]
+    if (json.contains("cluster")) cluster = new Cluster(json("cluster").asInstanceOf[Map[String, Any]])
+  }
+
+  def toJson: JSONObject = {
+    val json = new mutable.LinkedHashMap[String, Any]()
+
+    json("success") = success
+    json("message") = message
+    if (cluster != null) json("cluster") = cluster.toJson
+
+    new JSONObject(json.toMap)
+  }
 }
 
 object HttpServer {
@@ -92,8 +121,9 @@ object HttpServer {
       if (uri.startsWith("/health")) handleHealth(response)
       else if (uri.startsWith("/jar/")) downloadFile(Config.jar, response)
       else if (uri.startsWith("/dse/")) downloadFile(Config.dse, response)
-      else if (uri.startsWith("/jre/")) downloadFile(Config.jre, response)
-      else if (uri.startsWith("/api")) handleApi(request, response)
+      else if (Config.jre != null && uri.startsWith("/jre/")) downloadFile(Config.jre, response)
+      else if (uri.startsWith("/api/node")) handleNodeApi(request, response)
+      else if (uri.startsWith("/api/ring")) handleRingApi(request, response)
       else response.sendError(404)
     }
 
@@ -103,140 +133,146 @@ object HttpServer {
       response.setHeader("Content-Disposition", "attachment; filename=\"" + file.getName + "\"")
       Util.copyAndClose(new FileInputStream(file), response.getOutputStream)
     }
-
-    def handleApi(request: HttpServletRequest, response: HttpServletResponse) {
-      response.setContentType("application/json; charset=utf-8")
-      var uri: String = request.getRequestURI.substring("/api".length)
+    
+    def handleNodeApi(request: HttpServletRequest, response: HttpServletResponse) {
+      var uri: String = request.getRequestURI.substring("/api/node".length)
       if (uri.startsWith("/")) uri = uri.substring(1)
 
-      if (uri == "add") handleAddTask(request, response)
-      else if (uri == "update") handleUpdateTask(request, response)
-      else if (uri == "start") handleStartTask(request, response)
-      else if (uri == "stop") handleStopTask(request, response)
-      else if (uri == "remove") handleRemoveTask(request, response)
-      else if (uri == "status") handleClusterStatus(request, response)
+      if (uri == "add") handleAddNode(request, response)
+      else if (uri == "update") handleUpdateNode(request, response)
+      else if (uri == "start") handleStartNode(request, response)
+      else if (uri == "stop") handleStopNode(request, response)
+      else if (uri == "remove") handleRemoveNode(request, response)
+      else if (uri == "list") handleListNodes(request, response)
       else response.sendError(404)
     }
+    
+    def handleRingApi(request: HttpServletRequest, response: HttpServletResponse) {
+      // todo
+    }
 
-    def handleAddTask(request: HttpServletRequest, response: HttpServletResponse) {
+    def handleAddNode(request: HttpServletRequest, response: HttpServletResponse) {
       val opts = postBody(request).as[AddOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val existing = ids.filter(id => Scheduler.cluster.tasks.exists(_.id == id))
-      if (existing.nonEmpty) respond(ApiResponse(success = false, s"Tasks ${existing.mkString(",")} already exist", None), response)
+      val existing = ids.filter(id => Scheduler.cluster.getNodes.exists(_.id == id))
+      if (existing.nonEmpty) respond(new ApiResponse(success = false, s"Nodes ${existing.mkString(",")} already exist", null), response)
       else {
-        val tasks = ids.map { id =>
-          val task = DSETask(id, opts)
-          Scheduler.cluster.tasks.add(task)
-          logger.info(s"Added task $task")
-          task
+        val nodes = ids.map { id =>
+          val node = Node(id, opts)
+          Scheduler.cluster.addNode(node)
+          logger.info(s"Added node $node")
+          node
         }
 
         Scheduler.cluster.save()
-        respond(ApiResponse(success = true, s"Added tasks ${opts.id}", Some(Cluster(tasks))), response)
+        respond(new ApiResponse(success = true, s"Added nodes ${opts.id}", new Cluster(nodes)), response)
       }
     }
 
-    def handleUpdateTask(request: HttpServletRequest, response: HttpServletResponse) {
+    def handleUpdateNode(request: HttpServletRequest, response: HttpServletResponse) {
       val opts = postBody(request).as[UpdateOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val missing = ids.filter(id => !Scheduler.cluster.tasks.exists(_.id == id))
-      if (missing.nonEmpty) respond(ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", None), response)
+      val missing = ids.filter(id => !Scheduler.cluster.getNodes.exists(_.id == id))
+      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Nodes ${missing.mkString(",")} do not exist", null), response)
       else {
-        val tasks = ids.flatMap { id =>
-          Scheduler.cluster.tasks.find(_.id == id) match {
-            case Some(task) =>
-              opts.cpu.foreach(task.cpu = _)
-              opts.mem.foreach(task.mem = _)
-              opts.broadcast.foreach(task.broadcast = _)
+        val nodes = ids.flatMap { id =>
+          Scheduler.cluster.getNodes.find(_.id == id) match {
+            case Some(node_) =>
+              opts.cpu.foreach(node_.cpu = _)
+              opts.mem.foreach(node_.mem = _)
+              opts.broadcast.foreach(node_.broadcast = _)
               opts.constraints.foreach { constraints =>
-                task.constraints.clear()
-                task.constraints ++= Constraint.parse(constraints)
+                node_.constraints.clear()
+                node_.constraints ++= Constraint.parse(constraints)
               }
               opts.seedConstraints.foreach { seedConstraints =>
-                task.seedConstraints.clear()
-                task.seedConstraints ++= Constraint.parse(seedConstraints)
+                node_.seedConstraints.clear()
+                node_.seedConstraints ++= Constraint.parse(seedConstraints)
               }
-              opts.nodeOut.foreach(task.nodeOut = _)
-              opts.clusterName.foreach(task.clusterName = _)
-              opts.seed.foreach(task.seed = _)
-              opts.replaceAddress.foreach(task.replaceAddress = _)
-              opts.dataFileDirs.foreach(task.dataFileDirs = _)
-              opts.commitLogDir.foreach(task.commitLogDir = _)
-              opts.savedCachesDir.foreach(task.savedCachesDir = _)
-              opts.awaitConsistentStateBackoff.foreach(task.awaitConsistentStateBackoff = _)
+              opts.nodeOut.foreach(node_.nodeOut = _)
+              opts.clusterName.foreach(node_.clusterName = _)
+              opts.seed.foreach(node_.seed = _)
+              opts.replaceAddress.foreach(node_.replaceAddress = _)
+              opts.dataFileDirs.foreach(node_.dataFileDirs = _)
+              opts.commitLogDir.foreach(node_.commitLogDir = _)
+              opts.savedCachesDir.foreach(node_.savedCachesDir = _)
+              opts.awaitConsistentStateBackoff.foreach(node_.awaitConsistentStateBackoff = _)
 
-              logger.info(s"Updated task $id")
-              Some(task)
+              logger.info(s"Updated node $id")
+              Some(node_)
             case None =>
-              logger.warn(s"Task $id was removed, ignoring its update call")
+              logger.warn(s"Node $id was removed, ignoring its update call")
               None
           }
         }
 
         Scheduler.cluster.save()
-        respond(ApiResponse(success = true, s"Updated tasks ${opts.id}", Some(Cluster(tasks))), response)
+        respond(new ApiResponse(success = true, s"Updated nodes ${opts.id}", new Cluster(nodes)), response)
       }
     }
 
-    def handleStartTask(request: HttpServletRequest, response: HttpServletResponse) {
+    def handleStartNode(request: HttpServletRequest, response: HttpServletResponse) {
       val opts = postBody(request).as[StartOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val missing = ids.filter(id => !Scheduler.cluster.tasks.exists(_.id == id))
-      if (missing.nonEmpty) respond(ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", None), response)
+      val missing = ids.filter(id => !Scheduler.cluster.getNodes.exists(_.id == id))
+      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Nodes ${missing.mkString(",")} do not exist", null), response)
       else {
-        val tasks = ids.flatMap { id =>
-          Scheduler.cluster.tasks.find(_.id == id) match {
-            case Some(task) =>
-              if (task.state == State.Inactive) {
-                task.state = State.Stopped
-                logger.info(s"Starting task $id")
-              } else logger.warn(s"Task $id already started")
-              Some(task)
+        val nodes = ids.flatMap { id =>
+          Scheduler.cluster.getNodes.find(_.id == id) match {
+            case Some(node_) =>
+              if (node_.state == Node.State.Inactive) {
+                node_.state = Node.State.Stopped
+                logger.info(s"Starting node $id")
+              } else logger.warn(s"Node $id already started")
+              Some(node_)
             case None =>
-              logger.warn(s"Task $id was removed, ignoring its start call")
+              logger.warn(s"Node $id was removed, ignoring its start call")
               None
           }
         }
 
         if (opts.timeout.toMillis > 0) {
-          val ok = tasks.forall(_.waitFor(State.Running, opts.timeout))
-          if (ok) respond(ApiResponse(success = true, s"Started tasks ${opts.id}", Some(Cluster(tasks))), response)
-          else respond(ApiResponse(success = true, s"Start tasks ${opts.id} timed out after ${opts.timeout}", None), response)
-        } else respond(ApiResponse(success = true, s"Servers ${opts.id} scheduled to start", Some(Cluster(tasks))), response)
+          val ok = nodes.forall(_.waitFor(Node.State.Running, opts.timeout))
+          if (ok) respond(new ApiResponse(success = true, s"Started nodes ${opts.id}", new Cluster(nodes)), response)
+          else respond(new ApiResponse(success = true, s"Start nodes ${opts.id} timed out after ${opts.timeout}", null), response)
+        } else respond(new ApiResponse(success = true, s"Servers ${opts.id} scheduled to start", new Cluster(nodes)), response)
       }
     }
 
-    def handleStopTask(request: HttpServletRequest, response: HttpServletResponse) {
+    def handleStopNode(request: HttpServletRequest, response: HttpServletResponse) {
       val opts = postBody(request).as[StopOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val missing = ids.filter(id => !Scheduler.cluster.tasks.exists(_.id == id))
-      if (missing.nonEmpty) respond(ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", None), response)
+      val missing = ids.filter(id => !Scheduler.cluster.getNodes.exists(_.id == id))
+      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Nodes ${missing.mkString(",")} do not exist", null), response)
       else {
-        val tasks = ids.flatMap(Scheduler.stopTask)
+        val nodes = ids.flatMap(Scheduler.stopNode)
         Scheduler.cluster.save()
-        respond(ApiResponse(success = true, s"Stopped tasks ${opts.id}", Some(Cluster(tasks))), response)
+        respond(new ApiResponse(success = true, s"Stopped nodes ${opts.id}", new Cluster(nodes)), response)
       }
     }
 
-    def handleRemoveTask(request: HttpServletRequest, response: HttpServletResponse) {
+    def handleRemoveNode(request: HttpServletRequest, response: HttpServletResponse) {
       val opts = postBody(request).as[RemoveOptions]
 
       val ids = Scheduler.cluster.expandIds(opts.id)
-      val missing = ids.filter(id => !Scheduler.cluster.tasks.exists(_.id == id))
-      if (missing.nonEmpty) respond(ApiResponse(success = false, s"Tasks ${missing.mkString(",")} do not exist", None), response)
+      val missing = ids.filter(id => !Scheduler.cluster.getNodes.exists(_.id == id))
+      if (missing.nonEmpty) respond(new ApiResponse(success = false, s"Nodes ${missing.mkString(",")} do not exist", null), response)
       else {
-        val tasks = ids.flatMap(Scheduler.removeTask)
+        val nodes = ids.flatMap(Scheduler.removeNode)
         Scheduler.cluster.save()
-        respond(ApiResponse(success = true, s"Removed tasks ${opts.id}", Some(Cluster(tasks))), response)
+        respond(new ApiResponse(success = true, s"Removed nodes ${opts.id}", new Cluster(nodes)), response)
       }
     }
 
-    def handleClusterStatus(request: HttpServletRequest, response: HttpServletResponse) {
-      respond(ApiResponse(success = true, s"Retrieved current cluster status", Some(Scheduler.cluster)), response)
+    def handleListNodes(request: HttpServletRequest, response: HttpServletResponse) {
+      val nodes = new ListBuffer[JSONObject]
+      Scheduler.cluster.getNodes.foreach(nodes += _.toJson)
+
+      response.getWriter.println("" + new JSONArray(nodes.toList))
     }
 
     private def handleHealth(response: HttpServletResponse) {
@@ -254,7 +290,7 @@ object HttpServer {
     }
 
     private def respond(apiResponse: ApiResponse, response: HttpServletResponse) {
-      response.getWriter.println(Json.toJson(apiResponse))
+      response.getWriter.println("" + apiResponse.toJson)
     }
   }
 

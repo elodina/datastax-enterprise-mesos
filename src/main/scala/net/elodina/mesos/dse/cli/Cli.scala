@@ -1,21 +1,34 @@
 package net.elodina.mesos.dse.cli
 
-import java.io.{File, IOException, PrintStream}
-import java.net.{HttpURLConnection, URL}
+import java.io.{IOException, PrintStream}
+import java.net.{URLEncoder, HttpURLConnection, URL}
 
 import net.elodina.mesos.dse._
 import net.elodina.mesos.utils
-import net.elodina.mesos.utils.{TaskRuntime, Util}
 import play.api.libs.json.{Json, Writes}
 import scopt.{OptionParser, Read}
 
 import scala.concurrent.duration.Duration
 import scala.io.Source
+import joptsimple.{OptionException, OptionSet}
 
 object Cli {
   private[cli] var out: PrintStream = System.out
 
   def main(args: Array[String]) {
+    if (args.length == 0) {
+      throw new CliError("command required")
+    }
+
+    val cmd = args(0)
+    var _args:Array[String] = args.slice(1, args.length)
+    _args = handleGenericOptions(_args)
+
+    if (cmd == "help") { handleHelp(_args); return }
+    if (cmd == "scheduler") { SchedulerCli.handle(_args); return }
+    if (cmd == "node") { NodeCli.handle(_args); return }
+    if (cmd == "ring") { RingCli.handle(_args); return }
+
     try {
       parser.parse(args, NoOptions) match {
         case None =>
@@ -25,13 +38,11 @@ object Cli {
           case NoOptions =>
             printLine("Failed to parse arguments.")
             parser.showUsage
-          case schedulerOpts: SchedulerOptions => handleScheduler(schedulerOpts)
-          case addOpts: AddOptions => handleApi("/add", addOpts)
-          case updateOpts: UpdateOptions => handleApi("/update", updateOpts)
-          case startOpts: StartOptions => handleApi("/start", startOpts)
-          case stopOpts: StopOptions => handleApi("/stop", stopOpts)
-          case removeOpts: RemoveOptions => handleApi("/remove", removeOpts)
-          case statusOpts: StatusOptions => handleApi("/status", statusOpts)
+          case addOpts: AddOptions => handleApi("/node/add", addOpts)
+          case updateOpts: UpdateOptions => handleApi("/node/update", updateOpts)
+          case startOpts: StartOptions => handleApi("/node/start", startOpts)
+          case stopOpts: StopOptions => handleApi("/node/stop", stopOpts)
+          case removeOpts: RemoveOptions => handleApi("/node/remove", removeOpts)
         }
       }
     } catch {
@@ -41,35 +52,46 @@ object Cli {
     }
   }
 
-  def handleScheduler(config: SchedulerOptions) {
-    resolveApi(config.api)
+  def handleHelp(args: Array[String]): Unit = {
+    val cmd = if (args.length > 0) args(0) else null
+    val args_ = args.slice(1, args.length)
 
-    Config.master = config.master
-    Config.user = config.user
-    Config.principal = if (config.principal.isEmpty) null else config.principal
-    Config.secret = if (config.secret.isEmpty) null else config.secret
-    Config.frameworkName = config.frameworkName
-    Config.frameworkRole = config.frameworkRole
-    Config.frameworkTimeout = config.frameworkTimeout
-    Config.storage = config.storage
-    Config.debug = config.debug
+    cmd match {
+      case null =>
+        printLine("Usage: <cmd>\n")
+        printCmds()
 
-    if (!config.jre.isEmpty) {
-      Config.jre = new File(config.jre)
-      if (!Config.jre.exists() || !Config.jre.isFile) throw new IllegalStateException("JRE file doesn't exist")
+        printLine()
+        printLine("Run `help <cmd>` to see details of specific command")
+      case "help" =>
+        printLine("Print general or command-specific help\nUsage: help [cmd [cmd]]")
+      case "scheduler" =>
+        SchedulerCli.handle(args_, help = true)
+      case "node" =>
+        NodeCli.handle(args_, help = true)
+      case "ring" =>
+        RingCli.handle(args_, help = true)
+      case _ =>
+        throw new Error(s"unsupported command $cmd")
     }
+  }
 
-    Scheduler.start()
+  private def printCmds(): Unit = {
+    printLine("Commands:")
+    printLine("help [cmd [cmd]] - print general or command-specific help", 1)
+    printLine("scheduler        - start scheduler", 1)
+    printLine("node             - node management commands", 1)
+    printLine("ring             - ring management commands", 1)
   }
 
   def handleApi[T <: Options : Writes](url: String, data: T) {
     resolveApi(data.api)
 
-    val response = sendRequest(url, data)
+    val response = sendJsonRequest(url, data)
     printResponse(response)
   }
 
-  private[dse] def sendRequest[T: Writes](uri: String, data: T): ApiResponse = {
+  private[dse] def sendJsonRequest[T: Writes](uri: String, data: T): ApiResponse = {
     val url: String = Config.api + (if (Config.api.endsWith("/")) "" else "/") + "api" + uri
 
     val connection: HttpURLConnection = new URL(url).openConnection().asInstanceOf[HttpURLConnection]
@@ -95,13 +117,57 @@ object Cli {
       connection.disconnect()
     }
 
-    Json.parse(response).as[ApiResponse]
+    new ApiResponse(Util.parseJsonAsMap(response))
   }
 
-  private def resolveApi(api: String) {
+  private[cli] def sendRequest(uri: String, params: Map[String, String]): Any = {
+    def queryString(params: Map[String, String]): String = {
+      var s = ""
+      for ((name, value) <- params) {
+        if (!s.isEmpty) s += "&"
+        s += URLEncoder.encode(name, "utf-8")
+        if (value != null) s += "=" + URLEncoder.encode(value, "utf-8")
+      }
+      s
+    }
+
+    val qs: String = queryString(params)
+    val url: String = Config.api + (if (Config.api.endsWith("/")) "" else "/") + "api" + uri
+
+    val connection: HttpURLConnection = new URL(url).openConnection().asInstanceOf[HttpURLConnection]
+    var response: String = null
+    try {
+      connection.setRequestMethod("POST")
+      connection.setDoOutput(true)
+
+      val data = qs.getBytes("utf-8")
+      connection.setRequestProperty("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+      connection.setRequestProperty("Content-Length", "" + data.length)
+      connection.getOutputStream.write(data)
+
+      try { response = Source.fromInputStream(connection.getInputStream).getLines().mkString}
+      catch {
+        case e: IOException =>
+          if (connection.getResponseCode != 200) throw new IOException(connection.getResponseCode + " - " + connection.getResponseMessage)
+          else throw e
+      }
+    } finally {
+      connection.disconnect()
+    }
+
+    if (response.trim().isEmpty) return null
+
+    var json: Any = null
+    try { json = Util.parseJson(response)}
+    catch { case e: IllegalArgumentException => throw new IOException(e) }
+
+    json
+  }
+
+  def resolveApi(api: String) {
     if (Config.api != null) return
 
-    if (api != "") {
+    if (api != null && api != "") {
       Config.api = api
       return
     }
@@ -116,44 +182,42 @@ object Cli {
 
   private def printResponse(response: ApiResponse) {
     printLine(response.message)
-    response.value.foreach { cluster =>
+    if (response.cluster != null) {
       printLine()
-      printCluster(cluster)
+      printCluster(response.cluster)
     }
   }
 
   private def printCluster(cluster: Cluster) {
     printLine("cluster:")
-    cluster.tasks.foreach(printTask(_, 1))
+    cluster.getNodes.foreach(printNode(_, 1))
   }
 
-  private def printTask(task: DSETask, indent: Int = 0) {
-    printLine("task:", indent)
-    printLine(s"id: ${task.id}", indent + 1)
-    printLine(s"type: ${task.taskType}", indent + 1)
-    printLine(s"state: ${task.state}", indent + 1)
-    printLine(s"cpu: ${task.cpu}", indent + 1)
-    printLine(s"mem: ${task.mem}", indent + 1)
+  private def printNode(node: Node, indent: Int = 0) {
+    printLine("node:", indent)
+    printLine(s"id: ${node.id}", indent + 1)
+    printLine(s"state: ${node.state}", indent + 1)
+    printLine(s"cpu: ${node.cpu}", indent + 1)
+    printLine(s"mem: ${node.mem}", indent + 1)
 
-    if (task.broadcast != "") printLine(s"broadcast: ${task.broadcast}", indent + 1)
-    printLine(s"node out: ${task.nodeOut}", indent + 1)
-    printLine(s"agent out: ${task.agentOut}", indent + 1)
-    printLine(s"cluster name: ${task.clusterName}", indent + 1)
-    printLine(s"seed: ${task.seed}", indent + 1)
-    if (task.seeds != "") printLine(s"seeds: ${task.seeds}", indent + 1)
-    if (task.replaceAddress != "") printLine(s"replace-address: ${task.replaceAddress}", indent + 1)
-    if (task.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(task.constraints)}", indent + 1)
-    if (task.seed && task.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(task.seedConstraints)}", indent + 1)
-    if (task.dataFileDirs != "") printLine(s"data file dirs: ${task.dataFileDirs}", indent + 1)
-    if (task.commitLogDir != "") printLine(s"commit log dir: ${task.commitLogDir}", indent + 1)
-    if (task.savedCachesDir != "") printLine(s"saved caches dir: ${task.savedCachesDir}", indent + 1)
-
-    task.runtime.foreach(printTaskRuntime(_, indent + 1))
+    if (node.broadcast != "") printLine(s"broadcast: ${node.broadcast}", indent + 1)
+    printLine(s"node out: ${node.nodeOut}", indent + 1)
+    printLine(s"agent out: ${node.agentOut}", indent + 1)
+    printLine(s"cluster name: ${node.clusterName}", indent + 1)
+    printLine(s"seed: ${node.seed}", indent + 1)
+    if (node.seeds != "") printLine(s"seeds: ${node.seeds}", indent + 1)
+    if (node.replaceAddress != "") printLine(s"replace-address: ${node.replaceAddress}", indent + 1)
+    if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent + 1)
+    if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent + 1)
+    if (node.dataFileDirs != "") printLine(s"data file dirs: ${node.dataFileDirs}", indent + 1)
+    if (node.commitLogDir != "") printLine(s"commit log dir: ${node.commitLogDir}", indent + 1)
+    if (node.savedCachesDir != "") printLine(s"saved caches dir: ${node.savedCachesDir}", indent + 1)
+    if (node.runtime != null) printNodeRuntime(node.runtime, indent + 1)
 
     printLine()
   }
 
-  private def printTaskRuntime(runtime: TaskRuntime, indent: Int = 0) {
+  private def printNodeRuntime(runtime: Node.Runtime, indent: Int = 0) {
     printLine(s"runtime:", indent)
     printLine(s"task id: ${runtime.taskId}", indent + 1)
     printLine(s"slave id: ${runtime.slaveId}", indent + 1)
@@ -162,7 +226,7 @@ object Cli {
     printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
   }
 
-  private def printLine(s: AnyRef = "", indent: Int = 0) = out.println("  " * indent + s)
+  private[dse] def printLine(s: AnyRef = "", indent: Int = 0) = out.println("  " * indent + s)
 
   def reads[A](f: String => A): Read[A] = new Read[A] {
     val arity = 1
@@ -179,129 +243,75 @@ object Cli {
 
     help("help").text("Prints this usage text.")
 
-    cmd("scheduler").text("Starts the Datastax Enterprise Mesos Scheduler.").action { (_, c) =>
-      SchedulerOptions()
+    cmd("add").text("Adds a node to the cluster.").action { (_, c) =>
+      AddOptions()
     }.children(
-      opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(api = value)
+      arg[List[utils.Range]]("<id>").text("ID expression to add").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(id = value.mkString(","))
       },
 
-      opt[String]("master").required().text("Mesos Master addresses.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(master = value)
+      opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(api = value)
       },
 
-      opt[String]("user").optional().text("Mesos user. Defaults to current system user.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(user = value)
+      opt[Double]("cpu").optional().text("CPU amount (0.5, 1, 2).").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(cpu = value)
       },
 
-      opt[String]("principal").optional().text("Principal (username) used to register framework.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(principal = value)
+      opt[Long]("mem").optional().text("Mem amount in Mb.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(mem = value)
       },
 
-      opt[String]("secret").optional().text("Secret (password) used to register framework.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(secret = value)
+      opt[String]("broadcast").optional().text("Network interface to broadcast for nodes.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(broadcast = value)
       },
 
-      opt[String]("framework-name").optional().text("Framework name. Defaults to datastax-enterprise").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(frameworkName = value)
+      opt[String]("constraints").optional().text("Constraints (hostname=like:^master$,rack=like:^1.*$).").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(constraints = value)
       },
 
-      opt[String]("framework-role").optional().text("Framework role. Defaults to *").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(frameworkRole = value)
+      opt[String]("seed-constraints").optional().text("Seed node constraints. Will be evaluated only across seed nodes.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(seedConstraints = value)
       },
 
-      opt[Duration]("framework-timeout").optional().text("Framework failover timeout. Defaults to 30 days.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(frameworkTimeout = value)
+      opt[String]("node-out").optional().text("File name to redirect Datastax Node output to.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(nodeOut = value)
       },
 
-      opt[String]("storage").optional().text("Storage for cluster state. Examples: file:dse-mesos.json; zk:master:2181/dse-mesos.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(storage = value)
+      opt[String]("agent-out").optional().text("File name to redirect Datastax Agent output to.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(agentOut = value)
       },
 
-      opt[Boolean]("debug").optional().text("Run in debug mode.").action { (value, config) =>
-        config.asInstanceOf[SchedulerOptions].copy(debug = value)
+      opt[String]("cluster-name").optional().text("The name of the cluster.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(clusterName = value)
       },
 
-      opt[String]("jre").optional().text("Path to JRE archive.").action { (value, config) =>
-	config.asInstanceOf[SchedulerOptions].copy(jre = value)
+      opt[Boolean]("seed").optional().text("Flags whether this Datastax Node is a seed node.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(seed = value)
+      },
+
+      opt[String]("replace-address").optional().text("Replace address for the dead Datastax Node").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(replaceAddress = value)
+      },
+
+      opt[String]("data-file-dirs").optional().text("Cassandra data file directories separated by comma. Defaults to sandbox if not set").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(dataFileDirs = value)
+      },
+
+      opt[String]("commit-log-dir").optional().text("Cassandra commit log dir. Defaults to sandbox if not set").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(commitLogDir = value)
+      },
+
+      opt[String]("saved-caches-dir").optional().text("Cassandra saved caches dir. Defaults to sandbox if not set").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(savedCachesDir = value)
+      },
+
+      opt[Duration]("state-backoff").optional().text("Backoff between checks for consistent node state.").action { (value, opts) =>
+        opts.asInstanceOf[AddOptions].copy(awaitConsistentStateBackoff = value)
       }
     )
 
-    cmd("add").text("Adds a task to the cluster.").children(
-      arg[String]("<task-type>").text("Task type to add").action { (taskType, config) =>
-        taskType match {
-          case TaskTypes.CASSANDRA_NODE => AddOptions(taskType = taskType, nodeOut = s"$taskType.log")
-          //other types go here
-          case _ => throw new CliError(s"Unknown task type $taskType")
-        }
-      }.children(
-        arg[List[utils.Range]]("<id>").text("ID expression to add").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(id = value.mkString(","))
-        },
-
-        opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(api = value)
-        },
-
-        opt[Double]("cpu").optional().text("CPU amount (0.5, 1, 2).").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(cpu = value)
-        },
-
-        opt[Long]("mem").optional().text("Mem amount in Mb.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(mem = value)
-        },
-
-        opt[String]("broadcast").optional().text("Network interface to broadcast for nodes.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(broadcast = value)
-        },
-
-        opt[String]("constraints").optional().text("Constraints (hostname=like:^master$,rack=like:^1.*$).").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(constraints = value)
-        },
-
-        opt[String]("seed-constraints").optional().text("Seed node constraints. Will be evaluated only across seed nodes.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(seedConstraints = value)
-        },
-
-        opt[String]("node-out").optional().text("File name to redirect Datastax Node output to.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(nodeOut = value)
-        },
-
-        opt[String]("agent-out").optional().text("File name to redirect Datastax Agent output to.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(agentOut = value)
-        },
-
-        opt[String]("cluster-name").optional().text("The name of the cluster.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(clusterName = value)
-        },
-
-        opt[Boolean]("seed").optional().text("Flags whether this Datastax Node is a seed node.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(seed = value)
-        },
-
-        opt[String]("replace-address").optional().text("Replace address for the dead Datastax Node").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(replaceAddress = value)
-        },
-
-        opt[String]("data-file-dirs").optional().text("Cassandra data file directories separated by comma. Defaults to sandbox if not set").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(dataFileDirs = value)
-        },
-
-        opt[String]("commit-log-dir").optional().text("Cassandra commit log dir. Defaults to sandbox if not set").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(commitLogDir = value)
-        },
-
-        opt[String]("saved-caches-dir").optional().text("Cassandra saved caches dir. Defaults to sandbox if not set").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(savedCachesDir = value)
-        },
-
-        opt[Duration]("state-backoff").optional().text("Backoff between checks for consistent node state.").action { (value, opts) =>
-          opts.asInstanceOf[AddOptions].copy(awaitConsistentStateBackoff = value)
-        }
-      )
-    )
-
-    cmd("update").text("Update task configuration.").action { (_, c) =>
+    cmd("update").text("Update node configuration.").action { (_, c) =>
       UpdateOptions()
     }.children(
       arg[List[utils.Range]]("<id>").text("ID expression to update").action { (value, opts) =>
@@ -369,7 +379,7 @@ object Cli {
       }
     )
 
-    cmd("start").text("Starts tasks in the cluster.").action { (_, c) =>
+    cmd("start").text("Starts nodes in the cluster.").action { (_, c) =>
       StartOptions()
     }.children(
       arg[List[utils.Range]]("<id>").text("ID expression to add").action { (value, opts) =>
@@ -380,12 +390,12 @@ object Cli {
         opts.asInstanceOf[StartOptions].copy(api = value)
       },
 
-      opt[Duration]("timeout").optional().text("Time to wait until task starts. Should be a parsable Scala Duration value. Defaults to 2m. Optional").action { (value, config) =>
+      opt[Duration]("timeout").optional().text("Time to wait until node starts. Should be a parsable Scala Duration value. Defaults to 2m. Optional").action { (value, config) =>
         config.asInstanceOf[StartOptions].copy(timeout = value)
       }
     )
 
-    cmd("stop").text("Stops tasks in the cluster.").action { (_, c) =>
+    cmd("stop").text("Stops nodes in the cluster.").action { (_, c) =>
       StopOptions()
     }.children(
       arg[List[utils.Range]]("<id>").text("ID expression to stop").action { (value, opts) =>
@@ -397,7 +407,7 @@ object Cli {
       }
     )
 
-    cmd("remove").text("Removes tasks in the cluster.").action { (_, c) =>
+    cmd("remove").text("Removes nodes in the cluster.").action { (_, c) =>
       RemoveOptions()
     }.children(
       arg[List[utils.Range]]("<id>").text("ID expression to remove").action { (value, opts) =>
@@ -408,14 +418,32 @@ object Cli {
         opts.asInstanceOf[RemoveOptions].copy(api = value)
       }
     )
+  }
 
-    cmd("status").text("Retrieves current cluster status.").action { (_, c) =>
-      StatusOptions()
-    }.children(
-      opt[String]("api").optional().text(s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.").action { (value, opts) =>
-        opts.asInstanceOf[StopOptions].copy(api = value)
-      }
-    )
+  private[dse] def handleGenericOptions(args: Array[String], help: Boolean = false): Array[String] = {
+    val parser = new joptsimple.OptionParser()
+    parser.accepts("api", s"Binding host:port for http/artifact server. Optional if ${Config.API_ENV} env is set.")
+      .withOptionalArg().ofType(classOf[String])
+
+    parser.allowsUnrecognizedOptions()
+
+    if (help) {
+      printLine("Generic Options")
+      parser.printHelpOn(out)
+      return args
+    }
+
+    var options: OptionSet = null
+    try { options = parser.parse(args: _*) }
+    catch {
+      case e: OptionException =>
+        parser.printHelpOn(out)
+        printLine()
+        throw new CliError(e.getMessage)
+    }
+
+    resolveApi(options.valueOf("api").asInstanceOf[String])
+    options.nonOptionArguments().toArray(new Array[String](0))
   }
 
   case class CliError(message: String) extends RuntimeException(message)

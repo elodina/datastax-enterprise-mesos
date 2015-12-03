@@ -43,9 +43,9 @@ object Config {
 
   var storage: String = "file:dse-mesos.json"
 
-  var frameworkName: String = "datastax-enterprise"
+  var frameworkName: String = "dse"
   var frameworkRole: String = "*"
-  var frameworkTimeout: Duration = 30 days
+  var frameworkTimeout: Duration = Duration("30 days")
 
   var jar: File = null
   var dse: File = null

@@ -19,80 +19,125 @@
 package net.elodina.mesos.dse
 
 import net.elodina.mesos.utils
-import net.elodina.mesos.utils.storage._
 import org.apache.log4j.Logger
-import play.api.libs.functional.syntax._
-import play.api.libs.json._
 
 import scala.collection.mutable
+import scala.util.parsing.json.{JSONArray, JSONObject}
+import scala.collection.mutable.ListBuffer
 
 object Cluster {
   private val logger = Logger.getLogger(this.getClass)
 
-  private def newStorage(storage: String): Storage[Cluster] = {
+  private def newStorage(storage: String): Storage = {
     storage.split(":", 2) match {
       case Array("file", fileName) => FileStorage(fileName)
       case Array("zk", zk) => ZkStorage(zk)
       case _ => throw new IllegalArgumentException(s"Unsupported storage: $storage")
     }
   }
-
-  implicit val writer = new Writes[Cluster] {
-    override def writes(o: Cluster): JsValue = Json.obj("frameworkid" -> o.frameworkId, "cluster" -> o.tasks.toList)
-  }
-
-  implicit val reader = ((__ \ 'cluster).read[List[DSETask]] and
-  (__ \ 'frameworkid).readNullable[String])(Cluster.apply _)
-
-  implicit object ClusterSerializer extends Encoder[Cluster] with Decoder[Cluster] {
-    override def encode(value: Cluster): Array[Byte] = Json.stringify(Json.toJson(value)).getBytes("UTF-8")
-
-    override def decode(bytes: Array[Byte]): Option[Cluster] = {
-      try {
-        Json.parse(bytes).validate[Cluster] match {
-          case JsSuccess(cluster, _) => Some(cluster)
-          case JsError(error) =>
-            logger.info(s"Cannot decode cluster state: $error")
-            None
-        }
-      } catch {
-        case e: Throwable =>
-          e.printStackTrace()
-          None
-      }
-    }
-  }
-
 }
 
-case class Cluster(bootstrapTasks: List[DSETask] = Nil, var frameworkId: Option[String] = None) {
+class Cluster {
   private val storage = Cluster.newStorage(Config.storage)
 
-  private[dse] val tasks = new mutable.TreeSet[DSETask]()(Ordering.by(_.id.toInt))
+  var frameworkId: String = null
 
-  //add anything that was passed to constructor
-  bootstrapTasks.foreach(tasks.add)
+  private val nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]
+  private val rings: mutable.ListBuffer[Ring] = new mutable.ListBuffer[Ring]
+
+  def this(bootstrapNodes: List[Node] = Nil, frameworkId: String = null) {
+    this
+    this.frameworkId = frameworkId
+    bootstrapNodes.foreach(addNode)
+  }
+  
+  def this(json: Map[String, Any]) {
+    this
+    fromJson(json)
+  }
 
   def expandIds(expr: String): List[String] = {
     if (expr == null || expr == "") throw new IllegalArgumentException("ID expression cannot be null or empty")
     else {
       expr.split(",").flatMap { part =>
         utils.Range(part) match {
-          case utils.Range.* => tasks.map(_.id).toList
+          case utils.Range.* => nodes.map(_.id).toList
           case range => range.values.map(_.toString)
         }
       }.distinct.sorted.toList
     }
   }
 
+
+  def getRings: List[Ring] = rings.toList
+
+  def addRing(ring: Ring): Ring = {
+    rings += ring
+    ring
+  }
+
+  def removeRing(ring: Ring): Unit = { rings -= ring }
+
+
+  def getNodes: List[Node] = nodes.toList
+
+  def addNode(node: Node): Node = {
+    nodes += node
+    node
+  }
+
+  def removeNode(node: Node): Unit = { nodes -= node }
+
+  def clear(): Unit = {
+    nodes.clear()
+    rings.clear()
+  }
+
+  def fromJson(json: Map[String, Any]): Unit = {
+    if (json.contains("nodes")) {
+      for (nodeJson <- json("nodes").asInstanceOf[List[Map[String, Object]]]) {
+        addNode(new Node(nodeJson))
+      }
+    }
+
+    if (json.contains("rings")) {
+      for (ringObj <- json("rings").asInstanceOf[List[Map[String, Object]]]) {
+        addRing(new Ring(ringObj))
+      }
+    }
+
+    if (json.contains("frameworkId"))
+      frameworkId = json("frameworkId").asInstanceOf[String]
+  }
+
+  def toJson: JSONObject = {
+    val json = new mutable.LinkedHashMap[String, Object]()
+
+    if (!nodes.isEmpty) {
+      val nodesJson = new ListBuffer[JSONObject]()
+      nodes.foreach(nodesJson += _.toJson)
+      json("nodes") = new JSONArray(nodesJson.toList)
+    }
+
+    if (!rings.isEmpty) {
+      val ringsJson = new ListBuffer[JSONObject]()
+      rings.foreach(ringsJson += _.toJson)
+      json("rings") = new JSONArray(ringsJson.toList)
+    }
+
+    if (frameworkId != null) json("frameworkId") = frameworkId
+    new JSONObject(json.toMap)
+  }
+
   def save() = storage.save(this)
 
   def load() {
-    storage.load match {
-      case Some(cluster) =>
-        this.frameworkId = cluster.frameworkId
-        cluster.tasks.foreach(this.tasks.add)
-      case None => Cluster.logger.info("No cluster state available")
+    val cluster: Cluster = storage.load()
+    if (cluster == null) {
+      Cluster.logger.info("No cluster state available")
+      return
     }
+
+    this.fromJson(Util.parseJsonAsMap("" + cluster.toJson))
   }
 }

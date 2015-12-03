@@ -24,7 +24,6 @@ import _root_.net.elodina.mesos.utils.Pretty
 import org.apache.log4j._
 import org.apache.mesos.Protos._
 import org.apache.mesos.{ExecutorDriver, MesosExecutorDriver}
-import play.api.libs.json.Json
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent._
@@ -34,8 +33,8 @@ object Executor extends org.apache.mesos.Executor {
   private val logger = Logger.getLogger(Executor.getClass)
 
   private var hostname: String = null
-  private var node: DSENode = null
-  private var agent: DatastaxAgent = null
+  private var dseProcess: DSEProcess = null
+  private var agentProcess: AgentProcess = null
 
   def main(args: Array[String]) {
     initLogging()
@@ -65,40 +64,40 @@ object Executor extends org.apache.mesos.Executor {
   def launchTask(driver: ExecutorDriver, taskInfo: TaskInfo) {
     logger.info("[launchTask] " + Pretty.task(taskInfo))
 
-    val task = Json.parse(taskInfo.getData.toStringUtf8).as[DSETask]
+    val node = new Node(Util.parseJsonAsMap(taskInfo.getData.toStringUtf8))
     driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_STARTING).build)
 
     new Thread {
       override def run() {
-        setName(task.taskType)
+        setName("executor-processes")
 
         var env = Map[String, String]()
         findJreDir().foreach { env += "JAVA_HOME" -> _ }
 
-        node = DSENode(task, driver, taskInfo, hostname, env)
-        agent = DatastaxAgent(task, env)
+        dseProcess = DSEProcess(node, driver, taskInfo, hostname, env)
+        agentProcess = AgentProcess(node, env)
 
-        node.start()
-        agent.start()
+        dseProcess.start()
+        agentProcess.start()
 
-        Future(blocking(node.awaitConsistentState())).map {
+        Future(blocking(dseProcess.awaitConsistentState())).map {
           case true => driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_RUNNING).build)
-          case false => logger.info("Node stopped, abandon waiting for consistent state")
+          case false => logger.info("DSEProcess stopped, abandon waiting for consistent state")
         }
 
-        Future.firstCompletedOf(Seq(Future(node.await()), Future(agent.await()))).onComplete { result =>
+        Future.firstCompletedOf(Seq(Future(dseProcess.await()), Future(agentProcess.await()))).onComplete { result =>
           result match {
             case Success(exitCode) =>
-              if ((exitCode == 0 || exitCode == 143) && (node.stopped || agent.stopped))
+              if ((exitCode == 0 || exitCode == 143) && (dseProcess.stopped || agentProcess.stopped))
                 driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FINISHED).build)
               else
                 driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FAILED).setMessage(s"exitCode=$exitCode").build)
 
-              node.stop()
-              agent.stop()
+              dseProcess.stop()
+              agentProcess.stop()
             case Failure(ex) =>
-              node.stop()
-              agent.stop()
+              dseProcess.stop()
+              agentProcess.stop()
               sendTaskFailed(driver, taskInfo, ex)
           }
 
@@ -111,8 +110,8 @@ object Executor extends org.apache.mesos.Executor {
   def killTask(driver: ExecutorDriver, id: TaskID) {
     logger.info("[killTask] " + id.getValue)
 
-    node.stop()
-    agent.stop()
+    dseProcess.stop()
+    agentProcess.stop()
   }
 
   def frameworkMessage(driver: ExecutorDriver, data: Array[Byte]) {
@@ -122,8 +121,8 @@ object Executor extends org.apache.mesos.Executor {
   def shutdown(driver: ExecutorDriver) {
     logger.info("[shutdown]")
 
-    node.stop()
-    agent.stop()
+    dseProcess.stop()
+    agentProcess.stop()
   }
 
   def error(driver: ExecutorDriver, message: String) {
