@@ -43,9 +43,10 @@ case class AgentProcess(node: Node, env: Map[String, String] = Map.empty) {
   private def startProcess(node: Node, dseDir: File): Process = {
     val cmd = util.Arrays.asList("" + new File(dseDir, DSEProcess.DSE_AGENT_CMD), "-f")
 
+    val out: File = new File("agent.log")
     val builder: ProcessBuilder = new ProcessBuilder(cmd)
-      .redirectOutput(new File(node.agentOut))
-      .redirectError(new File(node.agentOut))
+      .redirectOutput(out)
+      .redirectError(out)
 
     builder.environment().putAll(env)
     builder.start()

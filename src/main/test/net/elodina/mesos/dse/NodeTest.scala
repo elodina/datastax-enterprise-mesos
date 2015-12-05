@@ -17,9 +17,6 @@ class NodeTest {
     node.cpu = 1
     node.mem = 1024
     node.broadcast = "127.0.0.1"
-
-    node.nodeOut = "node.out"
-    node.agentOut = "agent.out"
     node.clusterName = "cluster"
 
     node.seed = true
@@ -31,7 +28,6 @@ class NodeTest {
     node.dataFileDirs = "dataDir"
     node.commitLogDir = "logDir"
     node.savedCachesDir = "saveCachesDir"
-    node.awaitConsistentStateBackoff = Duration("5 seconds")
 
     read = new Node(Util.parseJsonAsMap("" + node.toJson))
     assertNodeEquals(read, node)
@@ -53,9 +49,6 @@ class NodeTest {
     assertEquals(expected.cpu, actual.cpu, 0.001)
     assertEquals(expected.mem, actual.mem)
     assertEquals(expected.broadcast, actual.broadcast)
-
-    assertEquals(expected.nodeOut, actual.nodeOut)
-    assertEquals(expected.agentOut, actual.agentOut)
     assertEquals(expected.clusterName, actual.clusterName)
 
     assertEquals(expected.seed, actual.seed)
@@ -67,7 +60,6 @@ class NodeTest {
     assertEquals(expected.dataFileDirs, actual.dataFileDirs)
     assertEquals(expected.commitLogDir, actual.commitLogDir)
     assertEquals(expected.savedCachesDir, actual.savedCachesDir)
-    assertEquals(expected.awaitConsistentStateBackoff, actual.awaitConsistentStateBackoff)
   }
 
   def assertRuntimeEquals(expected: Node.Runtime, actual: Node.Runtime) {
