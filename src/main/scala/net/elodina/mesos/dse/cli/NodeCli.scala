@@ -1,7 +1,7 @@
 package net.elodina.mesos.dse.cli
 
 import net.elodina.mesos.dse.cli.Cli.{out, printLine}
-import net.elodina.mesos.dse.cli.Cli.CliError
+import net.elodina.mesos.dse.cli.Cli.Error
 import java.io.IOException
 import net.elodina.mesos.dse.{Util, Node}
 import joptsimple.{OptionException, OptionSet, OptionParser}
@@ -35,6 +35,7 @@ object NodeCli {
       case "list" => handleList()
       case "add" | "update" => handleAddUpdate(cmd, arg, args)
       case "remove" => handleRemove(arg)
+      case "start" | "stop" => handleStartStop(cmd, arg, args)
       case _ => throw new Error("unsupported ring command " + cmd)
     }
   }
@@ -55,8 +56,10 @@ object NodeCli {
         handleAddUpdate(cmd, null, args, help = true)
       case "remove" =>
         handleRemove(null, help = true)
+      case "start" | "stop" =>
+        handleStartStop(cmd, null, null, help = true)
       case _ =>
-        throw new CliError(s"unsupported node command $cmd")
+        throw new Error(s"unsupported node command $cmd")
     }
   }
 
@@ -68,7 +71,7 @@ object NodeCli {
 
     var nodesJson: List[Any] = null
     try { nodesJson = Cli.sendRequest("/node/list", Map()).asInstanceOf[List[Any]] }
-    catch { case e: IOException => throw new CliError("" + e) }
+    catch { case e: IOException => throw new Error("" + e) }
     val nodes = nodesJson.map(n => new Node(n.asInstanceOf[Map[String, Any]]))
 
     val title: String = if (nodes.isEmpty) "no nodes" else "node" + (if (nodes.size > 1) "s" else "") + ":"
@@ -113,7 +116,7 @@ object NodeCli {
       case e: OptionException =>
         parser.printHelpOn(out)
         printLine()
-        throw new Cli.CliError(e.getMessage)
+        throw new Cli.Error(e.getMessage)
     }
 
     val cpu = options.valueOf("cpu").asInstanceOf[java.lang.Double]
@@ -156,12 +159,12 @@ object NodeCli {
 
     var nodesJson: List[Any] = null
     try { nodesJson = Cli.sendRequest(s"/node/$cmd", params.toMap).asInstanceOf[List[Any]] }
-    catch { case e: IOException => throw new CliError("" + e) }
+    catch { case e: IOException => throw new Error("" + e) }
     val nodes = nodesJson.map(n => new Node(n.asInstanceOf[Map[String, Any]]))
 
-
-    val addedUpdated = if (cmd == "add") "added" else "updated"
-    printLine(s"nodes $addedUpdated:")
+    var title = "node" + (if (nodes.length > 1) "s" else "")
+    title += " " + (if (cmd == "add") "added" else "updated") + ":"
+    printLine(title)
 
     for (node <- nodes) {
       printNode(node, 1)
@@ -178,9 +181,58 @@ object NodeCli {
     }
 
     try { Cli.sendRequest(s"/node/remove", Map("node" -> expr)) }
-    catch { case e: IOException => throw new CliError("" + e) }
+    catch { case e: IOException => throw new Error("" + e) }
 
     println("nodes removed")
+  }
+
+  def handleStartStop(cmd: String, expr: String, args: Array[String], help: Boolean = false): Unit = {
+    val parser = new OptionParser()
+    parser.accepts("timeout", "Time to wait until node starts. Should be a parsable Scala Duration value. Defaults to 2m.").withRequiredArg().ofType(classOf[String])
+
+    if (help) {
+      printLine(s"${cmd.capitalize} node(s) \nUsage: $cmd <id> [options]\n")
+      parser.printHelpOn(out)
+
+      printLine()
+      Cli.handleGenericOptions(args, help = true)
+      return
+    }
+
+    var options: OptionSet = null
+    try { options = parser.parse(args: _*) }
+    catch {
+      case e: OptionException =>
+        parser.printHelpOn(out)
+        printLine()
+        throw new Cli.Error(e.getMessage)
+    }
+
+    val timeout = options.valueOf("timeout").asInstanceOf[String]
+    val params = new mutable.HashMap[String, String]()
+    params("node") = expr
+    if (timeout != null) params("timeout") = timeout
+
+    var json: Map[String, Any] = null
+    try { json = Cli.sendRequest(s"/node/$cmd", params.toMap).asInstanceOf[Map[String, Any]] }
+    catch { case e: IOException => throw new Error("" + e) }
+
+    val status = json("status")
+    val nodes = json("nodes").asInstanceOf[List[Any]]
+      .map(n => new Node(n.asInstanceOf[Map[String, Any]]))
+
+    var title: String = if (nodes.length > 1) "nodes " else "node "
+    status match {
+      case "started" | "stopped" => title += s"$status:"
+      case "scheduled" => title += s"$status to $cmd:"
+      case "timeout" => throw new Error(s"$cmd timeout")
+    }
+
+    printLine(title)
+    for (node <- nodes) {
+      printNode(node, 1)
+      printLine()
+    }
   }
 
   def printCmds(): Unit = {

@@ -59,7 +59,7 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
   private def startProcess(node: Node, dseDir: File): Process = {
     val cmd = util.Arrays.asList("" + new File(dseDir, DSEProcess.DSE_CMD), "cassandra", "-f")
 
-    val out: File = new File("node.log")
+    val out: File = new File("dse.log")
     val builder: ProcessBuilder = new ProcessBuilder(cmd)
       .redirectOutput(out)
       .redirectError(out)

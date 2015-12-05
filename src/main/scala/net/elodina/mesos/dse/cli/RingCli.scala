@@ -1,6 +1,6 @@
 package net.elodina.mesos.dse.cli
 
-import net.elodina.mesos.dse.cli.Cli.CliError
+import net.elodina.mesos.dse.cli.Cli.Error
 import net.elodina.mesos.dse.cli.Cli.printLine
 import java.io.IOException
 import net.elodina.mesos.dse.{Ring, Cluster}
@@ -48,7 +48,7 @@ object RingCli {
       case "list" =>
         handleList(help = true)
       case _ =>
-        throw new CliError(s"unsupported ring command $cmd")
+        throw new Error(s"unsupported ring command $cmd")
     }
   }
 
@@ -60,7 +60,7 @@ object RingCli {
 
     var json: Map[String, Any] = null
     try { json = Cli.sendRequest("/ring/list", Map()).asInstanceOf[Map[String, Any]] }
-    catch { case e: IOException => throw new CliError("" + e) }
+    catch { case e: IOException => throw new Error("" + e) }
     val cluster: Cluster = new Cluster(json)
 
     val title: String = if (cluster.getRings.isEmpty) "no rings" else "ring" + (if (cluster.getRings.size > 1) "s" else "") + ":"

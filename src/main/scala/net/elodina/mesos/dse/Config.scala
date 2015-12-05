@@ -60,7 +60,7 @@ object Config {
     s"""
        |Debug:             $debug
        |Master:            $master
-       |User:              $user
+       |User:              ${if (user != null) user else "<auto>"}
        |Api:               $api
        |Storage:           $storage
        |Framework Name:    $frameworkName

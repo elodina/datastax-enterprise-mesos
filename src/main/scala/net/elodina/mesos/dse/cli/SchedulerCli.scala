@@ -21,7 +21,7 @@ object SchedulerCli {
 
     parser.accepts("storage", "Storage for cluster state. Examples: file:dse-mesos.json; zk:master:2181/dse-mesos.").withRequiredArg().ofType(classOf[String])
     parser.accepts("debug", "Run in debug mode.").withRequiredArg().ofType(classOf[Boolean]).defaultsTo(false)
-    parser.accepts("jre", "Path to JRE archive.").withRequiredArg().ofType(classOf[Boolean])
+    parser.accepts("jre", "Path to JRE archive.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
       printLine("Start scheduler \nUsage: scheduler [options]\n")
@@ -38,7 +38,7 @@ object SchedulerCli {
       case e: OptionException =>
         parser.printHelpOn(out)
         printLine()
-        throw new Cli.CliError(e.getMessage)
+        throw new Cli.Error(e.getMessage)
     }
 
     val api = options.valueOf("api").asInstanceOf[String]

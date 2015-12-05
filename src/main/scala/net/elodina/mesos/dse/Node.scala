@@ -93,7 +93,7 @@ class Node extends Constrained {
           .sortBy(_.start)
 
         for (port <- ports) {
-          if (!ranges.exists(r => r contains port)) {
+          if (!ranges.exists(r => r contains port._2)) {
             return Some(s"unavailable port $port")
           }
         }
