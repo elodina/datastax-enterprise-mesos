@@ -68,6 +68,7 @@ class MesosTestCase {
     .setIp(ip)
     .setPort(port)
     .setHostname(hostname)
+    .setVersion("0.23.0")
     .build()
   }
 

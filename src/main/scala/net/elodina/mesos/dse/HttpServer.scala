@@ -131,7 +131,7 @@ object HttpServer {
       if (expr == null || expr.isEmpty) throw new HttpError(400, "node required")
 
       var ids: List[String] = null
-      try { ids = Scheduler.cluster.expandIds(expr) }
+      try { ids = Expr.expandNodes(Scheduler.cluster, expr) }
       catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
 
       var cpu: java.lang.Double = null
@@ -219,7 +219,7 @@ object HttpServer {
       if (expr == null || expr.isEmpty) throw new HttpError(400, "node required")
 
       var ids: List[String] = null
-      try { ids = Scheduler.cluster.expandIds(expr) }
+      try { ids = Expr.expandNodes(Scheduler.cluster, expr) }
       catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
 
       val nodes = new ListBuffer[Node]
@@ -239,7 +239,7 @@ object HttpServer {
       if (expr == null || expr.isEmpty) throw new HttpError(400, "node required")
 
       var ids: List[String] = null
-      try { ids = Scheduler.cluster.expandIds(expr) }
+      try { ids = Expr.expandNodes(Scheduler.cluster, expr) }
       catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
 
       var timeout = Duration("2 minutes")

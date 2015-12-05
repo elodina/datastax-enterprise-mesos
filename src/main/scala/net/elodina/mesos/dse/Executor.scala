@@ -20,7 +20,6 @@ package net.elodina.mesos.dse
 
 import java.io.{PrintWriter, StringWriter}
 
-import _root_.net.elodina.mesos.utils.Pretty
 import org.apache.log4j._
 import org.apache.mesos.Protos._
 import org.apache.mesos.{ExecutorDriver, MesosExecutorDriver}
@@ -28,6 +27,8 @@ import org.apache.mesos.{ExecutorDriver, MesosExecutorDriver}
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent._
 import scala.util.{Failure, Success}
+
+import Util.Str
 
 object Executor extends org.apache.mesos.Executor {
   private val logger = Logger.getLogger(Executor.getClass)
@@ -46,13 +47,13 @@ object Executor extends org.apache.mesos.Executor {
   }
 
   def registered(driver: ExecutorDriver, executor: ExecutorInfo, framework: FrameworkInfo, slave: SlaveInfo) {
-    logger.info("[registered] framework:" + Pretty.framework(framework) + " slave:" + Pretty.slave(slave))
+    logger.info("[registered] framework:" + Str.framework(framework) + " slave:" + Str.slave(slave))
 
     this.hostname = slave.getHostname
   }
 
   def reregistered(driver: ExecutorDriver, slave: SlaveInfo) {
-    logger.info("[reregistered] " + Pretty.slave(slave))
+    logger.info("[reregistered] " + Str.slave(slave))
 
     this.hostname = slave.getHostname
   }
@@ -62,7 +63,7 @@ object Executor extends org.apache.mesos.Executor {
   }
 
   def launchTask(driver: ExecutorDriver, taskInfo: TaskInfo) {
-    logger.info("[launchTask] " + Pretty.task(taskInfo))
+    logger.info("[launchTask] " + Str.task(taskInfo))
 
     val node = new Node(Util.parseJsonAsMap(taskInfo.getData.toStringUtf8))
     driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_STARTING).build)
