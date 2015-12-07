@@ -22,7 +22,6 @@ import org.apache.log4j.Logger
 
 import scala.collection.mutable
 import scala.util.parsing.json.{JSONArray, JSONObject}
-import scala.collection.mutable.ListBuffer
 
 object Cluster {
   private val logger = Logger.getLogger(this.getClass)
@@ -43,12 +42,8 @@ class Cluster {
   private val nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]
   private val rings: mutable.ListBuffer[Ring] = new mutable.ListBuffer[Ring]
 
-  def this(bootstrapNodes: List[Node] = Nil, frameworkId: String = null) {
-    this
-    this.frameworkId = frameworkId
-    bootstrapNodes.foreach(addNode)
-  }
-  
+  clear()
+
   def this(json: Map[String, Any]) {
     this
     fromJson(json)
@@ -59,6 +54,7 @@ class Cluster {
   def getNode(id: String) = nodes.filter(id == _.id).headOption.getOrElse(null)
 
   def addNode(node: Node): Node = {
+    if (getNode(node.id) != null) throw new IllegalArgumentException(s"duplicate node ${node.id}")
     nodes += node
     node
   }
@@ -70,32 +66,42 @@ class Cluster {
 
   def getRing(id: String): Ring = rings.filter(id == _.id).headOption.getOrElse(null)
 
+  def getDefaultRing: Ring = getRing("default")
+
   def addRing(ring: Ring): Ring = {
+    if (getRing(ring.id) != null)
+      throw new IllegalArgumentException(s"duplicate ring ${ring.id}")
+
     rings += ring
     ring
   }
 
-  def removeRing(ring: Ring): Unit = { rings -= ring }
+  def removeRing(ring: Ring): Unit = {
+    if (ring == getDefaultRing) throw new IllegalArgumentException("can't remove default ring")
+    rings -= ring
+  }
 
 
   def clear(): Unit = {
     frameworkId = null
     nodes.clear()
     rings.clear()
-  }
 
+    val defaultRing = new Ring("default")
+    addRing(defaultRing)
+  }
 
   def fromJson(json: Map[String, Any]): Unit = {
     if (json.contains("nodes")) {
-      for (nodeJson <- json("nodes").asInstanceOf[List[Map[String, Object]]]) {
+      nodes.clear()
+      for (nodeJson <- json("nodes").asInstanceOf[List[Map[String, Object]]])
         addNode(new Node(nodeJson))
-      }
     }
 
     if (json.contains("rings")) {
-      for (ringObj <- json("rings").asInstanceOf[List[Map[String, Object]]]) {
+      rings.clear()
+      for (ringObj <- json("rings").asInstanceOf[List[Map[String, Object]]])
         addRing(new Ring(ringObj))
-      }
     }
 
     if (json.contains("frameworkId"))
@@ -106,14 +112,12 @@ class Cluster {
     val json = new mutable.LinkedHashMap[String, Object]()
 
     if (!nodes.isEmpty) {
-      val nodesJson = new ListBuffer[JSONObject]()
-      nodes.foreach(nodesJson += _.toJson)
+      val nodesJson = nodes.map(_.toJson)
       json("nodes") = new JSONArray(nodesJson.toList)
     }
 
     if (!rings.isEmpty) {
-      val ringsJson = new ListBuffer[JSONObject]()
-      rings.foreach(ringsJson += _.toJson)
+      val ringsJson = rings.map(_.toJson)
       json("rings") = new JSONArray(ringsJson.toList)
     }
 

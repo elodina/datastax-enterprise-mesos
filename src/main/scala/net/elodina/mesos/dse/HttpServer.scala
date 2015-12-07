@@ -318,10 +318,11 @@ object HttpServer {
       if (id == null || id.isEmpty) throw new HttpError(400, "ring required")
 
       val ring = Scheduler.cluster.getRing(id)
-      if (ring != null) {
-        Scheduler.cluster.removeRing(ring)
-        Scheduler.cluster.save()
-      }
+      if (ring == null) throw new HttpError(400, "ring not found")
+      if (ring == Scheduler.cluster.getDefaultRing) throw new HttpError(400, "can't remove default ring")
+
+      Scheduler.cluster.removeRing(ring)
+      Scheduler.cluster.save()
     }
 
     private def handleHealth(response: HttpServletResponse) {
