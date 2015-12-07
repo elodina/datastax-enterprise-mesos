@@ -48,7 +48,7 @@ class ClusterTest {
 
   @Test
   def getRings {
-    val rd = cluster.getDefaultRing
+    val rd = cluster.defaultRing
     val r0 = cluster.addRing(new Ring("0"))
     val r1 = cluster.addRing(new Ring("1"))
     assertEquals(List(rd, r0, r1), cluster.getRings)
@@ -63,7 +63,7 @@ class ClusterTest {
 
   @Test
   def addRing {
-    val rd = cluster.getDefaultRing
+    val rd = cluster.defaultRing
     val r0 = cluster.addRing(new Ring("0"))
     assertEquals(List(rd, r0), cluster.getRings)
 
@@ -73,7 +73,7 @@ class ClusterTest {
 
   @Test
   def removeRing {
-    val rd = cluster.getDefaultRing
+    val rd = cluster.defaultRing
     val r0 = cluster.addRing(new Ring("0"))
     val r1 = cluster.addRing(new Ring("1"))
     assertEquals(List(rd, r0, r1), cluster.getRings)
@@ -81,7 +81,7 @@ class ClusterTest {
     cluster.removeRing(r0)
     assertEquals(List(rd, r1), cluster.getRings)
 
-    try { cluster.removeRing(cluster.getDefaultRing); fail() }
+    try { cluster.removeRing(cluster.defaultRing); fail() }
     catch { case e: IllegalArgumentException => assertTrue(e.getMessage, e.getMessage.contains("can't remove default")) }
   }
 
@@ -89,7 +89,7 @@ class ClusterTest {
   def clear {
     assertNull(cluster.frameworkId)
     assertTrue(cluster.getNodes.isEmpty)
-    assertEquals(List(cluster.getDefaultRing), cluster.getRings)
+    assertEquals(List(cluster.defaultRing), cluster.getRings)
 
     cluster.frameworkId = "id"
     cluster.addNode(new Node("0"))
@@ -98,7 +98,7 @@ class ClusterTest {
     cluster.clear()
     assertNull(cluster.frameworkId)
     assertTrue(cluster.getNodes.isEmpty)
-    assertEquals(List(cluster.getDefaultRing), cluster.getRings)
+    assertEquals(List(cluster.defaultRing), cluster.getRings)
   }
 
   @Test

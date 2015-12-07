@@ -66,7 +66,7 @@ class Cluster {
 
   def getRing(id: String): Ring = rings.filter(id == _.id).headOption.getOrElse(null)
 
-  def getDefaultRing: Ring = getRing("default")
+  def defaultRing: Ring = getRing("default")
 
   def addRing(ring: Ring): Ring = {
     if (getRing(ring.id) != null)
@@ -77,7 +77,7 @@ class Cluster {
   }
 
   def removeRing(ring: Ring): Unit = {
-    if (ring == getDefaultRing) throw new IllegalArgumentException("can't remove default ring")
+    if (ring == defaultRing) throw new IllegalArgumentException("can't remove default ring")
     rings -= ring
   }
 

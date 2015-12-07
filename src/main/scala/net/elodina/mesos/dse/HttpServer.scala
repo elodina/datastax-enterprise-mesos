@@ -319,7 +319,7 @@ object HttpServer {
 
       val ring = Scheduler.cluster.getRing(id)
       if (ring == null) throw new HttpError(400, "ring not found")
-      if (ring == Scheduler.cluster.getDefaultRing) throw new HttpError(400, "can't remove default ring")
+      if (ring == Scheduler.cluster.defaultRing) throw new HttpError(400, "can't remove default ring")
 
       Scheduler.cluster.removeRing(ring)
       Scheduler.cluster.save()
