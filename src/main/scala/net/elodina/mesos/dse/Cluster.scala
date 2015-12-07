@@ -40,7 +40,6 @@ class Cluster {
   private val storage = Cluster.newStorage(Config.storage)
 
   var frameworkId: String = null
-
   private val nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]
   private val rings: mutable.ListBuffer[Ring] = new mutable.ListBuffer[Ring]
 
@@ -55,6 +54,18 @@ class Cluster {
     fromJson(json)
   }
 
+  def getNodes: List[Node] = nodes.toList
+
+  def getNode(id: String) = nodes.filter(id == _.id).headOption.getOrElse(null)
+
+  def addNode(node: Node): Node = {
+    nodes += node
+    node
+  }
+
+  def removeNode(node: Node): Unit = { nodes -= node }
+
+
   def getRings: List[Ring] = rings.toList
 
   def getRing(id: String): Ring = rings.filter(id == _.id).headOption.getOrElse(null)
@@ -67,21 +78,12 @@ class Cluster {
   def removeRing(ring: Ring): Unit = { rings -= ring }
 
 
-  def getNodes: List[Node] = nodes.toList
-
-  def getNode(id: String) = nodes.filter(id == _.id).headOption.getOrElse(null)
-
-  def addNode(node: Node): Node = {
-    nodes += node
-    node
-  }
-
-  def removeNode(node: Node): Unit = { nodes -= node }
-
   def clear(): Unit = {
+    frameworkId = null
     nodes.clear()
     rings.clear()
   }
+
 
   def fromJson(json: Map[String, Any]): Unit = {
     if (json.contains("nodes")) {
