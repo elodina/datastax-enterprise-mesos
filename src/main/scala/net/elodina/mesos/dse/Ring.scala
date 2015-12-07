@@ -5,6 +5,7 @@ import scala.collection.mutable
 
 class Ring {
   var id: String = null
+  var name: String = null
 
   def this(_id: String) {
     this
@@ -18,11 +19,13 @@ class Ring {
 
   def fromJson(json: Map[String, Any]): Unit = {
     id = json("id").asInstanceOf[String]
+    if (json.contains("name")) name = json("name").asInstanceOf[String]
   }
 
   def toJson: JSONObject = {
     val json = new mutable.LinkedHashMap[String, Any]()
     json("id") = id
+    if (name != null) json("name") = name
     new JSONObject(json.toMap)
   }
 

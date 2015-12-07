@@ -116,14 +116,19 @@ object HttpServer {
     }
     
     def handleRingApi(request: HttpServletRequest, response: HttpServletResponse) {
-      // todo
+      response.setContentType("application/json; charset=utf-8")
+      var uri: String = request.getRequestURI.substring("/api/ring".length)
+      if (uri.startsWith("/")) uri = uri.substring(1)
+
+      if (uri == "list") handleListRings(request, response)
+      else if (uri == "add" || uri == "update") handleAddUpdateRing(uri == "add", request, response)
+      else if (uri == "remove") handleRemoveRing(request, response)
+      else response.sendError(404)
     }
 
     def handleListNodes(request: HttpServletRequest, response: HttpServletResponse) {
-      val nodes = new ListBuffer[JSONObject]
-      Scheduler.cluster.getNodes.foreach(nodes += _.toJson)
-
-      response.getWriter.println("" + new JSONArray(nodes.toList))
+      val nodesJson = Scheduler.cluster.getNodes.map(_.toJson)
+      response.getWriter.println("" + new JSONArray(nodesJson.toList))
     }
 
     def handleAddUpdateNode(add: Boolean, request: HttpServletRequest, response: HttpServletResponse) {
@@ -131,7 +136,7 @@ object HttpServer {
       if (expr == null || expr.isEmpty) throw new HttpError(400, "node required")
 
       var ids: List[String] = null
-      try { ids = Scheduler.cluster.expandIds(expr) }
+      try { ids = Expr.expandNodes(Scheduler.cluster, expr) }
       catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
 
       var cpu: java.lang.Double = null
@@ -219,7 +224,7 @@ object HttpServer {
       if (expr == null || expr.isEmpty) throw new HttpError(400, "node required")
 
       var ids: List[String] = null
-      try { ids = Scheduler.cluster.expandIds(expr) }
+      try { ids = Expr.expandNodes(Scheduler.cluster, expr) }
       catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
 
       val nodes = new ListBuffer[Node]
@@ -239,7 +244,7 @@ object HttpServer {
       if (expr == null || expr.isEmpty) throw new HttpError(400, "node required")
 
       var ids: List[String] = null
-      try { ids = Scheduler.cluster.expandIds(expr) }
+      try { ids = Expr.expandNodes(Scheduler.cluster, expr) }
       catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
 
       var timeout = Duration("2 minutes")
@@ -284,6 +289,41 @@ object HttpServer {
       response.getWriter.println("" + resultJson)
     }
 
+    private def handleListRings(request: HttpServletRequest, response: HttpServletResponse) {
+      val ringsJson = Scheduler.cluster.getRings.map(_.toJson)
+      response.getWriter.println("" + new JSONArray(ringsJson))
+    }
+    
+    private def handleAddUpdateRing(add: Boolean, request: HttpServletRequest, response: HttpServletResponse) {
+      val id: String = request.getParameter("ring")
+      if (id == null || id.isEmpty) throw new HttpError(400, "ring required")
+
+      val name: String = request.getParameter("name")
+
+      var ring = Scheduler.cluster.getRing(id)
+      if (add && ring != null) throw new HttpError(400, "duplicate ring")
+      if (!add && ring == null) throw new HttpError(400, "ring not found")
+
+      if (add)
+        ring = Scheduler.cluster.addRing(new Ring(id))
+
+      if (name != null) ring.name = if (name != "") name else null
+
+      Scheduler.cluster.save()
+      response.getWriter.println(ring.toJson)
+    }
+
+    private def handleRemoveRing(request: HttpServletRequest, response: HttpServletResponse) {
+      val id: String = request.getParameter("ring")
+      if (id == null || id.isEmpty) throw new HttpError(400, "ring required")
+
+      val ring = Scheduler.cluster.getRing(id)
+      if (ring != null) {
+        Scheduler.cluster.removeRing(ring)
+        Scheduler.cluster.save()
+      }
+    }
+
     private def handleHealth(response: HttpServletResponse) {
       response.setContentType("text/plain; charset=utf-8")
       response.getWriter.println("ok")
@@ -293,5 +333,4 @@ object HttpServer {
       def getCode: Int = code
     }
   }
-
 }

@@ -253,7 +253,7 @@ object Node {
     var hostname: String = null
     var attributes: Map[String, String] = null
 
-    def this(taskId: String, slaveId: String, executorId: String, hostname: String, attributes: Map[String, String]) {
+    def this(taskId: String = null, slaveId: String = null, executorId: String = null, hostname: String = null, attributes: Map[String, String] = Map()) {
       this
       this.taskId = taskId
       this.slaveId = slaveId

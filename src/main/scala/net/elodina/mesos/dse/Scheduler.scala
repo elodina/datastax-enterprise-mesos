@@ -22,7 +22,6 @@ import java.io.File
 import java.util
 import java.util.concurrent.TimeUnit
 
-import net.elodina.mesos.utils.Pretty
 import com.google.protobuf.ByteString
 import org.apache.log4j._
 import org.apache.mesos.Protos._
@@ -31,6 +30,8 @@ import org.apache.mesos.{MesosSchedulerDriver, SchedulerDriver}
 import scala.collection.JavaConversions._
 import scala.concurrent.duration.Duration
 import scala.language.postfixOps
+
+import Util.Str
 
 object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with Reconciliation[Node] {
   private val logger = Logger.getLogger(this.getClass)
@@ -81,7 +82,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   }
 
   override def registered(driver: SchedulerDriver, id: FrameworkID, master: MasterInfo) {
-    logger.info("[registered] framework:" + Pretty.id(id.getValue) + " master:" + Pretty.master(master))
+    logger.info("[registered] framework:" + Str.id(id.getValue) + " master:" + Str.master(master))
     checkMesosVersion(master, driver)
 
     cluster.frameworkId = id.getValue
@@ -92,7 +93,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   }
 
   override def offerRescinded(driver: SchedulerDriver, id: OfferID) {
-    logger.info("[offerRescinded] " + Pretty.id(id.getValue))
+    logger.info("[offerRescinded] " + Str.id(id.getValue))
   }
 
   override def disconnected(driver: SchedulerDriver) {
@@ -101,14 +102,14 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   }
 
   override def reregistered(driver: SchedulerDriver, master: MasterInfo) {
-    logger.info("[reregistered] master:" + Pretty.master(master))
+    logger.info("[reregistered] master:" + Str.master(master))
 
     this.driver = driver
     implicitReconcile(driver)
   }
 
   override def slaveLost(driver: SchedulerDriver, id: SlaveID) {
-    logger.info("[slaveLost] " + Pretty.id(id.getValue))
+    logger.info("[slaveLost] " + Str.id(id.getValue))
   }
 
   override def error(driver: SchedulerDriver, message: String) {
@@ -116,21 +117,21 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   }
 
   override def statusUpdate(driver: SchedulerDriver, status: TaskStatus) {
-    logger.info("[statusUpdate] " + Pretty.taskStatus(status))
+    logger.info("[statusUpdate] " + Str.taskStatus(status))
     onTaskStatus(driver, status)
   }
 
   override def frameworkMessage(driver: SchedulerDriver, executorId: ExecutorID, slaveId: SlaveID, data: Array[Byte]) {
-    logger.info("[frameworkMessage] executor:" + Pretty.id(executorId.getValue) + " slave:" + Pretty.id(slaveId.getValue) + " data: " + new String(data))
+    logger.info("[frameworkMessage] executor:" + Str.id(executorId.getValue) + " slave:" + Str.id(slaveId.getValue) + " data: " + new String(data))
   }
 
   override def resourceOffers(driver: SchedulerDriver, offers: util.List[Offer]) {
-    logger.debug("[resourceOffers]\n" + Pretty.offers(offers))
+    logger.debug("[resourceOffers]\n" + Str.offers(offers))
     onResourceOffers(offers.toList)
   }
 
   override def executorLost(driver: SchedulerDriver, executorId: ExecutorID, slaveId: SlaveID, status: Int) {
-    logger.info("[executorLost] executor:" + Pretty.id(executorId.getValue) + " slave:" + Pretty.id(slaveId.getValue) + " status:" + status)
+    logger.info("[executorLost] executor:" + Str.id(executorId.getValue) + " slave:" + Str.id(slaveId.getValue) + " status:" + status)
   }
 
   override def nodes: Traversable[Node] = cluster.getNodes
@@ -139,7 +140,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     offers.foreach { offer =>
       acceptOffer(offer).foreach { declineReason =>
         driver.declineOffer(offer.getId)
-        logger.info(s"Declined offer ${Pretty.offer(offer)}:\n  $declineReason")
+        logger.info(s"Declined offer ${Str.offer(offer)}:\n  $declineReason")
       }
     }
 
