@@ -157,7 +157,7 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
       cassandraYaml.put(key, port.asInstanceOf[AnyRef])
     }
 
-    setSeeds(cassandraYaml, node.seeds)
+    setSeeds(cassandraYaml, node.runtime.seeds.mkString(","))
     if (node.broadcast != null) {
       val ip = getIP(node.broadcast)
       cassandraYaml.put(DSEProcess.BROADCAST_ADDRESS_KEY, ip)

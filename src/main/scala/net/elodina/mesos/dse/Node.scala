@@ -26,7 +26,7 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.language.postfixOps
-import scala.util.parsing.json.JSONObject
+import scala.util.parsing.json.{JSONArray, JSONObject}
 
 class Node extends Constrained {
   var id: String = null
@@ -42,7 +42,6 @@ class Node extends Constrained {
   var seed: Boolean = false
   var replaceAddress: String = null
 
-  var seeds: String = ""
   var constraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
   var seedConstraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
 
@@ -113,14 +112,10 @@ class Node extends Constrained {
       DSEProcess.RPC_PORT -> rpcPort
     )
 
-  def createTaskInfo(offer: Offer): TaskInfo = {
-    val name = s"node-${this.id}"
-    val id = s"$name-${System.currentTimeMillis()}"
-
-    Scheduler.setSeedNodes(this, offer.getHostname)
-    TaskInfo.newBuilder().setName(name).setTaskId(TaskID.newBuilder().setValue(id).build()).setSlaveId(offer.getSlaveId)
-      .setExecutor(createExecutorInfo(name))
-      .setData(ByteString.copyFromUtf8("" + this.toJson(expanded = true)))
+  def createTaskInfo(taskId: String, execId: String, offer: Offer): TaskInfo = {
+    TaskInfo.newBuilder().setName(taskId).setTaskId(TaskID.newBuilder().setValue(taskId).build()).setSlaveId(offer.getSlaveId)
+      .setExecutor(createExecutorInfo(execId))
+      .setData(ByteString.copyFromUtf8("" + toJson(expanded = true)))
       .addResources(Protos.Resource.newBuilder().setName("cpus").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.cpu)))
       .addResources(Protos.Resource.newBuilder().setName("mem").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.mem)))
       .addResources(
@@ -138,7 +133,7 @@ class Node extends Constrained {
       .build()
   }
 
-  private def createExecutorInfo(name: String): ExecutorInfo = {
+  private def createExecutorInfo(id: String): ExecutorInfo = {
     var java = "java"
     val commandBuilder = CommandInfo.newBuilder()
       .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/dse/" + Config.dse.getName))
@@ -153,9 +148,9 @@ class Node extends Constrained {
       .setValue(s"$java -cp ${Config.jar.getName}${if (Config.debug) " -Ddebug" else ""} net.elodina.mesos.dse.Executor")
 
     ExecutorInfo.newBuilder()
-      .setExecutorId(ExecutorID.newBuilder().setValue(s"$name-${System.currentTimeMillis()}"))
+      .setExecutorId(ExecutorID.newBuilder().setValue(id))
       .setCommand(commandBuilder)
-      .setName(name)
+      .setName(id)
       .build
   }
 
@@ -183,7 +178,6 @@ class Node extends Constrained {
     if (json.contains("clusterName")) clusterName = json("clusterName").asInstanceOf[String]
     seed = json("seed").asInstanceOf[Boolean]
     if (json.contains("replaceAddress")) replaceAddress = json("replaceAddress").asInstanceOf[String]
-    seeds = json("seeds").asInstanceOf[String]
 
     constraints.clear()
     if (json.contains("constraints")) constraints ++= Constraint.parse(json("constraints").asInstanceOf[String])
@@ -211,7 +205,6 @@ class Node extends Constrained {
     if (clusterName != null) json("clusterName") = clusterName
     json("seed") = seed
     if (replaceAddress != null) json("replaceAddress") = replaceAddress
-    json("seeds") = seeds
 
     if (!constraints.isEmpty) json("constraints") = Util.formatConstraints(constraints)
     if (!seedConstraints.isEmpty) json("seedConstraints") = Util.formatConstraints(seedConstraints)
@@ -229,6 +222,8 @@ class Node extends Constrained {
     if (!obj.isInstanceOf[Node]) false
     id == obj.asInstanceOf[Node].id
   }
+
+  override def toString: String = id
 }
 
 object Node {
@@ -250,26 +245,30 @@ object Node {
 
   class Runtime() {
     var taskId: String = null
-    var slaveId: String = null
     var executorId: String = null
 
+    var slaveId: String = null
     var hostname: String = null
+
+    var seeds: List[String] = null
     var attributes: Map[String, String] = null
 
-    def this(taskId: String = null, slaveId: String = null, executorId: String = null, hostname: String = null, attributes: Map[String, String] = Map()) {
+    def this(taskId: String = null, executorId: String = null, slaveId: String = null, hostname: String = null, seeds: List[String] = null, attributes: Map[String, String] = Map()) {
       this
       this.taskId = taskId
-      this.slaveId = slaveId
       this.executorId = executorId
 
+      this.slaveId = slaveId
       this.hostname = hostname
+
+      this.seeds = seeds
       this.attributes = attributes
     }
 
-    def this(info: TaskInfo, offer: Offer) = {
+    def this(taskId: String, execId: String, seeds: List[String], offer: Offer) = {
       this(
-        info.getTaskId.getValue, info.getSlaveId.getValue, info.getExecutor.getExecutorId.getValue,
-        offer.getHostname, offer.getAttributesList.toList.filter(_.hasText).map(attr => attr.getName -> attr.getText.getValue).toMap
+        taskId, execId, offer.getSlaveId.getValue, offer.getHostname, seeds,
+        offer.getAttributesList.toList.filter(_.hasText).map(attr => attr.getName -> attr.getText.getValue).toMap
       )
     }
 
@@ -280,20 +279,24 @@ object Node {
 
     def fromJson(json: Map[String, Any]): Unit = {
       taskId = json("taskId").asInstanceOf[String]
-      slaveId = json("slaveId").asInstanceOf[String]
       executorId = json("executorId").asInstanceOf[String]
 
+      slaveId = json("slaveId").asInstanceOf[String]
       hostname = json("hostname").asInstanceOf[String]
+
+      seeds = json("seeds").asInstanceOf[List[String]]
       attributes = json("attributes").asInstanceOf[Map[String, String]]
     }
 
     def toJson: JSONObject = {
       val json = new mutable.LinkedHashMap[String, Any]()
       json("taskId") = taskId
-      json("slaveId") = slaveId
       json("executorId") = executorId
 
+      json("slaveId") = slaveId
       json("hostname") = hostname
+
+      json("seeds") = new JSONArray(seeds)
       json("attributes") = new JSONObject(attributes)
       new JSONObject(json.toMap)
     }

@@ -11,41 +11,6 @@ class ClusterTest {
   }
 
   @Test
-  def getNodes {
-    val n0 = Cluster.addNode(new Node("0"))
-    val n1 = Cluster.addNode(new Node("1"))
-    val n2 = Cluster.addNode(new Node("2"))
-    assertEquals(List(n0, n1, n2), Cluster.getNodes)
-  }
-
-  @Test
-  def getNode {
-    assertNull(Cluster.getNode("0"))
-    val n0 = Cluster.addNode(new Node("0"))
-    assertSame(n0, Cluster.getNode("0"))
-  }
-
-  @Test
-  def addNode {
-    val n0 = Cluster.addNode(new Node("0"))
-    assertEquals(List(n0), Cluster.getNodes)
-
-    try { Cluster.addNode(new Node("0")); fail() }
-    catch { case e: IllegalArgumentException => assertTrue(e.getMessage, e.getMessage.contains("duplicate")) }
-  }
-
-  @Test
-  def removeNode {
-    val n0 = Cluster.addNode(new Node("0"))
-    val n1 = Cluster.addNode(new Node("1"))
-    val n2 = Cluster.addNode(new Node("2"))
-    assertEquals(List(n0, n1, n2), Cluster.getNodes)
-
-    Cluster.removeNode(n1)
-    assertEquals(List(n0, n2), Cluster.getNodes)
-  }
-
-  @Test
   def getRings {
     val rd = Cluster.defaultRing
     val r0 = Cluster.addRing(new Ring("0"))
@@ -82,6 +47,41 @@ class ClusterTest {
 
     try { Cluster.removeRing(Cluster.defaultRing); fail() }
     catch { case e: IllegalArgumentException => assertTrue(e.getMessage, e.getMessage.contains("can't remove default")) }
+  }
+
+  @Test
+  def getNodes {
+    val n0 = Cluster.addNode(new Node("0"))
+    val n1 = Cluster.addNode(new Node("1"))
+    val n2 = Cluster.addNode(new Node("2"))
+    assertEquals(List(n0, n1, n2), Cluster.getNodes)
+  }
+
+  @Test
+  def getNode {
+    assertNull(Cluster.getNode("0"))
+    val n0 = Cluster.addNode(new Node("0"))
+    assertSame(n0, Cluster.getNode("0"))
+  }
+
+  @Test
+  def addNode {
+    val n0 = Cluster.addNode(new Node("0"))
+    assertEquals(List(n0), Cluster.getNodes)
+
+    try { Cluster.addNode(new Node("0")); fail() }
+    catch { case e: IllegalArgumentException => assertTrue(e.getMessage, e.getMessage.contains("duplicate")) }
+  }
+
+  @Test
+  def removeNode {
+    val n0 = Cluster.addNode(new Node("0"))
+    val n1 = Cluster.addNode(new Node("1"))
+    val n2 = Cluster.addNode(new Node("2"))
+    assertEquals(List(n0, n1, n2), Cluster.getNodes)
+
+    Cluster.removeNode(n1)
+    assertEquals(List(n0, n2), Cluster.getNodes)
   }
 
   @Test

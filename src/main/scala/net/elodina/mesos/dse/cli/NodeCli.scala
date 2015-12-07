@@ -264,7 +264,6 @@ object NodeCli {
     if (node.clusterName != null) printLine(s"cluster name: ${node.clusterName}", indent + 1)
     printLine(s"seed: ${node.seed}", indent + 1)
 
-    if (node.seeds != "") printLine(s"seeds: ${node.seeds}", indent + 1)
     if (node.replaceAddress != null) printLine(s"replace-address: ${node.replaceAddress}", indent + 1)
     if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent + 1)
     if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent + 1)
@@ -279,9 +278,10 @@ object NodeCli {
   private def printNodeRuntime(runtime: Node.Runtime, indent: Int = 0) {
     printLine(s"runtime:", indent)
     printLine(s"task id: ${runtime.taskId}", indent + 1)
-    printLine(s"slave id: ${runtime.slaveId}", indent + 1)
     printLine(s"executor id: ${runtime.executorId}", indent + 1)
+    printLine(s"slave id: ${runtime.slaveId}", indent + 1)
     printLine(s"hostname: ${runtime.hostname}", indent + 1)
+    printLine(s"seeds: ${runtime.seeds.mkString(",")}", indent + 1)
     printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
   }
 }

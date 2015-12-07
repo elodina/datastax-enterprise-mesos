@@ -11,7 +11,7 @@ class NodeTest {
     assertNodeEquals(node, read)
 
     node.state = Node.State.Running
-    node.runtime = new Node.Runtime("task", "slave", "executor", "host", Map("a" -> "1"))
+    node.runtime = new Node.Runtime("task", "executor", "slave", "host", List("n0", "n1"), Map("a" -> "1"))
 
     node.cpu = 1
     node.mem = 1024
@@ -33,7 +33,7 @@ class NodeTest {
   }
 
   def Runtime_toJson_fromJson {
-    val runtime = new Node.Runtime("task", "slave", "executor", "host", Map("a" -> "1"))
+    val runtime = new Node.Runtime("task", "executor", "slave", "host", List("n0", "n1"), Map("a" -> "1"))
     val read = new Node.Runtime(Util.parseJsonAsMap(runtime.toJson.toString()))
     assertRuntimeEquals(runtime, read)
   }
@@ -65,10 +65,12 @@ class NodeTest {
     if (checkNulls(expected, actual)) return
 
     assertEquals(expected.taskId, actual.taskId)
-    assertEquals(expected.slaveId, actual.slaveId)
     assertEquals(expected.executorId, actual.executorId)
 
+    assertEquals(expected.slaveId, actual.slaveId)
     assertEquals(expected.hostname, actual.hostname)
+
+    assertEquals(expected.seeds, actual.seeds)
     assertEquals(expected.attributes, actual.attributes)
   }
 

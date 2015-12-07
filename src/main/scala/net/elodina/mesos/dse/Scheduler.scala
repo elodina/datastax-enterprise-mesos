@@ -181,12 +181,23 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   }
 
   private def launchTask(node: Node, offer: Offer) {
-    val taskInfo = node.createTaskInfo(offer)
+    var seeds = node.ring.availSeeds
+    if (seeds.isEmpty) {
+      logger.info(s"No seed nodes available in ring ${node.ring.id}. Forcing seed==true for node ${node.id}")
 
-    node.runtime = new Node.Runtime(taskInfo, offer)
+      node.seed = true
+      seeds = List(offer.getHostname)
+    }
+
+    val taskId = "node-" + node.id + "-" + System.currentTimeMillis()
+    val execId = "node-" + node.id + "-" + System.currentTimeMillis()
+
+    node.runtime = new Node.Runtime(taskId, execId, seeds, offer)
     node.state = Node.State.Staging
 
+    val taskInfo = node.createTaskInfo(taskId, execId, offer)
     driver.launchTasks(util.Arrays.asList(offer.getId), util.Arrays.asList(taskInfo), Filters.newBuilder().setRefuseSeconds(1).build)
+
     logger.info(s"Starting node ${node.id} with task ${node.runtime.taskId} for offer ${offer.getId.getValue}")
   }
 
@@ -278,23 +289,6 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
       logger.fatal(s"""Minimum supported Mesos version is "$minVersion", whereas current version is $versionStr. Stopping Scheduler""")
       driver.stop
     }
-  }
-
-  private[dse] def setSeedNodes(node: Node, hostname: String) {
-    val seeds = Cluster.getNodes.collect {
-      case cassandraNode: Node => cassandraNode
-    }.filter(c => c.seed && c.clusterName == node.clusterName)
-      .filter(c => c.state == Node.State.Staging || c.state == Node.State.Starting || c.state == Node.State.Running)
-      .flatMap(_.attribute("hostname")).toList
-
-    if (seeds.isEmpty) {
-      if (!node.seed) {
-        logger.warn(s"No seed nodes available and current not is not seed node. Forcing seed for node ${node.id}")
-        node.seed = true
-      }
-
-      node.seeds = hostname
-    } else node.seeds = seeds.sorted.mkString(",")
   }
 
   private def resolveDeps() {

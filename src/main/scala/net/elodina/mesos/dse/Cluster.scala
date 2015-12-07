@@ -28,23 +28,10 @@ object Cluster {
   private val storage = Cluster.newStorage(Config.storage)
 
   var frameworkId: String = null
-  private val nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]
   private val rings: mutable.ListBuffer[Ring] = new mutable.ListBuffer[Ring]
+  private val nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]
 
   reset()
-
-  def getNodes: List[Node] = nodes.toList
-
-  def getNode(id: String) = nodes.filter(id == _.id).headOption.getOrElse(null)
-
-  def addNode(node: Node): Node = {
-    if (getNode(node.id) != null) throw new IllegalArgumentException(s"duplicate node ${node.id}")
-    nodes += node
-    node
-  }
-
-  def removeNode(node: Node): Unit = { nodes -= node }
-
 
   def getRings: List[Ring] = rings.toList
 
@@ -66,26 +53,40 @@ object Cluster {
   }
 
 
+  def getNodes: List[Node] = nodes.toList
+
+  def getNode(id: String) = nodes.filter(id == _.id).headOption.getOrElse(null)
+
+  def addNode(node: Node): Node = {
+    if (getNode(node.id) != null) throw new IllegalArgumentException(s"duplicate node ${node.id}")
+    nodes += node
+    node
+  }
+
+  def removeNode(node: Node): Unit = { nodes -= node }
+
+
   def reset(): Unit = {
     frameworkId = null
-    nodes.clear()
-    rings.clear()
 
+    rings.clear()
     val defaultRing = new Ring("default")
     addRing(defaultRing)
+
+    nodes.clear()
   }
 
   def fromJson(json: Map[String, Any]): Unit = {
-    if (json.contains("nodes")) {
-      nodes.clear()
-      for (nodeJson <- json("nodes").asInstanceOf[List[Map[String, Object]]])
-        addNode(new Node(nodeJson))
-    }
-
     if (json.contains("rings")) {
       rings.clear()
       for (ringObj <- json("rings").asInstanceOf[List[Map[String, Object]]])
         addRing(new Ring(ringObj))
+    }
+
+    if (json.contains("nodes")) {
+      nodes.clear()
+      for (nodeJson <- json("nodes").asInstanceOf[List[Map[String, Object]]])
+        addNode(new Node(nodeJson))
     }
 
     if (json.contains("frameworkId"))
@@ -94,18 +95,18 @@ object Cluster {
 
   def toJson: JSONObject = {
     val json = new mutable.LinkedHashMap[String, Object]()
-
-    if (!nodes.isEmpty) {
-      val nodesJson = nodes.map(_.toJson())
-      json("nodes") = new JSONArray(nodesJson.toList)
-    }
+    if (frameworkId != null) json("frameworkId") = frameworkId
 
     if (!rings.isEmpty) {
       val ringsJson = rings.map(_.toJson)
       json("rings") = new JSONArray(ringsJson.toList)
     }
 
-    if (frameworkId != null) json("frameworkId") = frameworkId
+    if (!nodes.isEmpty) {
+      val nodesJson = nodes.map(_.toJson())
+      json("nodes") = new JSONArray(nodesJson.toList)
+    }
+
     new JSONObject(json.toMap)
   }
 
