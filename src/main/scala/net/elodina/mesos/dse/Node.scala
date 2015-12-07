@@ -31,6 +31,7 @@ import scala.util.parsing.json.JSONObject
 class Node extends Constrained {
   var id: String = null
   var state: Node.State.Value = Node.State.Inactive
+  var ring: Ring = Cluster.defaultRing
   var runtime: Node.Runtime = null
 
   var cpu: Double = 0.5
@@ -60,9 +61,9 @@ class Node extends Constrained {
     this.id = id
   }
 
-  def this(json: Map[String, Any]) = {
+  def this(json: Map[String, Any], expanded: Boolean = false) = {
     this
-    fromJson(json)
+    fromJson(json, expanded)
   }
 
   override def attribute(name: String): Option[String] = {
@@ -119,7 +120,7 @@ class Node extends Constrained {
     Scheduler.setSeedNodes(this, offer.getHostname)
     TaskInfo.newBuilder().setName(name).setTaskId(TaskID.newBuilder().setValue(id).build()).setSlaveId(offer.getSlaveId)
       .setExecutor(createExecutorInfo(name))
-      .setData(ByteString.copyFromUtf8("" + this.toJson))
+      .setData(ByteString.copyFromUtf8("" + this.toJson(expanded = true)))
       .addResources(Protos.Resource.newBuilder().setName("cpus").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.cpu)))
       .addResources(Protos.Resource.newBuilder().setName("mem").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.mem)))
       .addResources(
@@ -169,9 +170,10 @@ class Node extends Constrained {
     this.state == state
   }
 
-  def fromJson(json: Map[String, Any]): Unit = {
+  def fromJson(json: Map[String, Any], expanded: Boolean = false): Unit = {
     id = json("id").asInstanceOf[String]
     state = Node.State.withName(json("state").asInstanceOf[String])
+    ring = if (expanded) new Ring(json("ring").asInstanceOf[Map[String, Any]]) else Cluster.getRing(json("ring").asInstanceOf[String])
     if (json.contains("runtime")) runtime = new Node.Runtime(json("runtime").asInstanceOf[Map[String, Any]])
 
     cpu = json("cpu").asInstanceOf[Number].doubleValue()
@@ -194,11 +196,12 @@ class Node extends Constrained {
     if (json.contains("savedCachesDir")) savedCachesDir = json("savedCachesDir").asInstanceOf[String]
   }
 
-  def toJson: JSONObject = {
+  def toJson(expanded: Boolean = false): JSONObject = {
     val json = new mutable.LinkedHashMap[String, Any]()
 
     json("id") = id
     json("state") = "" + state
+    json("ring") = if (expanded) ring.toJson else ring.id
     if (runtime != null) json("runtime") = runtime.toJson
 
     json("cpu") = cpu

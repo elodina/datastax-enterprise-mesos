@@ -2,13 +2,12 @@ package net.elodina.mesos.dse
 
 import org.junit.Test
 import org.junit.Assert._
-import scala.concurrent.duration.Duration
 
 class NodeTest {
   @Test
   def toJSON_fromJSON {
     val node: Node = new Node("1")
-    var read = new Node(Util.parseJsonAsMap("" + node.toJson))
+    var read = new Node(Util.parseJsonAsMap("" + node.toJson()))
     assertNodeEquals(node, read)
 
     node.state = Node.State.Running
@@ -29,7 +28,7 @@ class NodeTest {
     node.commitLogDir = "logDir"
     node.savedCachesDir = "saveCachesDir"
 
-    read = new Node(Util.parseJsonAsMap("" + node.toJson))
+    read = new Node(Util.parseJsonAsMap("" + node.toJson()))
     assertNodeEquals(read, node)
   }
 

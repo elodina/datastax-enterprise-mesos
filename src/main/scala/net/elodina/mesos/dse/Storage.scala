@@ -86,6 +86,8 @@ case class ZkStorage[T](zk: String) extends Storage {
     val client = zkClient
     try {
       val bytes: Array[Byte] = client.readData(path, true).asInstanceOf[Array[Byte]]
+      if (bytes == null) return null
+
       Util.parseJsonAsMap(new String(bytes, "utf-8"))
     } finally {
       client.close()

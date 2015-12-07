@@ -197,7 +197,7 @@ class MesosTestCase {
     id: String = "" + UUID.randomUUID(),
     name: String = "Task",
     slaveId: String = "" + UUID.randomUUID(),
-    data: String = Util.formatMap(Collections.singletonMap("broker", new Node().toJson))
+    data: String = Util.formatMap(Collections.singletonMap("node", new Node().toJson(expanded = true)))
   ): TaskInfo = {
     val builder = TaskInfo.newBuilder()
     .setName(id)

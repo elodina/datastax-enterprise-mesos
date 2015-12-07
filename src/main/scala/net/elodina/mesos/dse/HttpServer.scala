@@ -127,7 +127,7 @@ object HttpServer {
     }
 
     def handleListNodes(request: HttpServletRequest, response: HttpServletResponse) {
-      val nodesJson = Cluster.getNodes.map(_.toJson)
+      val nodesJson = Cluster.getNodes.map(_.toJson(expanded = true))
       response.getWriter.println("" + new JSONArray(nodesJson.toList))
     }
 
@@ -138,6 +138,12 @@ object HttpServer {
       var ids: List[String] = null
       try { ids = Expr.expandNodes(expr) }
       catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
+
+      var ring: Ring = null
+      if (request.getParameter("ring") != null) {
+        ring = Cluster.getRing(request.getParameter("ring"))
+        if (ring == null) throw new HttpError(400, "ring not found")
+      }
 
       var cpu: java.lang.Double = null
       if (request.getParameter("cpu") != null)
@@ -185,6 +191,8 @@ object HttpServer {
 
       // add|update nodes
       def updateNode(node: Node) {
+        if (ring != null) node.ring = ring
+
         if (cpu != null) node.cpu = cpu
         if (mem != null) node.mem = mem
         if (broadcast != null) node.broadcast = if (broadcast != "") broadcast else null
@@ -214,8 +222,7 @@ object HttpServer {
       Cluster.save()
 
       // return result
-      val nodesJson = new ListBuffer[JSONObject]
-      nodes.foreach(nodesJson += _.toJson)
+      val nodesJson = nodes.map(_.toJson(expanded = true))
       response.getWriter.println("" + new JSONArray(nodesJson.toList))
     }
 
@@ -276,8 +283,7 @@ object HttpServer {
         success = nodes.forall(_.waitFor(targetState, timeout))
       }
 
-      val nodesJson = new ListBuffer[JSONObject]
-      nodes.foreach(nodesJson += _.toJson)
+      val nodesJson = nodes.map(_.toJson(expanded = true))
 
       def status: String = {
         if (timeout.toMillis == 0) return "scheduled"

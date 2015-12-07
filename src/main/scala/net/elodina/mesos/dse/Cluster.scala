@@ -96,7 +96,7 @@ object Cluster {
     val json = new mutable.LinkedHashMap[String, Object]()
 
     if (!nodes.isEmpty) {
-      val nodesJson = nodes.map(_.toJson)
+      val nodesJson = nodes.map(_.toJson())
       json("nodes") = new JSONArray(nodesJson.toList)
     }
 
