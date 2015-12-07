@@ -127,7 +127,7 @@ object HttpServer {
     }
 
     def handleListNodes(request: HttpServletRequest, response: HttpServletResponse) {
-      val nodesJson = Scheduler.cluster.getNodes.map(_.toJson)
+      val nodesJson = Cluster.getNodes.map(_.toJson)
       response.getWriter.println("" + new JSONArray(nodesJson.toList))
     }
 
@@ -136,7 +136,7 @@ object HttpServer {
       if (expr == null || expr.isEmpty) throw new HttpError(400, "node required")
 
       var ids: List[String] = null
-      try { ids = Expr.expandNodes(Scheduler.cluster, expr) }
+      try { ids = Expr.expandNodes(expr) }
       catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
 
       var cpu: java.lang.Double = null
@@ -176,7 +176,7 @@ object HttpServer {
       // collect nodes and check existence & state
       val nodes = new ListBuffer[Node]()
       for (id <- ids) {
-        val node = Scheduler.cluster.getNode(id)
+        val node = Cluster.getNode(id)
         if (add && node != null) throw new HttpError(400, s"node $id exists")
         if (!add && node == null) throw new HttpError(400, s"node $id not exists")
         if (!add && node.state != Node.State.Inactive) throw new HttpError(400, s"node should be inactive")
@@ -209,9 +209,9 @@ object HttpServer {
 
       for (node <- nodes) {
         updateNode(node)
-        if (add) Scheduler.cluster.addNode(node)
+        if (add) Cluster.addNode(node)
       }
-      Scheduler.cluster.save()
+      Cluster.save()
 
       // return result
       val nodesJson = new ListBuffer[JSONObject]
@@ -224,19 +224,19 @@ object HttpServer {
       if (expr == null || expr.isEmpty) throw new HttpError(400, "node required")
 
       var ids: List[String] = null
-      try { ids = Expr.expandNodes(Scheduler.cluster, expr) }
+      try { ids = Expr.expandNodes(expr) }
       catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
 
       val nodes = new ListBuffer[Node]
       for (id <- ids) {
-        val node: Node = Scheduler.cluster.getNode(id)
+        val node: Node = Cluster.getNode(id)
         if (node == null) throw new HttpError(400, s"node $id not found")
         if (node.state != Node.State.Inactive) throw new HttpError(400, s"node $id is active")
         nodes += node
       }
 
-      nodes.foreach(Scheduler.cluster.removeNode)
-      Scheduler.cluster.save()
+      nodes.foreach(Cluster.removeNode)
+      Cluster.save()
     }
 
     def handleStartStopNode(start: Boolean, request: HttpServletRequest, response: HttpServletResponse) {
@@ -244,7 +244,7 @@ object HttpServer {
       if (expr == null || expr.isEmpty) throw new HttpError(400, "node required")
 
       var ids: List[String] = null
-      try { ids = Expr.expandNodes(Scheduler.cluster, expr) }
+      try { ids = Expr.expandNodes(expr) }
       catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
 
       var timeout = Duration("2 minutes")
@@ -256,7 +256,7 @@ object HttpServer {
       // check&collect nodes
       val nodes = new ListBuffer[Node]
       for (id <- ids) {
-        val node = Scheduler.cluster.getNode(id)
+        val node = Cluster.getNode(id)
         if (node == null) throw new HttpError(400, s"node $id not found")
         if (start && node.state != Node.State.Inactive) throw new HttpError(400, s"node $id is already started")
         if (!start && node.state == Node.State.Inactive) throw new HttpError(400, s"node $id is already stopped")
@@ -268,7 +268,7 @@ object HttpServer {
         if (start) node.state = Node.State.Stopped
         else Scheduler.stopNode(node.id)
       }
-      Scheduler.cluster.save()
+      Cluster.save()
 
       var success: Boolean = true
       if (timeout.toMillis > 0) {
@@ -290,7 +290,7 @@ object HttpServer {
     }
 
     private def handleListRings(request: HttpServletRequest, response: HttpServletResponse) {
-      val ringsJson = Scheduler.cluster.getRings.map(_.toJson)
+      val ringsJson = Cluster.getRings.map(_.toJson)
       response.getWriter.println("" + new JSONArray(ringsJson))
     }
     
@@ -300,16 +300,16 @@ object HttpServer {
 
       val name: String = request.getParameter("name")
 
-      var ring = Scheduler.cluster.getRing(id)
+      var ring = Cluster.getRing(id)
       if (add && ring != null) throw new HttpError(400, "duplicate ring")
       if (!add && ring == null) throw new HttpError(400, "ring not found")
 
       if (add)
-        ring = Scheduler.cluster.addRing(new Ring(id))
+        ring = Cluster.addRing(new Ring(id))
 
       if (name != null) ring.name = if (name != "") name else null
 
-      Scheduler.cluster.save()
+      Cluster.save()
       response.getWriter.println(ring.toJson)
     }
 
@@ -317,12 +317,12 @@ object HttpServer {
       val id: String = request.getParameter("ring")
       if (id == null || id.isEmpty) throw new HttpError(400, "ring required")
 
-      val ring = Scheduler.cluster.getRing(id)
+      val ring = Cluster.getRing(id)
       if (ring == null) throw new HttpError(400, "ring not found")
-      if (ring == Scheduler.cluster.defaultRing) throw new HttpError(400, "can't remove default ring")
+      if (ring == Cluster.defaultRing) throw new HttpError(400, "can't remove default ring")
 
-      Scheduler.cluster.removeRing(ring)
-      Scheduler.cluster.save()
+      Cluster.removeRing(ring)
+      Cluster.save()
     }
 
     private def handleHealth(response: HttpServletResponse) {

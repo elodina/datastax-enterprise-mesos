@@ -39,7 +39,7 @@ class MesosTestCase {
   def before {
     BasicConfigurator.configure()
 
-    Scheduler.cluster.clear()
+    Cluster.reset()
     schedulerDriver = new TestSchedulerDriver()
     Scheduler.registered(schedulerDriver, frameworkId(), master())
 

@@ -35,8 +35,6 @@ import Util.Str
 
 object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with Reconciliation[Node] {
   private val logger = Logger.getLogger(this.getClass)
-
-  private[dse] val cluster = new Cluster()
   private var driver: SchedulerDriver = null
 
   override protected val reconcileDelay: Duration = Duration("20 seconds")
@@ -47,12 +45,12 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     logger.info(s"Starting scheduler:\n$Config")
 
     resolveDeps()
-    cluster.load()
+    Cluster.load()
     HttpServer.start()
 
     val frameworkBuilder = FrameworkInfo.newBuilder()
     frameworkBuilder.setUser(if (Config.user != null) Config.user else "")
-    if (cluster.frameworkId != null) frameworkBuilder.setId(FrameworkID.newBuilder().setValue(cluster.frameworkId))
+    if (Cluster.frameworkId != null) frameworkBuilder.setId(FrameworkID.newBuilder().setValue(Cluster.frameworkId))
     frameworkBuilder.setRole(Config.frameworkRole)
 
     frameworkBuilder.setName(Config.frameworkName)
@@ -85,8 +83,8 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     logger.info("[registered] framework:" + Str.id(id.getValue) + " master:" + Str.master(master))
     checkMesosVersion(master, driver)
 
-    cluster.frameworkId = id.getValue
-    cluster.save()
+    Cluster.frameworkId = id.getValue
+    Cluster.save()
 
     this.driver = driver
     implicitReconcile(driver)
@@ -134,7 +132,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     logger.info("[executorLost] executor:" + Str.id(executorId.getValue) + " slave:" + Str.id(slaveId.getValue) + " status:" + status)
   }
 
-  override def nodes: Traversable[Node] = cluster.getNodes
+  override def nodes: Traversable[Node] = Cluster.getNodes
 
   private def onResourceOffers(offers: List[Offer]) {
     offers.foreach { offer =>
@@ -145,14 +143,14 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     }
 
     explicitReconcile(driver)
-    cluster.save()
+    Cluster.save()
   }
 
   private def acceptOffer(offer: Offer): Option[String] = {
-    cluster.getNodes.filter(_.state == Node.State.Stopped).toList.sortBy(_.id.toInt) match {
+    Cluster.getNodes.filter(_.state == Node.State.Stopped).toList.sortBy(_.id.toInt) match {
       case Nil => Some("all nodes are running")
       case nodes =>
-        if (cluster.getNodes.exists(node => node.state == Node.State.Staging || node.state == Node.State.Starting))
+        if (Cluster.getNodes.exists(node => node.state == Node.State.Staging || node.state == Node.State.Starting))
           Some("should wait until other nodes are started")
         else {
           // Consider starting seeds first
@@ -193,7 +191,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   }
 
   private def onTaskStatus(driver: SchedulerDriver, status: TaskStatus) {
-    val node = cluster.getNodes.find(_.id == Node.idFromTaskId(status.getTaskId.getValue))
+    val node = Cluster.getNodes.find(_.id == Node.idFromTaskId(status.getTaskId.getValue))
 
     status.getState match {
       case TaskState.TASK_RUNNING => onTaskStarted(node, driver, status)
@@ -203,7 +201,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
       case _ => logger.warn("Got unexpected node state: " + status.getState)
     }
 
-    cluster.save()
+    Cluster.save()
   }
 
   private def onTaskStarted(nodeOpt: Option[Node], driver: SchedulerDriver, status: TaskStatus) {
@@ -237,7 +235,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   }
 
   def stopNode(id: String): Option[Node] = {
-    cluster.getNodes.find(_.id == id) match {
+    Cluster.getNodes.find(_.id == id) match {
       case Some(node) =>
         node.state match {
           case Node.State.Staging | Node.State.Starting | Node.State.Running =>
@@ -254,11 +252,11 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   }
 
   def removeNode(id: String): Option[Node] = {
-    cluster.getNodes.find(_.id == id) match {
+    Cluster.getNodes.find(_.id == id) match {
       case Some(node) =>
         stopNode(id)
 
-        cluster.removeNode(node)
+        Cluster.removeNode(node)
         Some(node)
       case None =>
         logger.warn(s"Node $id is already removed")
@@ -283,7 +281,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   }
 
   private[dse] def setSeedNodes(node: Node, hostname: String) {
-    val seeds = cluster.getNodes.collect {
+    val seeds = Cluster.getNodes.collect {
       case cassandraNode: Node => cassandraNode
     }.filter(c => c.seed && c.clusterName == node.clusterName)
       .filter(c => c.state == Node.State.Staging || c.state == Node.State.Starting || c.state == Node.State.Running)

@@ -25,29 +25,13 @@ import scala.util.parsing.json.{JSONArray, JSONObject}
 
 object Cluster {
   private val logger = Logger.getLogger(this.getClass)
-
-  private def newStorage(storage: String): Storage = {
-    storage.split(":", 2) match {
-      case Array("file", fileName) => FileStorage(fileName)
-      case Array("zk", zk) => ZkStorage(zk)
-      case _ => throw new IllegalArgumentException(s"Unsupported storage: $storage")
-    }
-  }
-}
-
-class Cluster {
   private val storage = Cluster.newStorage(Config.storage)
 
   var frameworkId: String = null
   private val nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]
   private val rings: mutable.ListBuffer[Ring] = new mutable.ListBuffer[Ring]
 
-  clear()
-
-  def this(json: Map[String, Any]) {
-    this
-    fromJson(json)
-  }
+  reset()
 
   def getNodes: List[Node] = nodes.toList
 
@@ -82,7 +66,7 @@ class Cluster {
   }
 
 
-  def clear(): Unit = {
+  def reset(): Unit = {
     frameworkId = null
     nodes.clear()
     rings.clear()
@@ -125,15 +109,23 @@ class Cluster {
     new JSONObject(json.toMap)
   }
 
-  def save() = storage.save(this)
+  def save() = storage.save(this.toJson)
 
   def load() {
-    val cluster: Cluster = storage.load()
-    if (cluster == null) {
-      Cluster.logger.info("No cluster state available")
+    val json = storage.load()
+    if (json == null) {
+      logger.info("No cluster state available")
       return
     }
 
-    this.fromJson(Util.parseJsonAsMap("" + cluster.toJson))
+    this.fromJson(json)
+  }
+
+  private def newStorage(storage: String): Storage = {
+    storage.split(":", 2) match {
+      case Array("file", fileName) => FileStorage(fileName)
+      case Array("zk", zk) => ZkStorage(zk)
+      case _ => throw new IllegalArgumentException(s"Unsupported storage: $storage")
+    }
   }
 }
