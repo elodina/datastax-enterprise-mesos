@@ -1,9 +1,11 @@
 package net.elodina.mesos.dse.cli
 
-import net.elodina.mesos.dse.cli.Cli.Error
-import net.elodina.mesos.dse.cli.Cli.printLine
+import net.elodina.mesos.dse.cli.Cli._
 import java.io.IOException
-import net.elodina.mesos.dse.{Ring, Cluster}
+import net.elodina.mesos.dse.Ring
+import joptsimple.{OptionException, OptionSet, OptionParser}
+import net.elodina.mesos.dse.cli.Cli.Error
+import scala.collection.mutable
 
 object RingCli {
   def handle(_args: Array[String], help: Boolean = false): Unit = {
@@ -31,6 +33,7 @@ object RingCli {
 
     cmd match {
       case "list" => handleList()
+      case "add" | "update" => handleAddUpdate(cmd, arg, args)
       case _ => throw new Error("unsupported ring command " + cmd)
     }
   }
@@ -45,10 +48,9 @@ object RingCli {
 
         printLine()
         printLine("Run `help ring <command>` to see details of specific command")
-      case "list" =>
-        handleList(help = true)
-      case _ =>
-        throw new Error(s"unsupported ring command $cmd")
+      case "list" => handleList(help = true)
+      case "add" | "update" => handleAddUpdate(cmd, null, null, help = true)
+      case _ => throw new Error(s"unsupported ring command $cmd")
     }
   }
 
@@ -58,18 +60,58 @@ object RingCli {
       return
     }
 
-    var json: Map[String, Any] = null
-    try { json = Cli.sendRequest("/ring/list", Map()).asInstanceOf[Map[String, Any]] }
+    var json: List[Any] = null
+    try { json = Cli.sendRequest("/ring/list", Map()).asInstanceOf[List[Any]] }
     catch { case e: IOException => throw new Error("" + e) }
-    val cluster: Cluster = new Cluster(json)
+    val rings = json.map(j => new Ring(j.asInstanceOf[Map[String, Any]]))
 
-    val title: String = if (cluster.getRings.isEmpty) "no rings" else "ring" + (if (cluster.getRings.size > 1) "s" else "") + ":"
+    val title: String = if (rings.isEmpty) "no rings" else "ring" + (if (rings.size > 1) "s" else "") + ":"
     printLine(title)
 
-    for (ring <- cluster.getRings) {
+    for (ring <- rings) {
       printRing(ring, 1)
       printLine()
     }
+  }
+
+  def handleAddUpdate(cmd: String, id: String, args: Array[String], help: Boolean = false): Unit = {
+    val parser = new OptionParser()
+    parser.accepts("name", "Ring name.").withRequiredArg().ofType(classOf[String])
+
+    if (help) {
+      printLine(s"${cmd.capitalize} ring \nUsage: $cmd <id> [options]\n")
+      parser.printHelpOn(out)
+
+      printLine()
+      Cli.handleGenericOptions(args, help = true)
+      return
+    }
+
+    var options: OptionSet = null
+    try { options = parser.parse(args: _*) }
+    catch {
+      case e: OptionException =>
+        parser.printHelpOn(out)
+        printLine()
+        throw new Cli.Error(e.getMessage)
+    }
+
+    val name = options.valueOf("name").asInstanceOf[String]
+
+    val params = mutable.HashMap("ring" -> id)
+    if (name != null) params("name") = name
+
+    var json: Map[String, Any] = null
+    try { json = Cli.sendRequest(s"/ring/$cmd", params.toMap).asInstanceOf[Map[String, Any]] }
+    catch { case e: IOException => throw new Error("" + e) }
+    val ring: Ring = new Ring(json)
+
+    var title = "ring"
+    title += " " + (if (cmd == "add") "added" else "updated") + ":"
+    printLine(title)
+
+    printRing(ring, 1)
+    printLine()
   }
 
   def printCmds(): Unit = {
@@ -82,5 +124,6 @@ object RingCli {
 
   private def printRing(ring: Ring, indent: Int): Unit = {
     printLine("id: " + ring.id, indent)
+    printLine("name: " + ring.name, indent)
   }
 }

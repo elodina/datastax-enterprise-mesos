@@ -57,6 +57,8 @@ class Cluster {
 
   def getRings: List[Ring] = rings.toList
 
+  def getRing(id: String): Ring = rings.filter(id == _.id).headOption.getOrElse(null)
+
   def addRing(ring: Ring): Ring = {
     rings += ring
     ring

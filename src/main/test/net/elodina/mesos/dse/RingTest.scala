@@ -8,9 +8,12 @@ class RingTest {
   @Test
   def toJSON_fromJSON {
     val ring: Ring = new Ring("1")
-    val json: JSONObject = ring.toJson
+    ring.name = "name"
 
+    val json: JSONObject = ring.toJson
     val read = new Ring(json.obj)
+
     assertEquals(ring.id, read.id)
+    assertEquals(ring.name, read.name)
   }
 }

@@ -29,7 +29,6 @@ dependencies {
     compile "javax.servlet:javax.servlet-api:3.0.1"
     compile "net.sf.jopt-simple:jopt-simple:4.8"
     compile "log4j:log4j:1.2.16"
-    compile name: 'scala-mesos-utils-0.0.1'
     compile "com.101tec:zkclient:0.6"
     testCompile 'junit:junit:4.12'
 }

@@ -102,7 +102,7 @@ object NodeCli {
     parser.accepts("saved-caches-dir", "Cassandra saved caches dir. Defaults to sandbox if not set").withRequiredArg().ofType(classOf[String])
 
     if (help) {
-      printLine(s"${cmd.capitalize} node(s) \nUsage: $cmd <id> [options]\n")
+      printLine(s"${cmd.capitalize} node \nUsage: $cmd <id> [options]\n")
       parser.printHelpOn(out)
 
       printLine()
@@ -174,7 +174,7 @@ object NodeCli {
 
   def handleRemove(expr: String, help: Boolean = false): Unit = {
     if (help) {
-      printLine("Remove node(s) \nUsage: remove <id>\n")
+      printLine("Remove node \nUsage: remove <id>\n")
       printLine()
       Cli.handleGenericOptions(null, help = true)
       return
@@ -191,7 +191,7 @@ object NodeCli {
     parser.accepts("timeout", "Time to wait until node starts. Should be a parsable Scala Duration value. Defaults to 2m.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
-      printLine(s"${cmd.capitalize} node(s) \nUsage: $cmd <id> [options]\n")
+      printLine(s"${cmd.capitalize} node \nUsage: $cmd <id> [options]\n")
       parser.printHelpOn(out)
 
       printLine()
