@@ -34,6 +34,7 @@ object RingCli {
     cmd match {
       case "list" => handleList()
       case "add" | "update" => handleAddUpdate(cmd, arg, args)
+      case "remove" => handleRemove(arg)
       case _ => throw new Error("unsupported ring command " + cmd)
     }
   }
@@ -50,6 +51,7 @@ object RingCli {
         printLine("Run `help ring <command>` to see details of specific command")
       case "list" => handleList(help = true)
       case "add" | "update" => handleAddUpdate(cmd, null, null, help = true)
+      case "remove" => handleRemove(null, help = true)
       case _ => throw new Error(s"unsupported ring command $cmd")
     }
   }
@@ -112,6 +114,20 @@ object RingCli {
 
     printRing(ring, 1)
     printLine()
+  }
+
+  def handleRemove(id: String, help: Boolean = false): Unit = {
+    if (help) {
+      printLine(s"Remove ring \nUsage: remove <id>\n")
+      printLine()
+      Cli.handleGenericOptions(null, help = true)
+      return
+    }
+
+    try { Cli.sendRequest(s"/ring/remove", Map("ring" -> id)) }
+    catch { case e: IOException => throw new Error("" + e) }
+
+    println("ring removed")
   }
 
   def printCmds(): Unit = {

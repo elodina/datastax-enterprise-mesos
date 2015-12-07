@@ -122,6 +122,7 @@ object HttpServer {
 
       if (uri == "list") handleListRings(request, response)
       else if (uri == "add" || uri == "update") handleAddUpdateRing(uri == "add", request, response)
+      else if (uri == "remove") handleRemoveRing(request, response)
       else response.sendError(404)
     }
 
@@ -310,6 +311,17 @@ object HttpServer {
 
       Scheduler.cluster.save()
       response.getWriter.println(ring.toJson)
+    }
+
+    private def handleRemoveRing(request: HttpServletRequest, response: HttpServletResponse) {
+      val id: String = request.getParameter("ring")
+      if (id == null || id.isEmpty) throw new HttpError(400, "ring required")
+
+      val ring = Scheduler.cluster.getRing(id)
+      if (ring != null) {
+        Scheduler.cluster.removeRing(ring)
+        Scheduler.cluster.save()
+      }
     }
 
     private def handleHealth(response: HttpServletResponse) {
