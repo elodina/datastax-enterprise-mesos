@@ -1,10 +1,9 @@
-package net.elodina.mesos.dse.cli
+package net.elodina.mesos.dse
 
 import joptsimple.{OptionException, OptionSet, OptionParser}
-import net.elodina.mesos.dse.{Scheduler, Config}
 import scala.concurrent.duration.Duration
 import java.io.File
-import Cli.{out, printLine}
+import Cli.{out, printLine, handleGenericOptions}
 
 object SchedulerCli {
   def handle(args: Array[String], help: Boolean = false): Unit = {
@@ -28,7 +27,7 @@ object SchedulerCli {
       parser.printHelpOn(out)
 
       printLine()
-      Cli.handleGenericOptions(args, help = true)
+      handleGenericOptions(args, help = true)
       return
     }
 

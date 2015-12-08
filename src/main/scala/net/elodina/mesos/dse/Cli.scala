@@ -1,4 +1,4 @@
-package net.elodina.mesos.dse.cli
+package net.elodina.mesos.dse
 
 import java.io.{IOException, PrintStream}
 import java.net.{URLEncoder, HttpURLConnection, URL}
@@ -8,7 +8,7 @@ import scala.io.Source
 import joptsimple.{OptionException, OptionSet}
 
 object Cli {
-  private[cli] var out: PrintStream = System.out
+  private[dse] var out: PrintStream = System.out
 
   def main(args: Array[String]) {
     try { exec(args) }
@@ -68,7 +68,7 @@ object Cli {
     printLine("ring             - ring management commands", 1)
   }
 
-  private[cli] def sendRequest(uri: String, params: Map[String, String]): Any = {
+  private[dse] def sendRequest(uri: String, params: Map[String, String]): Any = {
     def queryString(params: Map[String, String]): String = {
       var s = ""
       for ((name, value) <- params) {

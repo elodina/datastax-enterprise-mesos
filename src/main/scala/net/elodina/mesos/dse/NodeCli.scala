@@ -1,11 +1,9 @@
-package net.elodina.mesos.dse.cli
+package net.elodina.mesos.dse
 
-import net.elodina.mesos.dse.cli.Cli.{out, printLine}
-import net.elodina.mesos.dse.cli.Cli.Error
 import java.io.IOException
-import net.elodina.mesos.dse.{Util, Node}
 import joptsimple.{OptionException, OptionSet, OptionParser}
 import scala.collection.mutable
+import Cli.{out, printLine, handleGenericOptions}
 
 object NodeCli {
   def handle(_args: Array[String], help: Boolean = false): Unit = {
@@ -66,7 +64,7 @@ object NodeCli {
   def handleList(help: Boolean = false): Unit = {
     if (help) {
       printLine("List nodes\nUsage: node list\n")
-      Cli.handleGenericOptions(null, help = true)
+      handleGenericOptions(null, help = true)
       return
     }
 
@@ -108,7 +106,7 @@ object NodeCli {
       parser.printHelpOn(out)
 
       printLine()
-      Cli.handleGenericOptions(args, help = true)
+      handleGenericOptions(args, help = true)
       return
     }
 
@@ -179,7 +177,7 @@ object NodeCli {
   def handleRemove(expr: String, help: Boolean = false): Unit = {
     if (help) {
       printLine("Remove node \nUsage: node remove <id>\n")
-      Cli.handleGenericOptions(null, help = true)
+      handleGenericOptions(null, help = true)
       return
     }
 
@@ -198,7 +196,7 @@ object NodeCli {
       parser.printHelpOn(out)
 
       printLine()
-      Cli.handleGenericOptions(args, help = true)
+      handleGenericOptions(args, help = true)
       return
     }
 

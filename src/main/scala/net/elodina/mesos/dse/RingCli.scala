@@ -1,11 +1,9 @@
-package net.elodina.mesos.dse.cli
+package net.elodina.mesos.dse
 
-import net.elodina.mesos.dse.cli.Cli._
 import java.io.IOException
-import net.elodina.mesos.dse.Ring
 import joptsimple.{OptionException, OptionSet, OptionParser}
-import net.elodina.mesos.dse.cli.Cli.Error
 import scala.collection.mutable
+import Cli.{out, printLine, handleGenericOptions}
 
 object RingCli {
   def handle(_args: Array[String], help: Boolean = false): Unit = {
@@ -59,7 +57,7 @@ object RingCli {
   def handleList(help: Boolean = false): Unit = {
     if (help) {
       printLine("List rings\nUsage: ring list\n")
-      Cli.handleGenericOptions(null, help = true)
+      handleGenericOptions(null, help = true)
       return
     }
 
@@ -86,7 +84,7 @@ object RingCli {
       parser.printHelpOn(out)
 
       printLine()
-      Cli.handleGenericOptions(args, help = true)
+      handleGenericOptions(args, help = true)
       return
     }
 
@@ -120,7 +118,7 @@ object RingCli {
   def handleRemove(id: String, help: Boolean = false): Unit = {
     if (help) {
       printLine(s"Remove ring \nUsage: ring remove <id>\n")
-      Cli.handleGenericOptions(null, help = true)
+      handleGenericOptions(null, help = true)
       return
     }
 
