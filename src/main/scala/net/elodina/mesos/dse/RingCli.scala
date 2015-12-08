@@ -1,11 +1,9 @@
-package net.elodina.mesos.dse.cli
+package net.elodina.mesos.dse
 
-import net.elodina.mesos.dse.cli.Cli._
 import java.io.IOException
-import net.elodina.mesos.dse.Ring
 import joptsimple.{OptionException, OptionSet, OptionParser}
-import net.elodina.mesos.dse.cli.Cli.Error
 import scala.collection.mutable
+import Cli.{out, printLine, handleGenericOptions}
 
 object RingCli {
   def handle(_args: Array[String], help: Boolean = false): Unit = {
@@ -44,11 +42,11 @@ object RingCli {
 
     cmd match {
       case null =>
-        printLine("Ring management commands\nUsage: ring <command>\n")
+        printLine("Ring management commands\nUsage: ring <cmd>\n")
         printCmds()
 
         printLine()
-        printLine("Run `help ring <command>` to see details of specific command")
+        printLine("Run `help ring <cmd>` to see details of specific command")
       case "list" => handleList(help = true)
       case "add" | "update" => handleAddUpdate(cmd, null, null, help = true)
       case "remove" => handleRemove(null, help = true)
@@ -59,6 +57,7 @@ object RingCli {
   def handleList(help: Boolean = false): Unit = {
     if (help) {
       printLine("List rings\nUsage: ring list\n")
+      handleGenericOptions(null, help = true)
       return
     }
 
@@ -81,11 +80,11 @@ object RingCli {
     parser.accepts("name", "Ring name.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
-      printLine(s"${cmd.capitalize} ring \nUsage: $cmd <id> [options]\n")
+      printLine(s"${cmd.capitalize} ring \nUsage: ring $cmd <id> [options]\n")
       parser.printHelpOn(out)
 
       printLine()
-      Cli.handleGenericOptions(args, help = true)
+      handleGenericOptions(args, help = true)
       return
     }
 
@@ -118,9 +117,8 @@ object RingCli {
 
   def handleRemove(id: String, help: Boolean = false): Unit = {
     if (help) {
-      printLine(s"Remove ring \nUsage: remove <id>\n")
-      printLine()
-      Cli.handleGenericOptions(null, help = true)
+      printLine(s"Remove ring \nUsage: ring remove <id>\n")
+      handleGenericOptions(null, help = true)
       return
     }
 

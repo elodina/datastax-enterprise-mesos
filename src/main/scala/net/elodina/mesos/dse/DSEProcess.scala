@@ -146,7 +146,7 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     val yaml = new Yaml()
     val cassandraYaml = mutable.Map(yaml.load(Source.fromFile(file).reader()).asInstanceOf[util.Map[String, AnyRef]].toSeq: _*)
 
-    cassandraYaml.put(DSEProcess.CLUSTER_NAME_KEY, if (node.clusterName != null) node.clusterName else "default")
+    cassandraYaml.put(DSEProcess.CLUSTER_NAME_KEY, if (node.ring.name != null) node.ring.name else node.ring.id)
     cassandraYaml.put(DSEProcess.DATA_FILE_DIRECTORIES_KEY, node.dataFileDirs.split(","))
     cassandraYaml.put(DSEProcess.COMMIT_LOG_DIRECTORY_KEY, Array(node.commitLogDir))
     cassandraYaml.put(DSEProcess.SAVED_CACHES_DIRECTORY_KEY, Array(node.savedCachesDir))

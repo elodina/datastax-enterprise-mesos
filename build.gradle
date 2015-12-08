@@ -44,5 +44,5 @@ jar {
             exclude "META-INF/*.RSA"
         }
     }
-    manifest.attributes("Main-Class": "net.elodina.mesos.dse.cli.Cli")
+    manifest.attributes("Main-Class": "net.elodina.mesos.dse.Cli")
 }

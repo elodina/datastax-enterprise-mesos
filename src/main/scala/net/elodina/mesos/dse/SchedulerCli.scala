@@ -1,10 +1,9 @@
-package net.elodina.mesos.dse.cli
+package net.elodina.mesos.dse
 
 import joptsimple.{OptionException, OptionSet, OptionParser}
-import net.elodina.mesos.dse.{Scheduler, Config}
 import scala.concurrent.duration.Duration
 import java.io.File
-import Cli.{out, printLine}
+import Cli.{out, printLine, handleGenericOptions}
 
 object SchedulerCli {
   def handle(args: Array[String], help: Boolean = false): Unit = {
@@ -15,8 +14,8 @@ object SchedulerCli {
     parser.accepts("principal", "Principal (username) used to register framework.").withRequiredArg().ofType(classOf[String])
     parser.accepts("secret", "Secret (password) used to register framework.").withRequiredArg().ofType(classOf[String])
 
-    parser.accepts("framework-name", "Framework name. Defaults to dse").withRequiredArg().ofType(classOf[String])
-    parser.accepts("framework-role", "Framework role. Defaults to *").withRequiredArg().ofType(classOf[String])
+    parser.accepts("framework-name", "Framework name. Defaults to dse.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("framework-role", "Framework role. Defaults to *.").withRequiredArg().ofType(classOf[String])
     parser.accepts("framework-timeout", "Framework failover timeout. Defaults to 30 days.").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("storage", "Storage for cluster state. Examples: file:dse-mesos.json; zk:master:2181/dse-mesos.").withRequiredArg().ofType(classOf[String])
@@ -28,7 +27,7 @@ object SchedulerCli {
       parser.printHelpOn(out)
 
       printLine()
-      Cli.handleGenericOptions(args, help = true)
+      handleGenericOptions(args, help = true)
       return
     }
 

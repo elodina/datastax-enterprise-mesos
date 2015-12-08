@@ -1,11 +1,9 @@
-package net.elodina.mesos.dse.cli
+package net.elodina.mesos.dse
 
-import net.elodina.mesos.dse.cli.Cli.{out, printLine}
-import net.elodina.mesos.dse.cli.Cli.Error
 import java.io.IOException
-import net.elodina.mesos.dse.{Util, Node}
 import joptsimple.{OptionException, OptionSet, OptionParser}
 import scala.collection.mutable
+import Cli.{out, printLine, handleGenericOptions}
 
 object NodeCli {
   def handle(_args: Array[String], help: Boolean = false): Unit = {
@@ -45,11 +43,11 @@ object NodeCli {
 
     cmd match {
       case null =>
-        printLine("Node management commands\nUsage: node <command>\n")
+        printLine("Node management commands\nUsage: node <cmd>\n")
         printCmds()
 
         printLine()
-        printLine("Run `help node <command>` to see details of specific command")
+        printLine("Run `help node <cmd>` to see details of specific command")
       case "list" =>
         handleList(help = true)
       case "add" | "update" =>
@@ -66,6 +64,7 @@ object NodeCli {
   def handleList(help: Boolean = false): Unit = {
     if (help) {
       printLine("List nodes\nUsage: node list\n")
+      handleGenericOptions(null, help = true)
       return
     }
 
@@ -86,7 +85,7 @@ object NodeCli {
   def handleAddUpdate(cmd: String, expr: String, args: Array[String], help: Boolean = false): Unit = {
     val parser = new OptionParser()
 
-    parser.accepts("ring", "Ring id").withRequiredArg().ofType(classOf[String])
+    parser.accepts("ring", "Ring to which node belongs to.").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("cpu", "CPU amount (0.5, 1, 2).").withRequiredArg().ofType(classOf[java.lang.Double])
     parser.accepts("mem", "Mem amount in Mb.").withRequiredArg().ofType(classOf[java.lang.Long])
@@ -95,20 +94,19 @@ object NodeCli {
     parser.accepts("constraints", "Constraints (hostname=like:^master$,rack=like:^1.*$).").withRequiredArg().ofType(classOf[String])
     parser.accepts("seed-constraints", "Seed node constraints. Will be evaluated only across seed nodes.").withRequiredArg().ofType(classOf[String])
 
-    parser.accepts("cluster-name", "The name of the cluster.").withRequiredArg().ofType(classOf[String])
-    parser.accepts("seed", "Flags whether this Datastax Node is a seed node.").withRequiredArg().ofType(classOf[java.lang.Boolean])
-    parser.accepts("replace-address", "Replace address for the dead Datastax Node").withRequiredArg().ofType(classOf[String])
+    parser.accepts("seed", "Flags whether this node is a seed node.").withRequiredArg().ofType(classOf[java.lang.Boolean])
+    parser.accepts("replace-address", "Replace address for the dead node.").withRequiredArg().ofType(classOf[String])
 
-    parser.accepts("data-file-dirs", "Cassandra data file directories separated by comma. Defaults to sandbox if not set").withRequiredArg().ofType(classOf[String])
-    parser.accepts("commit-log-dir", "Cassandra commit log dir. Defaults to sandbox if not set").withRequiredArg().ofType(classOf[String])
-    parser.accepts("saved-caches-dir", "Cassandra saved caches dir. Defaults to sandbox if not set").withRequiredArg().ofType(classOf[String])
+    parser.accepts("data-file-dirs", "Cassandra data file directories separated by comma. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("commit-log-dir", "Cassandra commit log dir. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("saved-caches-dir", "Cassandra saved caches dir. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
-      printLine(s"${cmd.capitalize} node \nUsage: $cmd <id> [options]\n")
+      printLine(s"${cmd.capitalize} node \nUsage: node $cmd <id> [options]\n")
       parser.printHelpOn(out)
 
       printLine()
-      Cli.handleGenericOptions(args, help = true)
+      handleGenericOptions(args, help = true)
       return
     }
 
@@ -133,7 +131,6 @@ object NodeCli {
     val nodeOut = options.valueOf("node-out").asInstanceOf[String]
     val agentOut = options.valueOf("agent-out").asInstanceOf[String]
 
-    val clusterName = options.valueOf("cluster-name").asInstanceOf[String]
     val seed = options.valueOf("seed").asInstanceOf[java.lang.Boolean]
     val replaceAddress = options.valueOf("replace-address").asInstanceOf[String]
 
@@ -155,7 +152,6 @@ object NodeCli {
     if (nodeOut != null) params("nodeOut") = nodeOut
     if (agentOut != null) params("agentOut") = agentOut
 
-    if (clusterName != null) params("clusterName") = clusterName
     if (seed != null) params("seed") = "" + seed
     if (replaceAddress != null) params("replaceAddress") = replaceAddress
 
@@ -180,9 +176,8 @@ object NodeCli {
 
   def handleRemove(expr: String, help: Boolean = false): Unit = {
     if (help) {
-      printLine("Remove node \nUsage: remove <id>\n")
-      printLine()
-      Cli.handleGenericOptions(null, help = true)
+      printLine("Remove node \nUsage: node remove <id>\n")
+      handleGenericOptions(null, help = true)
       return
     }
 
@@ -197,11 +192,11 @@ object NodeCli {
     parser.accepts("timeout", "Time to wait until node starts. Should be a parsable Scala Duration value. Defaults to 2m.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
-      printLine(s"${cmd.capitalize} node \nUsage: $cmd <id> [options]\n")
+      printLine(s"${cmd.capitalize} node \nUsage: node $cmd <id> [options]\n")
       parser.printHelpOn(out)
 
       printLine()
-      Cli.handleGenericOptions(args, help = true)
+      handleGenericOptions(args, help = true)
       return
     }
 
@@ -252,27 +247,25 @@ object NodeCli {
   }
 
   private def printNode(node: Node, indent: Int = 0) {
-    printLine("node:", indent)
-    printLine(s"id: ${node.id}", indent + 1)
-    printLine(s"state: ${node.state}", indent + 1)
-    printLine(s"ring: ${node.ring.id}", indent + 1)
+    printLine(s"id: ${node.id}", indent)
+    printLine(s"state: ${node.state}", indent)
+    printLine(s"ring: ${node.ring.id}", indent)
 
-    printLine(s"cpu: ${node.cpu}", indent + 1)
-    printLine(s"mem: ${node.mem}", indent + 1)
+    printLine(s"cpu: ${node.cpu}", indent)
+    printLine(s"mem: ${node.mem}", indent)
 
-    if (node.broadcast != null) printLine(s"broadcast: ${node.broadcast}", indent + 1)
-    if (node.clusterName != null) printLine(s"cluster name: ${node.clusterName}", indent + 1)
-    printLine(s"seed: ${node.seed}", indent + 1)
+    if (node.broadcast != null) printLine(s"broadcast: ${node.broadcast}", indent)
+    printLine(s"seed: ${node.seed}", indent)
 
-    if (node.replaceAddress != null) printLine(s"replace-address: ${node.replaceAddress}", indent + 1)
-    if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent + 1)
-    if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent + 1)
+    if (node.replaceAddress != null) printLine(s"replace-address: ${node.replaceAddress}", indent)
+    if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent)
+    if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent)
 
-    if (node.dataFileDirs != null) printLine(s"data file dirs: ${node.dataFileDirs}", indent + 1)
-    if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent + 1)
-    if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent + 1)
+    if (node.dataFileDirs != null) printLine(s"data file dirs: ${node.dataFileDirs}", indent)
+    if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent)
+    if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent)
 
-    if (node.runtime != null) printNodeRuntime(node.runtime, indent + 1)
+    if (node.runtime != null) printNodeRuntime(node.runtime, indent)
   }
 
   private def printNodeRuntime(runtime: Node.Runtime, indent: Int = 0) {
@@ -282,6 +275,6 @@ object NodeCli {
     printLine(s"slave id: ${runtime.slaveId}", indent + 1)
     printLine(s"hostname: ${runtime.hostname}", indent + 1)
     printLine(s"seeds: ${runtime.seeds.mkString(",")}", indent + 1)
-    printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
+    if (!runtime.attributes.isEmpty) printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
   }
 }

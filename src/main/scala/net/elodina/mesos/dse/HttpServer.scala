@@ -170,7 +170,6 @@ object HttpServer {
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid seedConstraints") }
       }
 
-      val clusterName: String = request.getParameter("clusterName")
       var seed: java.lang.Boolean = null
       if (request.getParameter("seed") != null) seed = "true" == request.getParameter("seed")
       val replaceAddress: String = request.getParameter("replaceAddress")
@@ -206,7 +205,6 @@ object HttpServer {
           node.seedConstraints ++= seedConstraints
         }
 
-        if (clusterName != null) node.clusterName = if (clusterName != "") clusterName else null
         if (seed != null) node.seed = seed
         if (replaceAddress != null) node.replaceAddress = if (replaceAddress != "") replaceAddress else null
 
