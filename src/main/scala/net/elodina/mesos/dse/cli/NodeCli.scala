@@ -72,7 +72,7 @@ object NodeCli {
     var nodesJson: List[Any] = null
     try { nodesJson = Cli.sendRequest("/node/list", Map()).asInstanceOf[List[Any]] }
     catch { case e: IOException => throw new Error("" + e) }
-    val nodes = nodesJson.map(n => new Node(n.asInstanceOf[Map[String, Any]]))
+    val nodes = nodesJson.map(n => new Node(n.asInstanceOf[Map[String, Any]], expanded = true))
 
     val title: String = if (nodes.isEmpty) "no nodes" else "node" + (if (nodes.size > 1) "s" else "") + ":"
     printLine(title)
@@ -85,6 +85,8 @@ object NodeCli {
 
   def handleAddUpdate(cmd: String, expr: String, args: Array[String], help: Boolean = false): Unit = {
     val parser = new OptionParser()
+
+    parser.accepts("ring", "Ring id").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("cpu", "CPU amount (0.5, 1, 2).").withRequiredArg().ofType(classOf[java.lang.Double])
     parser.accepts("mem", "Mem amount in Mb.").withRequiredArg().ofType(classOf[java.lang.Long])
@@ -119,6 +121,8 @@ object NodeCli {
         throw new Cli.Error(e.getMessage)
     }
 
+    val ring = options.valueOf("ring").asInstanceOf[String]
+
     val cpu = options.valueOf("cpu").asInstanceOf[java.lang.Double]
     val mem = options.valueOf("mem").asInstanceOf[java.lang.Long]
     val broadcast = options.valueOf("broadcast").asInstanceOf[String]
@@ -139,6 +143,8 @@ object NodeCli {
 
     val params = new mutable.HashMap[String, String]()
     params("node") = expr
+    if (ring != null) params("ring") = ring
+
     if (cpu != null) params("cpu") = "" + cpu
     if (mem != null) params("mem") = "" + mem
     if (broadcast != null) params("broadcast") = broadcast
@@ -160,7 +166,7 @@ object NodeCli {
     var nodesJson: List[Any] = null
     try { nodesJson = Cli.sendRequest(s"/node/$cmd", params.toMap).asInstanceOf[List[Any]] }
     catch { case e: IOException => throw new Error("" + e) }
-    val nodes = nodesJson.map(n => new Node(n.asInstanceOf[Map[String, Any]]))
+    val nodes = nodesJson.map(n => new Node(n.asInstanceOf[Map[String, Any]], expanded = true))
 
     var title = "node" + (if (nodes.length > 1) "s" else "")
     title += " " + (if (cmd == "add") "added" else "updated") + ":"
@@ -219,7 +225,7 @@ object NodeCli {
 
     val status = json("status")
     val nodes = json("nodes").asInstanceOf[List[Any]]
-      .map(n => new Node(n.asInstanceOf[Map[String, Any]]))
+      .map(n => new Node(n.asInstanceOf[Map[String, Any]], expanded = true))
 
     var title: String = if (nodes.length > 1) "nodes " else "node "
     status match {
@@ -249,6 +255,8 @@ object NodeCli {
     printLine("node:", indent)
     printLine(s"id: ${node.id}", indent + 1)
     printLine(s"state: ${node.state}", indent + 1)
+    printLine(s"ring: ${node.ring.id}", indent + 1)
+
     printLine(s"cpu: ${node.cpu}", indent + 1)
     printLine(s"mem: ${node.mem}", indent + 1)
 
@@ -256,7 +264,6 @@ object NodeCli {
     if (node.clusterName != null) printLine(s"cluster name: ${node.clusterName}", indent + 1)
     printLine(s"seed: ${node.seed}", indent + 1)
 
-    if (node.seeds != "") printLine(s"seeds: ${node.seeds}", indent + 1)
     if (node.replaceAddress != null) printLine(s"replace-address: ${node.replaceAddress}", indent + 1)
     if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent + 1)
     if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent + 1)
@@ -271,9 +278,10 @@ object NodeCli {
   private def printNodeRuntime(runtime: Node.Runtime, indent: Int = 0) {
     printLine(s"runtime:", indent)
     printLine(s"task id: ${runtime.taskId}", indent + 1)
-    printLine(s"slave id: ${runtime.slaveId}", indent + 1)
     printLine(s"executor id: ${runtime.executorId}", indent + 1)
+    printLine(s"slave id: ${runtime.slaveId}", indent + 1)
     printLine(s"hostname: ${runtime.hostname}", indent + 1)
+    printLine(s"seeds: ${runtime.seeds.mkString(",")}", indent + 1)
     printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
   }
 }

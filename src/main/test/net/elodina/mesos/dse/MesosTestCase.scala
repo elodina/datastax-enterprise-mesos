@@ -39,7 +39,7 @@ class MesosTestCase {
   def before {
     BasicConfigurator.configure()
 
-    Scheduler.cluster.clear()
+    Cluster.reset()
     schedulerDriver = new TestSchedulerDriver()
     Scheduler.registered(schedulerDriver, frameworkId(), master())
 
@@ -197,7 +197,7 @@ class MesosTestCase {
     id: String = "" + UUID.randomUUID(),
     name: String = "Task",
     slaveId: String = "" + UUID.randomUUID(),
-    data: String = Util.formatMap(Collections.singletonMap("broker", new Node().toJson))
+    data: String = Util.formatMap(Collections.singletonMap("node", new Node().toJson(expanded = true)))
   ): TaskInfo = {
     val builder = TaskInfo.newBuilder()
     .setName(id)

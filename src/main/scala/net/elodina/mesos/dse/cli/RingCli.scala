@@ -140,6 +140,6 @@ object RingCli {
 
   private def printRing(ring: Ring, indent: Int): Unit = {
     printLine("id: " + ring.id, indent)
-    printLine("name: " + ring.name, indent)
+    if (ring.name != null) printLine("name: " + ring.name, indent)
   }
 }

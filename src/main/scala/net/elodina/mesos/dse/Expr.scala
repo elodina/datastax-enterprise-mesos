@@ -6,7 +6,7 @@ import java.io.PrintStream
 import java.lang.Comparable
 
 object Expr {
-  def expandNodes(cluster: Cluster, _expr: String, sortByAttrs: Boolean = false): List[String] = {
+  def expandNodes(_expr: String, sortByAttrs: Boolean = false): List[String] = {
     var expr: String = _expr
     var attributes: util.Map[String, String] = null
 
@@ -24,7 +24,7 @@ object Expr {
       val part = _part.trim()
 
       if (part.equals("*"))
-        for (node <- cluster.getNodes) ids.add(node.id)
+        for (node <- Cluster.getNodes) ids.add(node.id)
       else if (part.contains("..")) {
         val idx = part.indexOf("..")
 
@@ -50,12 +50,12 @@ object Expr {
     ids = new util.ArrayList[String](ids.distinct.sorted.toList)
 
     if (attributes != null)
-      filterAndSortNodesByAttrs(cluster, ids, attributes, sortByAttrs)
+      filterAndSortNodesByAttrs(ids, attributes, sortByAttrs)
 
     ids.toList
   }
 
-  private def filterAndSortNodesByAttrs(cluster: Cluster, ids: util.Collection[String], attributes: util.Map[String, String], sortByAttrs: Boolean): Unit = {
+  private def filterAndSortNodesByAttrs(ids: util.Collection[String], attributes: util.Map[String, String], sortByAttrs: Boolean): Unit = {
     def nodeAttr(node: Node, name: String): String = {
       if (node == null || node.runtime == null) return null
 
@@ -87,7 +87,7 @@ object Expr {
       val iterator = ids.iterator()
       while (iterator.hasNext) {
         val id = iterator.next()
-        val node = cluster.getNode(id)
+        val node = Cluster.getNode(id)
 
         if (!nodeMatches(node))
           iterator.remove()
@@ -116,7 +116,7 @@ object Expr {
 
       val values = new util.HashMap[Value, util.List[String]]()
       for (id <- ids) {
-        val node: Node = cluster.getNode(id)
+        val node: Node = Cluster.getNode(id)
 
         if (node != null) {
           val value = new Value(node)
