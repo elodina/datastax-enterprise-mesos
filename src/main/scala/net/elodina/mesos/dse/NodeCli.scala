@@ -247,26 +247,25 @@ object NodeCli {
   }
 
   private def printNode(node: Node, indent: Int = 0) {
-    printLine("node:", indent)
-    printLine(s"id: ${node.id}", indent + 1)
-    printLine(s"state: ${node.state}", indent + 1)
-    printLine(s"ring: ${node.ring.id}", indent + 1)
+    printLine(s"id: ${node.id}", indent)
+    printLine(s"state: ${node.state}", indent)
+    printLine(s"ring: ${node.ring.id}", indent)
 
-    printLine(s"cpu: ${node.cpu}", indent + 1)
-    printLine(s"mem: ${node.mem}", indent + 1)
+    printLine(s"cpu: ${node.cpu}", indent)
+    printLine(s"mem: ${node.mem}", indent)
 
-    if (node.broadcast != null) printLine(s"broadcast: ${node.broadcast}", indent + 1)
-    printLine(s"seed: ${node.seed}", indent + 1)
+    if (node.broadcast != null) printLine(s"broadcast: ${node.broadcast}", indent)
+    printLine(s"seed: ${node.seed}", indent)
 
-    if (node.replaceAddress != null) printLine(s"replace-address: ${node.replaceAddress}", indent + 1)
-    if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent + 1)
-    if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent + 1)
+    if (node.replaceAddress != null) printLine(s"replace-address: ${node.replaceAddress}", indent)
+    if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent)
+    if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent)
 
-    if (node.dataFileDirs != null) printLine(s"data file dirs: ${node.dataFileDirs}", indent + 1)
-    if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent + 1)
-    if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent + 1)
+    if (node.dataFileDirs != null) printLine(s"data file dirs: ${node.dataFileDirs}", indent)
+    if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent)
+    if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent)
 
-    if (node.runtime != null) printNodeRuntime(node.runtime, indent + 1)
+    if (node.runtime != null) printNodeRuntime(node.runtime, indent)
   }
 
   private def printNodeRuntime(runtime: Node.Runtime, indent: Int = 0) {
@@ -276,6 +275,6 @@ object NodeCli {
     printLine(s"slave id: ${runtime.slaveId}", indent + 1)
     printLine(s"hostname: ${runtime.hostname}", indent + 1)
     printLine(s"seeds: ${runtime.seeds.mkString(",")}", indent + 1)
-    printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
+    if (!runtime.attributes.isEmpty) printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
   }
 }
