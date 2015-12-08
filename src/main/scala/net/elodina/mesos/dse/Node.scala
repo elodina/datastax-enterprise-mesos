@@ -38,7 +38,6 @@ class Node extends Constrained {
   var mem: Long = 512
 
   var broadcast: String = null
-  var clusterName: String = null
   var seed: Boolean = false
   var replaceAddress: String = null
 
@@ -175,7 +174,6 @@ class Node extends Constrained {
     mem = json("mem").asInstanceOf[Number].longValue()
 
     if (json.contains("broadcast")) broadcast = json("broadcast").asInstanceOf[String]
-    if (json.contains("clusterName")) clusterName = json("clusterName").asInstanceOf[String]
     seed = json("seed").asInstanceOf[Boolean]
     if (json.contains("replaceAddress")) replaceAddress = json("replaceAddress").asInstanceOf[String]
 
@@ -202,7 +200,6 @@ class Node extends Constrained {
     json("mem") = mem
 
     if (broadcast != null) json("broadcast") = broadcast
-    if (clusterName != null) json("clusterName") = clusterName
     json("seed") = seed
     if (replaceAddress != null) json("replaceAddress") = replaceAddress
 

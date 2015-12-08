@@ -95,7 +95,6 @@ object NodeCli {
     parser.accepts("constraints", "Constraints (hostname=like:^master$,rack=like:^1.*$).").withRequiredArg().ofType(classOf[String])
     parser.accepts("seed-constraints", "Seed node constraints. Will be evaluated only across seed nodes.").withRequiredArg().ofType(classOf[String])
 
-    parser.accepts("cluster-name", "The name of the cluster.").withRequiredArg().ofType(classOf[String])
     parser.accepts("seed", "Flags whether this Datastax Node is a seed node.").withRequiredArg().ofType(classOf[java.lang.Boolean])
     parser.accepts("replace-address", "Replace address for the dead Datastax Node").withRequiredArg().ofType(classOf[String])
 
@@ -133,7 +132,6 @@ object NodeCli {
     val nodeOut = options.valueOf("node-out").asInstanceOf[String]
     val agentOut = options.valueOf("agent-out").asInstanceOf[String]
 
-    val clusterName = options.valueOf("cluster-name").asInstanceOf[String]
     val seed = options.valueOf("seed").asInstanceOf[java.lang.Boolean]
     val replaceAddress = options.valueOf("replace-address").asInstanceOf[String]
 
@@ -155,7 +153,6 @@ object NodeCli {
     if (nodeOut != null) params("nodeOut") = nodeOut
     if (agentOut != null) params("agentOut") = agentOut
 
-    if (clusterName != null) params("clusterName") = clusterName
     if (seed != null) params("seed") = "" + seed
     if (replaceAddress != null) params("replaceAddress") = replaceAddress
 
@@ -261,7 +258,6 @@ object NodeCli {
     printLine(s"mem: ${node.mem}", indent + 1)
 
     if (node.broadcast != null) printLine(s"broadcast: ${node.broadcast}", indent + 1)
-    if (node.clusterName != null) printLine(s"cluster name: ${node.clusterName}", indent + 1)
     printLine(s"seed: ${node.seed}", indent + 1)
 
     if (node.replaceAddress != null) printLine(s"replace-address: ${node.replaceAddress}", indent + 1)
