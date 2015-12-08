@@ -44,11 +44,11 @@ object RingCli {
 
     cmd match {
       case null =>
-        printLine("Ring management commands\nUsage: ring <command>\n")
+        printLine("Ring management commands\nUsage: ring <cmd>\n")
         printCmds()
 
         printLine()
-        printLine("Run `help ring <command>` to see details of specific command")
+        printLine("Run `help ring <cmd>` to see details of specific command")
       case "list" => handleList(help = true)
       case "add" | "update" => handleAddUpdate(cmd, null, null, help = true)
       case "remove" => handleRemove(null, help = true)
@@ -59,6 +59,7 @@ object RingCli {
   def handleList(help: Boolean = false): Unit = {
     if (help) {
       printLine("List rings\nUsage: ring list\n")
+      Cli.handleGenericOptions(null, help = true)
       return
     }
 
@@ -81,7 +82,7 @@ object RingCli {
     parser.accepts("name", "Ring name.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
-      printLine(s"${cmd.capitalize} ring \nUsage: $cmd <id> [options]\n")
+      printLine(s"${cmd.capitalize} ring \nUsage: ring $cmd <id> [options]\n")
       parser.printHelpOn(out)
 
       printLine()
@@ -118,8 +119,7 @@ object RingCli {
 
   def handleRemove(id: String, help: Boolean = false): Unit = {
     if (help) {
-      printLine(s"Remove ring \nUsage: remove <id>\n")
-      printLine()
+      printLine(s"Remove ring \nUsage: ring remove <id>\n")
       Cli.handleGenericOptions(null, help = true)
       return
     }

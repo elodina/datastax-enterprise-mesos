@@ -45,11 +45,11 @@ object NodeCli {
 
     cmd match {
       case null =>
-        printLine("Node management commands\nUsage: node <command>\n")
+        printLine("Node management commands\nUsage: node <cmd>\n")
         printCmds()
 
         printLine()
-        printLine("Run `help node <command>` to see details of specific command")
+        printLine("Run `help node <cmd>` to see details of specific command")
       case "list" =>
         handleList(help = true)
       case "add" | "update" =>
@@ -66,6 +66,7 @@ object NodeCli {
   def handleList(help: Boolean = false): Unit = {
     if (help) {
       printLine("List nodes\nUsage: node list\n")
+      Cli.handleGenericOptions(null, help = true)
       return
     }
 
@@ -86,7 +87,7 @@ object NodeCli {
   def handleAddUpdate(cmd: String, expr: String, args: Array[String], help: Boolean = false): Unit = {
     val parser = new OptionParser()
 
-    parser.accepts("ring", "Ring id").withRequiredArg().ofType(classOf[String])
+    parser.accepts("ring", "Ring to which node belongs to.").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("cpu", "CPU amount (0.5, 1, 2).").withRequiredArg().ofType(classOf[java.lang.Double])
     parser.accepts("mem", "Mem amount in Mb.").withRequiredArg().ofType(classOf[java.lang.Long])
@@ -95,15 +96,15 @@ object NodeCli {
     parser.accepts("constraints", "Constraints (hostname=like:^master$,rack=like:^1.*$).").withRequiredArg().ofType(classOf[String])
     parser.accepts("seed-constraints", "Seed node constraints. Will be evaluated only across seed nodes.").withRequiredArg().ofType(classOf[String])
 
-    parser.accepts("seed", "Flags whether this Datastax Node is a seed node.").withRequiredArg().ofType(classOf[java.lang.Boolean])
-    parser.accepts("replace-address", "Replace address for the dead Datastax Node").withRequiredArg().ofType(classOf[String])
+    parser.accepts("seed", "Flags whether this node is a seed node.").withRequiredArg().ofType(classOf[java.lang.Boolean])
+    parser.accepts("replace-address", "Replace address for the dead node.").withRequiredArg().ofType(classOf[String])
 
-    parser.accepts("data-file-dirs", "Cassandra data file directories separated by comma. Defaults to sandbox if not set").withRequiredArg().ofType(classOf[String])
-    parser.accepts("commit-log-dir", "Cassandra commit log dir. Defaults to sandbox if not set").withRequiredArg().ofType(classOf[String])
-    parser.accepts("saved-caches-dir", "Cassandra saved caches dir. Defaults to sandbox if not set").withRequiredArg().ofType(classOf[String])
+    parser.accepts("data-file-dirs", "Cassandra data file directories separated by comma. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("commit-log-dir", "Cassandra commit log dir. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("saved-caches-dir", "Cassandra saved caches dir. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
-      printLine(s"${cmd.capitalize} node \nUsage: $cmd <id> [options]\n")
+      printLine(s"${cmd.capitalize} node \nUsage: node $cmd <id> [options]\n")
       parser.printHelpOn(out)
 
       printLine()
@@ -177,8 +178,7 @@ object NodeCli {
 
   def handleRemove(expr: String, help: Boolean = false): Unit = {
     if (help) {
-      printLine("Remove node \nUsage: remove <id>\n")
-      printLine()
+      printLine("Remove node \nUsage: node remove <id>\n")
       Cli.handleGenericOptions(null, help = true)
       return
     }
@@ -194,7 +194,7 @@ object NodeCli {
     parser.accepts("timeout", "Time to wait until node starts. Should be a parsable Scala Duration value. Defaults to 2m.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
-      printLine(s"${cmd.capitalize} node \nUsage: $cmd <id> [options]\n")
+      printLine(s"${cmd.capitalize} node \nUsage: node $cmd <id> [options]\n")
       parser.printHelpOn(out)
 
       printLine()

@@ -15,8 +15,8 @@ object SchedulerCli {
     parser.accepts("principal", "Principal (username) used to register framework.").withRequiredArg().ofType(classOf[String])
     parser.accepts("secret", "Secret (password) used to register framework.").withRequiredArg().ofType(classOf[String])
 
-    parser.accepts("framework-name", "Framework name. Defaults to dse").withRequiredArg().ofType(classOf[String])
-    parser.accepts("framework-role", "Framework role. Defaults to *").withRequiredArg().ofType(classOf[String])
+    parser.accepts("framework-name", "Framework name. Defaults to dse.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("framework-role", "Framework role. Defaults to *.").withRequiredArg().ofType(classOf[String])
     parser.accepts("framework-timeout", "Framework failover timeout. Defaults to 30 days.").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("storage", "Storage for cluster state. Examples: file:dse-mesos.json; zk:master:2181/dse-mesos.").withRequiredArg().ofType(classOf[String])

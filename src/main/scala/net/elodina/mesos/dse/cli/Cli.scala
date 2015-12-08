@@ -42,7 +42,7 @@ object Cli {
 
     cmd match {
       case null =>
-        printLine("Usage: <cmd>\n")
+        printLine("Usage: <cmd> ...\n")
         printCmds()
 
         printLine()
