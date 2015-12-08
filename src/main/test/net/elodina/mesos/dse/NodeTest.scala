@@ -20,6 +20,9 @@ class NodeTest {
     node.seed = true
     node.replaceAddress = "127.0.0.2"
 
+    node.rack = "r"
+    node.dc = "d"
+
     node.constraints ++= Constraint.parse("hostname=like:master")
     node.seedConstraints ++= Constraint.parse("hostname=like:master")
 
@@ -50,6 +53,9 @@ class NodeTest {
 
     assertEquals(expected.seed, actual.seed)
     assertEquals(expected.replaceAddress, actual.replaceAddress)
+
+    assertEquals(expected.rack, actual.rack)
+    assertEquals(expected.dc, actual.dc)
 
     assertEquals(expected.constraints, actual.constraints)
     assertEquals(expected.seedConstraints, actual.seedConstraints)

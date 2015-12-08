@@ -41,6 +41,9 @@ class Node extends Constrained {
   var seed: Boolean = false
   var replaceAddress: String = null
 
+  var rack: String = "default"
+  var dc: String = "default"
+
   var constraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
   var seedConstraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
 
@@ -177,6 +180,9 @@ class Node extends Constrained {
     seed = json("seed").asInstanceOf[Boolean]
     if (json.contains("replaceAddress")) replaceAddress = json("replaceAddress").asInstanceOf[String]
 
+    rack = json("rack").asInstanceOf[String]
+    dc = json("dc").asInstanceOf[String]
+
     constraints.clear()
     if (json.contains("constraints")) constraints ++= Constraint.parse(json("constraints").asInstanceOf[String])
 
@@ -202,6 +208,9 @@ class Node extends Constrained {
     if (broadcast != null) json("broadcast") = broadcast
     json("seed") = seed
     if (replaceAddress != null) json("replaceAddress") = replaceAddress
+
+    json("rack") = rack
+    json("dc") = dc
 
     if (!constraints.isEmpty) json("constraints") = Util.formatConstraints(constraints)
     if (!seedConstraints.isEmpty) json("seedConstraints") = Util.formatConstraints(seedConstraints)

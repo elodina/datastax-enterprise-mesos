@@ -91,6 +91,9 @@ object NodeCli {
     parser.accepts("mem", "Mem amount in Mb.").withRequiredArg().ofType(classOf[java.lang.Long])
     parser.accepts("broadcast", "Network interface to broadcast for nodes.").withRequiredArg().ofType(classOf[String])
 
+    parser.accepts("rack", "Node rack.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("dc", "Node dc.").withRequiredArg().ofType(classOf[String])
+
     parser.accepts("constraints", "Constraints (hostname=like:^master$,rack=like:^1.*$).").withRequiredArg().ofType(classOf[String])
     parser.accepts("seed-constraints", "Seed node constraints. Will be evaluated only across seed nodes.").withRequiredArg().ofType(classOf[String])
 
@@ -125,6 +128,9 @@ object NodeCli {
     val mem = options.valueOf("mem").asInstanceOf[java.lang.Long]
     val broadcast = options.valueOf("broadcast").asInstanceOf[String]
 
+    val rack = options.valueOf("rack").asInstanceOf[String]
+    val dc = options.valueOf("dc").asInstanceOf[String]
+
     val constraints = options.valueOf("constraints").asInstanceOf[String]
     val seedConstraints = options.valueOf("seed-constraints").asInstanceOf[String]
 
@@ -145,6 +151,9 @@ object NodeCli {
     if (cpu != null) params("cpu") = "" + cpu
     if (mem != null) params("mem") = "" + mem
     if (broadcast != null) params("broadcast") = broadcast
+
+    if (rack != null) params("rack") = rack
+    if (dc != null) params("dc") = dc
 
     if (constraints != null) params("constraints") = constraints
     if (seedConstraints != null) params("seedConstraints") = seedConstraints
@@ -249,15 +258,14 @@ object NodeCli {
   private def printNode(node: Node, indent: Int = 0) {
     printLine(s"id: ${node.id}", indent)
     printLine(s"state: ${node.state}", indent)
-    printLine(s"ring: ${node.ring.id}", indent)
 
-    printLine(s"cpu: ${node.cpu}", indent)
-    printLine(s"mem: ${node.mem}", indent)
+    printLine(s"topology: ${nodeTopology(node)}", indent)
+    printLine(s"resources: ${nodeResources(node)}", indent)
 
     if (node.broadcast != null) printLine(s"broadcast: ${node.broadcast}", indent)
     printLine(s"seed: ${node.seed}", indent)
-
     if (node.replaceAddress != null) printLine(s"replace-address: ${node.replaceAddress}", indent)
+
     if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent)
     if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent)
 
@@ -276,5 +284,20 @@ object NodeCli {
     printLine(s"hostname: ${runtime.hostname}", indent + 1)
     printLine(s"seeds: ${runtime.seeds.mkString(",")}", indent + 1)
     if (!runtime.attributes.isEmpty) printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
+  }
+
+  private def nodeTopology(node: Node): String = {
+    var s = ""
+    s += s"ring:${node.ring.id}"
+    s += s", dc:${node.dc}"
+    s += s", rack:${node.rack}"
+    s
+  }
+
+  private def nodeResources(node: Node): String = {
+    var s = ""
+    s += s"cpu:${node.cpu}"
+    s += s", mem:${node.mem}"
+    s
   }
 }
