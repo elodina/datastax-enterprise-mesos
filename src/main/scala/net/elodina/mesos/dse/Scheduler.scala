@@ -168,7 +168,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
               case Some(declineReason) => Some(s"node ${node.id}: $declineReason")
               case None =>
                 launchTask(node, offer)
-                null
+                ""
             }
           }.mkString(", ")
 
