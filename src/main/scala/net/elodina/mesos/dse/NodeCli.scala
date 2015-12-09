@@ -99,6 +99,7 @@ object NodeCli {
 
     parser.accepts("seed", "Flags whether this node is a seed node.").withRequiredArg().ofType(classOf[java.lang.Boolean])
     parser.accepts("replace-address", "Replace address for the dead node.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("jvm-options", "JVM options for node executor.").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("data-file-dirs", "Cassandra data file directories separated by comma. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
     parser.accepts("commit-log-dir", "Cassandra commit log dir. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
@@ -139,6 +140,7 @@ object NodeCli {
 
     val seed = options.valueOf("seed").asInstanceOf[java.lang.Boolean]
     val replaceAddress = options.valueOf("replace-address").asInstanceOf[String]
+    val jvmOptions = options.valueOf("jvm-options").asInstanceOf[String]
 
     val dataFileDirs = options.valueOf("data-file-dirs").asInstanceOf[String]
     val commitLogDir = options.valueOf("commit-log-dir").asInstanceOf[String]
@@ -163,6 +165,7 @@ object NodeCli {
 
     if (seed != null) params("seed") = "" + seed
     if (replaceAddress != null) params("replaceAddress") = replaceAddress
+    if (jvmOptions != null) params("jvmOptions") = jvmOptions
 
     if (dataFileDirs != null) params("dataFileDirs") = dataFileDirs
     if (commitLogDir != null) params("commitLogDir") = commitLogDir
@@ -265,6 +268,7 @@ object NodeCli {
     if (node.broadcast != null) printLine(s"broadcast: ${node.broadcast}", indent)
     printLine(s"seed: ${node.seed}", indent)
     if (node.replaceAddress != null) printLine(s"replace-address: ${node.replaceAddress}", indent)
+    if (node.jvmOptions != null) printLine(s"jvm-options: ${node.jvmOptions}", indent)
 
     if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent)
     if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent)

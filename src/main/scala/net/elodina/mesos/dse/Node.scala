@@ -40,6 +40,7 @@ class Node extends Constrained {
   var broadcast: String = null
   var seed: Boolean = false
   var replaceAddress: String = null
+  var jvmOptions: String = null
 
   var rack: String = "default"
   var dc: String = "default"
@@ -145,9 +146,14 @@ class Node extends Constrained {
       java = "$(find jre* -maxdepth 0 -type d)/bin/java"
     }
 
+    var cmd: String = s"$java -cp ${Config.jar.getName}"
+    if (jvmOptions != null) cmd += " " + jvmOptions
+    if (Config.debug) cmd += " -Ddebug"
+    cmd += " net.elodina.mesos.dse.Executor"
+
     commandBuilder
-      .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/jar/" + Config.jar.getName))
-      .setValue(s"$java -cp ${Config.jar.getName}${if (Config.debug) " -Ddebug" else ""} net.elodina.mesos.dse.Executor")
+      .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/jar/" + Config.jar.getName).setExtract(false))
+      .setValue(cmd)
 
     ExecutorInfo.newBuilder()
       .setExecutorId(ExecutorID.newBuilder().setValue(id))
@@ -179,6 +185,7 @@ class Node extends Constrained {
     if (json.contains("broadcast")) broadcast = json("broadcast").asInstanceOf[String]
     seed = json("seed").asInstanceOf[Boolean]
     if (json.contains("replaceAddress")) replaceAddress = json("replaceAddress").asInstanceOf[String]
+    if (json.contains("jvmOptions")) jvmOptions = json("jvmOptions").asInstanceOf[String]
 
     rack = json("rack").asInstanceOf[String]
     dc = json("dc").asInstanceOf[String]
@@ -208,6 +215,7 @@ class Node extends Constrained {
     if (broadcast != null) json("broadcast") = broadcast
     json("seed") = seed
     if (replaceAddress != null) json("replaceAddress") = replaceAddress
+    if (jvmOptions != null) json("jvmOptions") = jvmOptions
 
     json("rack") = rack
     json("dc") = dc

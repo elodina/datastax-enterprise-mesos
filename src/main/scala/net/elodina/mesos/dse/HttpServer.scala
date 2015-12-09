@@ -175,6 +175,7 @@ object HttpServer {
       var seed: java.lang.Boolean = null
       if (request.getParameter("seed") != null) seed = "true" == request.getParameter("seed")
       val replaceAddress: String = request.getParameter("replaceAddress")
+      val jvmOptions: String = request.getParameter("jvmOptions")
 
       val dataFileDirs = request.getParameter("dataFileDirs")
       val commitLogDir = request.getParameter("commitLogDir")
@@ -212,6 +213,7 @@ object HttpServer {
 
         if (seed != null) node.seed = seed
         if (replaceAddress != null) node.replaceAddress = if (replaceAddress != "") replaceAddress else null
+        if (jvmOptions != null) node.jvmOptions = if (jvmOptions != "") jvmOptions else null
 
         if (dataFileDirs != null) node.dataFileDirs = if (dataFileDirs != "") dataFileDirs else null
         if (commitLogDir != null) node.commitLogDir = if (commitLogDir != "") commitLogDir else null

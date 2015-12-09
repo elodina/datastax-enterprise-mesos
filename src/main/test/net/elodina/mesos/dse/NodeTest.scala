@@ -19,6 +19,7 @@ class NodeTest {
 
     node.seed = true
     node.replaceAddress = "127.0.0.2"
+    node.jvmOptions = "options"
 
     node.rack = "r"
     node.dc = "d"
@@ -53,6 +54,7 @@ class NodeTest {
 
     assertEquals(expected.seed, actual.seed)
     assertEquals(expected.replaceAddress, actual.replaceAddress)
+    assertEquals(expected.jvmOptions, actual.jvmOptions)
 
     assertEquals(expected.rack, actual.rack)
     assertEquals(expected.dc, actual.dc)
