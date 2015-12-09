@@ -135,8 +135,10 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   override def nodes: Traversable[Node] = Cluster.getNodes
 
   private def onResourceOffers(offers: List[Offer]) {
-    offers.foreach { offer =>
-      acceptOffer(offer).foreach { declineReason =>
+    for (offer <- offers) {
+      val declineReason = acceptOffer(offer)
+
+      if (declineReason != null) {
         driver.declineOffer(offer.getId)
         logger.info(s"Declined offer ${Str.offer(offer)}:\n  $declineReason")
       }
@@ -146,12 +148,12 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     Cluster.save()
   }
 
-  private def acceptOffer(offer: Offer): Option[String] = {
+  private def acceptOffer(offer: Offer): String = {
     Cluster.getNodes.filter(_.state == Node.State.Stopped).toList.sortBy(_.id.toInt) match {
-      case Nil => Some("all nodes are running")
+      case Nil => "all nodes are running"
       case nodes =>
         if (Cluster.getNodes.exists(node => node.state == Node.State.Staging || node.state == Node.State.Starting))
-          Some("should wait until other nodes are started")
+          "should wait until other nodes are started"
         else {
           // Consider starting seeds first
           val filteredNodes = nodes.filter(_.seed) match {
@@ -162,15 +164,15 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
           }
 
           val reason = filteredNodes.flatMap { node =>
-            checkSeedConstraints(offer, node).orElse(checkConstraints(offer, node)).orElse(node.matches(offer)) match {
+            checkSeedConstraints(offer, node).orElse(checkConstraints(offer, node)).orElse(Option(node.matches(offer))) match {
               case Some(declineReason) => Some(s"node ${node.id}: $declineReason")
               case None =>
                 launchTask(node, offer)
-                None
+                null
             }
           }.mkString(", ")
 
-          if (reason.isEmpty) None else Some(reason)
+          if (reason.isEmpty) null else reason
         }
     }
   }

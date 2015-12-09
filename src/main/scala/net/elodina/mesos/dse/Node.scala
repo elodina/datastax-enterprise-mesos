@@ -75,17 +75,17 @@ class Node extends Constrained {
     else Some(runtime.attributes(name))
   }
 
-  def matches(offer: Offer): Option[String] = {
+  def matches(offer: Offer): String = {
     val offerResources = offer.getResourcesList.toList.map(res => res.getName -> res).toMap
 
     offerResources.get("cpus") match {
-      case Some(cpusResource) => if (cpusResource.getScalar.getValue < cpu) return Some(s"cpus ${cpusResource.getScalar.getValue} < $cpu")
-      case None => return Some("no cpus")
+      case Some(cpusResource) => if (cpusResource.getScalar.getValue < cpu) return s"cpus ${cpusResource.getScalar.getValue} < $cpu"
+      case None => return "no cpus"
     }
 
     offerResources.get("mem") match {
-      case Some(memResource) => if (memResource.getScalar.getValue.toLong < mem) return Some(s"mem ${memResource.getScalar.getValue.toLong} < $mem")
-      case None => return Some("no mem")
+      case Some(memResource) => if (memResource.getScalar.getValue.toLong < mem) return s"mem ${memResource.getScalar.getValue.toLong} < $mem"
+      case None => return "no mem"
     }
 
     offerResources.get("ports") match {
@@ -96,15 +96,15 @@ class Node extends Constrained {
           .map(r => Range.inclusive(r.getBegin.toInt, r.getEnd.toInt))
           .sortBy(_.start)
 
-        for (port <- ports) {
-          if (!ranges.exists(r => r contains port._2)) {
-            return Some(s"unavailable port $port")
+        for (port <- ports.values.toSeq.sorted) {
+          if (!ranges.exists(r => r contains port)) {
+            return s"unavailable port $port"
           }
         }
-      case None => return Some("no ports")
+      case None => return "no ports"
     }
 
-    None
+    null
   }
 
   def ports: Map[String, Int] =
@@ -169,6 +169,7 @@ class Node extends Constrained {
 
   def waitFor(state: Node.State.Value, timeout: Duration): Boolean = {
     var t = timeout.toMillis
+
     while (t > 0 && this.state != state) {
       val delay = Math.min(100, t)
       Thread.sleep(delay)
