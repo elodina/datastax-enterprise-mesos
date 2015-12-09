@@ -27,6 +27,7 @@ import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.parsing.json.{JSONArray, JSONObject}
+import scala.collection.mutable.ListBuffer
 
 class Node extends Constrained {
   var id: String = null
@@ -115,28 +116,32 @@ class Node extends Constrained {
       DSEProcess.RPC_PORT -> rpcPort
     )
 
-  def createTaskInfo(taskId: String, execId: String, offer: Offer): TaskInfo = {
-    TaskInfo.newBuilder().setName(taskId).setTaskId(TaskID.newBuilder().setValue(taskId).build()).setSlaveId(offer.getSlaveId)
-      .setExecutor(createExecutorInfo(execId))
+  private[dse] def newTask(): TaskInfo = {
+    if (runtime == null) throw new IllegalStateException("runtime == null")
+
+    val builder: TaskInfo.Builder = TaskInfo.newBuilder()
+      .setName(runtime.taskId)
+      .setTaskId(TaskID.newBuilder().setValue(runtime.taskId).build())
+      .setSlaveId(SlaveID.newBuilder().setValue(runtime.slaveId))
+      .setExecutor(newExecutor())
       .setData(ByteString.copyFromUtf8("" + toJson(expanded = true)))
-      .addResources(Protos.Resource.newBuilder().setName("cpus").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.cpu)))
-      .addResources(Protos.Resource.newBuilder().setName("mem").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.mem)))
-      .addResources(
-        Protos.Resource.newBuilder()
-          .setName("ports")
-          .setType(Protos.Value.Type.RANGES)
-          .setRanges(
-            Protos.Value.Ranges.newBuilder()
-              .addAllRange(
-                ports.values.toSeq.map { port => Protos.Value.Range.newBuilder().setBegin(port.toLong).setEnd(port.toLong).build()}
-              )
-              .build()
-          )
-      )
-      .build()
+
+    // resources
+    val cpus: Resource = Protos.Resource.newBuilder().setName("cpus").setRole("*").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.cpu)).build()
+    val mem: Resource = Protos.Resource.newBuilder().setName("mem").setRole("*").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.mem)).build()
+
+    val ports = new ListBuffer[Resource]
+    for (port <- this.ports.values.toSeq.sorted) {
+      val range = Protos.Value.Ranges.newBuilder().addRange(Protos.Value.Range.newBuilder().setBegin(port.toLong).setEnd(port.toLong).build())
+      ports += Protos.Resource.newBuilder().setName("ports").setRole("*").setType(Protos.Value.Type.RANGES).setRanges(range).build()
+    }
+
+    builder.addAllResources(List(cpus, mem) ++ ports).build()
   }
 
-  private def createExecutorInfo(id: String): ExecutorInfo = {
+  private[dse] def newExecutor(): ExecutorInfo = {
+    if (runtime == null) throw new IllegalStateException("runtime == null")
+
     var java = "java"
     val commandBuilder = CommandInfo.newBuilder()
       .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/dse/" + Config.dse.getName))
@@ -156,9 +161,9 @@ class Node extends Constrained {
       .setValue(cmd)
 
     ExecutorInfo.newBuilder()
-      .setExecutorId(ExecutorID.newBuilder().setValue(id))
+      .setExecutorId(ExecutorID.newBuilder().setValue(runtime.executorId))
       .setCommand(commandBuilder)
-      .setName(id)
+      .setName(runtime.executorId)
       .build
   }
 
@@ -284,6 +289,20 @@ object Node {
         taskId, execId, offer.getSlaveId.getValue, offer.getHostname, seeds,
         offer.getAttributesList.toList.filter(_.hasText).map(attr => attr.getName -> attr.getText.getValue).toMap
       )
+    }
+
+    def this(node: Node, offer: Offer) = {
+      this(null, null, null, offer)
+
+      seeds = node.ring.availSeeds
+      if (seeds.isEmpty) {
+        Scheduler.logger.info(s"No seed nodes available in ring ${node.ring.id}. Forcing seed==true for node ${node.id}")
+        node.seed = true
+        seeds = List(offer.getHostname)
+      }
+
+      taskId = "node-" + node.id + "-" + System.currentTimeMillis()
+      executorId = "node-" + node.id + "-" + System.currentTimeMillis()
     }
 
     def this(json: Map[String, Any]) = {

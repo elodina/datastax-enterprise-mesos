@@ -2,8 +2,52 @@ package net.elodina.mesos.dse
 
 import org.junit.Test
 import org.junit.Assert._
+import org.apache.mesos.Protos.{TaskInfo, CommandInfo, ExecutorInfo}
 
-class NodeTest {
+class NodeTest extends MesosTestCase{
+  @Test
+  def newTask {
+    val node = new Node("0")
+    node.cpu = 0.1
+    node.mem = 500
+
+    node.storagePort = 0
+    node.sslStoragePort = 1
+    node.jmxPort = 2
+    node.nativeTransportPort = 3
+    node.rpcPort = 4
+
+    node.runtime = new Node.Runtime(node, offer())
+
+    val task: TaskInfo = node.newTask()
+    assertEquals(node.runtime.taskId, task.getTaskId.getValue)
+    assertEquals(node.runtime.taskId, task.getName)
+    assertEquals(node.runtime.slaveId, task.getSlaveId.getValue)
+
+    val data: String = task.getData.toStringUtf8
+    val read: Node = new Node(Util.parseJsonAsMap(data), expanded = true)
+    assertEquals(node, read)
+
+    assertEquals(resources("cpus:0.1; mem:500; ports:0..0; ports:1..1; ports:2..2; ports:3..3; ports:4..4"), task.getResourcesList)
+  }
+
+  @Test
+  def newExecutor {
+    val node = new Node("0")
+    node.runtime = new Node.Runtime(node, offer())
+
+    val executor: ExecutorInfo = node.newExecutor()
+    assertEquals(node.runtime.executorId, executor.getExecutorId.getValue)
+    assertEquals(node.runtime.executorId, executor.getName)
+
+    val command: CommandInfo = executor.getCommand
+
+    val cmd: String = command.getValue
+    assertTrue(cmd, cmd.contains("java"))
+    assertTrue(cmd, cmd.contains(Config.jar.getName))
+    assertTrue(cmd, cmd.contains(Executor.getClass.getName.replace("$", "")))
+  }
+
   @Test
   def toJSON_fromJSON {
     val node: Node = new Node("1")
