@@ -13,6 +13,15 @@ repositories {
     }
 }
 
+sourceSets {
+    main {
+        scala { srcDirs = ['src/main/scala'] }
+    }
+    test {
+        scala { srcDirs = ['src/main/test'] }
+    }
+}
+
 dependencies {
     compile "org.scala-lang:scala-library:2.10.6"
     compile "org.apache.mesos:mesos:0.25.0"
