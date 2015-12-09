@@ -29,6 +29,7 @@ import java.util
 import org.junit.{Ignore, After, Before}
 import org.apache.log4j.BasicConfigurator
 import com.google.protobuf.ByteString
+import java.io.File
 
 @Ignore
 class MesosTestCase {
@@ -44,12 +45,20 @@ class MesosTestCase {
     Scheduler.registered(schedulerDriver, frameworkId(), master())
 
     executorDriver = new TestExecutorDriver()
+
+    Config.api = "http://localhost:7000"
+    Config.dse = new File("dse.tar.gz")
+    Config.jar = new File("dse-mesos.jar")
   }
 
   @After
   def after {
     Scheduler.disconnected(schedulerDriver)
     BasicConfigurator.resetConfiguration()
+
+    Config.api = null
+    Config.dse = null
+    Config.jar = null
   }
 
   val LOCALHOST_IP: Int = 2130706433
@@ -111,7 +120,7 @@ class MesosTestCase {
       .map(r => Value.Range.newBuilder().setBegin(r.start).setEnd(r.end).build())
   }
 
-  // parses resources definition like: cpus:0.5, cpus(kafka):0.3, mem:128, ports(kafka):1000..2000
+  // parses resources definition like: cpus:0.5; cpus(kafka):0.3; mem:128; ports(kafka):1000..2000
   // Must parse the following
   // disk:73390
   // disk(*):73390

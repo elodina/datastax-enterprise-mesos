@@ -94,9 +94,8 @@ First lets start 1 Cassandra node with the default settings. Further you will se
 node added:
   id: 0
   state: Inactive
-  ring: default
-  cpu: 0.5
-  mem: 512
+  topology: ring: default, dc:default, rack:default
+  resources: cpu:0.5, mem:512
   seed: false
 ```
     
@@ -107,9 +106,8 @@ You now have a cluster with 1 Cassandra node that is not started.
 node:
   id: 0
   state: Inactive
-  ring: default
-  cpu: 0.5
-  mem: 512
+  topology: ring: default, dc:default, rack:default
+  resources: cpu:0.5, mem:512
   seed: false
 ```
 
@@ -120,9 +118,8 @@ Now lets start the task. This call to CLI will block until the task is actually 
 node started:
   id: 0
   state: Running
-  ring: default
-  cpu: 0.5
-  mem: 512
+  topology: ring: default, dc:default, rack:default
+  resources: cpu:0.5, mem:512
   seed: true
   runtime:
     task id: node-0-1449579588537
@@ -141,9 +138,8 @@ Here's how you stop it:
 node stopped:
   id: 0
   state: Inactive
-  ring: default
-  cpu: 0.5
-  mem: 512
+  topology: ring: default, dc:default, rack:default
+  resources: cpu:0.5, mem:512
   seed: true
 ```
 

@@ -18,7 +18,7 @@
 
 package net.elodina.mesos.dse
 
-import java.io.{File, FileNotFoundException, FileWriter, IOException}
+import java.io._
 import java.net.NetworkInterface
 import java.nio.file._
 import java.nio.file.attribute.PosixFileAttributeView
@@ -35,6 +35,7 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.io.Source
 import scala.language.postfixOps
+import java.util.Properties
 
 case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
@@ -52,6 +53,7 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     val workDir = new File(".")
     makeDseDirs(workDir)
     editCassandraYaml(new File(dseDir, DSEProcess.CASSANDRA_YAML_LOCATION))
+    editRackDcProps(new File(dseDir, DSEProcess.RACK_DC_LOCATION))
 
     process = startProcess(node, dseDir)
   }
@@ -163,12 +165,21 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
       cassandraYaml.put(DSEProcess.BROADCAST_ADDRESS_KEY, ip)
     }
 
+    cassandraYaml.put(DSEProcess.ENDPOINT_SNITCH_KEY, "GossipingPropertyFileSnitch")
+
     val writer = new FileWriter(file)
-    try {
-      yaml.dump(mapAsJavaMap(cassandraYaml), writer)
-    } finally {
-      writer.close()
-    }
+    try { yaml.dump(mapAsJavaMap(cassandraYaml), writer)}
+    finally { writer.close() }
+  }
+
+  private def editRackDcProps(file: File) {
+    val props = new Properties()
+    props.put("dc", node.dc)
+    props.put("rack", node.rack)
+
+    val writer = new FileWriter(file)
+    try { props.store(writer, "") }
+    finally { writer.close() }
   }
 
   private def getIP(networkInterface: String): String = {
@@ -210,6 +221,7 @@ object DSEProcess {
   final private val SAVED_CACHES_DIR = "dse-data/saved_caches"
 
   final private val CASSANDRA_YAML_LOCATION = "resources/cassandra/conf/cassandra.yaml"
+  final private val RACK_DC_LOCATION = "resources/cassandra/conf/cassandra-rackdc.properties"
 
   final private val DATA_FILE_DIRECTORIES_KEY = "data_file_directories"
   final private val COMMIT_LOG_DIRECTORY_KEY = "commitlog_directory"
@@ -223,6 +235,7 @@ object DSEProcess {
   final private val RPC_INTERFACE_KEY = "rpc_interface"
   final private val CLUSTER_NAME_KEY = "cluster_name"
   final private val BROADCAST_ADDRESS_KEY = "broadcast_address"
+  final private val ENDPOINT_SNITCH_KEY = "endpoint_snitch"
 
   final private val DSE_CMD = "bin/dse"
   final private[dse] val DSE_AGENT_CMD = "datastax-agent/bin/datastax-agent"

@@ -157,6 +157,8 @@ object HttpServer {
 
       val broadcast: String = request.getParameter("broadcast")
 
+      val rack: String = request.getParameter("rack")
+      val dc: String = request.getParameter("dc")
 
       var constraints: Map[String, List[Constraint]] = null
       if (request.getParameter("constraints") != null) {
@@ -173,6 +175,7 @@ object HttpServer {
       var seed: java.lang.Boolean = null
       if (request.getParameter("seed") != null) seed = "true" == request.getParameter("seed")
       val replaceAddress: String = request.getParameter("replaceAddress")
+      val jvmOptions: String = request.getParameter("jvmOptions")
 
       val dataFileDirs = request.getParameter("dataFileDirs")
       val commitLogDir = request.getParameter("commitLogDir")
@@ -196,6 +199,9 @@ object HttpServer {
         if (mem != null) node.mem = mem
         if (broadcast != null) node.broadcast = if (broadcast != "") broadcast else null
 
+        if (rack != null) node.rack = if (rack != "") rack else "default"
+        if (dc != null) node.dc = if (dc != "") dc else "default"
+
         if (constraints != null) {
           node.constraints.clear()
           node.constraints ++= constraints
@@ -207,6 +213,7 @@ object HttpServer {
 
         if (seed != null) node.seed = seed
         if (replaceAddress != null) node.replaceAddress = if (replaceAddress != "") replaceAddress else null
+        if (jvmOptions != null) node.jvmOptions = if (jvmOptions != "") jvmOptions else null
 
         if (dataFileDirs != null) node.dataFileDirs = if (dataFileDirs != "") dataFileDirs else null
         if (commitLogDir != null) node.commitLogDir = if (commitLogDir != "") commitLogDir else null

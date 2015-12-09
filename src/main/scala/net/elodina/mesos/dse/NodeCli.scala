@@ -3,7 +3,7 @@ package net.elodina.mesos.dse
 import java.io.IOException
 import joptsimple.{OptionException, OptionSet, OptionParser}
 import scala.collection.mutable
-import Cli.{out, printLine, handleGenericOptions}
+import Cli.{out, printLine, handleGenericOptions, Error}
 
 object NodeCli {
   def handle(_args: Array[String], help: Boolean = false): Unit = {
@@ -91,11 +91,15 @@ object NodeCli {
     parser.accepts("mem", "Mem amount in Mb.").withRequiredArg().ofType(classOf[java.lang.Long])
     parser.accepts("broadcast", "Network interface to broadcast for nodes.").withRequiredArg().ofType(classOf[String])
 
+    parser.accepts("rack", "Node rack.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("dc", "Node dc.").withRequiredArg().ofType(classOf[String])
+
     parser.accepts("constraints", "Constraints (hostname=like:^master$,rack=like:^1.*$).").withRequiredArg().ofType(classOf[String])
     parser.accepts("seed-constraints", "Seed node constraints. Will be evaluated only across seed nodes.").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("seed", "Flags whether this node is a seed node.").withRequiredArg().ofType(classOf[java.lang.Boolean])
     parser.accepts("replace-address", "Replace address for the dead node.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("jvm-options", "JVM options for node executor.").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("data-file-dirs", "Cassandra data file directories separated by comma. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
     parser.accepts("commit-log-dir", "Cassandra commit log dir. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
@@ -125,6 +129,9 @@ object NodeCli {
     val mem = options.valueOf("mem").asInstanceOf[java.lang.Long]
     val broadcast = options.valueOf("broadcast").asInstanceOf[String]
 
+    val rack = options.valueOf("rack").asInstanceOf[String]
+    val dc = options.valueOf("dc").asInstanceOf[String]
+
     val constraints = options.valueOf("constraints").asInstanceOf[String]
     val seedConstraints = options.valueOf("seed-constraints").asInstanceOf[String]
 
@@ -133,6 +140,7 @@ object NodeCli {
 
     val seed = options.valueOf("seed").asInstanceOf[java.lang.Boolean]
     val replaceAddress = options.valueOf("replace-address").asInstanceOf[String]
+    val jvmOptions = options.valueOf("jvm-options").asInstanceOf[String]
 
     val dataFileDirs = options.valueOf("data-file-dirs").asInstanceOf[String]
     val commitLogDir = options.valueOf("commit-log-dir").asInstanceOf[String]
@@ -146,6 +154,9 @@ object NodeCli {
     if (mem != null) params("mem") = "" + mem
     if (broadcast != null) params("broadcast") = broadcast
 
+    if (rack != null) params("rack") = rack
+    if (dc != null) params("dc") = dc
+
     if (constraints != null) params("constraints") = constraints
     if (seedConstraints != null) params("seedConstraints") = seedConstraints
 
@@ -154,6 +165,7 @@ object NodeCli {
 
     if (seed != null) params("seed") = "" + seed
     if (replaceAddress != null) params("replaceAddress") = replaceAddress
+    if (jvmOptions != null) params("jvmOptions") = jvmOptions
 
     if (dataFileDirs != null) params("dataFileDirs") = dataFileDirs
     if (commitLogDir != null) params("commitLogDir") = commitLogDir
@@ -249,15 +261,15 @@ object NodeCli {
   private def printNode(node: Node, indent: Int = 0) {
     printLine(s"id: ${node.id}", indent)
     printLine(s"state: ${node.state}", indent)
-    printLine(s"ring: ${node.ring.id}", indent)
 
-    printLine(s"cpu: ${node.cpu}", indent)
-    printLine(s"mem: ${node.mem}", indent)
+    printLine(s"topology: ${nodeTopology(node)}", indent)
+    printLine(s"resources: ${nodeResources(node)}", indent)
 
     if (node.broadcast != null) printLine(s"broadcast: ${node.broadcast}", indent)
     printLine(s"seed: ${node.seed}", indent)
-
     if (node.replaceAddress != null) printLine(s"replace-address: ${node.replaceAddress}", indent)
+    if (node.jvmOptions != null) printLine(s"jvm-options: ${node.jvmOptions}", indent)
+
     if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent)
     if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent)
 
@@ -276,5 +288,20 @@ object NodeCli {
     printLine(s"hostname: ${runtime.hostname}", indent + 1)
     printLine(s"seeds: ${runtime.seeds.mkString(",")}", indent + 1)
     if (!runtime.attributes.isEmpty) printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
+  }
+
+  private def nodeTopology(node: Node): String = {
+    var s = ""
+    s += s"ring:${node.ring.id}"
+    s += s", dc:${node.dc}"
+    s += s", rack:${node.rack}"
+    s
+  }
+
+  private def nodeResources(node: Node): String = {
+    var s = ""
+    s += s"cpu:${node.cpu}"
+    s += s", mem:${node.mem}"
+    s
   }
 }

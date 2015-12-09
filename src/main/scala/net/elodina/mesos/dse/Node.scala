@@ -27,6 +27,7 @@ import scala.collection.mutable
 import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.parsing.json.{JSONArray, JSONObject}
+import scala.collection.mutable.ListBuffer
 
 class Node extends Constrained {
   var id: String = null
@@ -40,6 +41,10 @@ class Node extends Constrained {
   var broadcast: String = null
   var seed: Boolean = false
   var replaceAddress: String = null
+  var jvmOptions: String = null
+
+  var rack: String = "default"
+  var dc: String = "default"
 
   var constraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
   var seedConstraints: mutable.Map[String, List[Constraint]] = new mutable.HashMap[String, List[Constraint]]
@@ -70,17 +75,17 @@ class Node extends Constrained {
     else Some(runtime.attributes(name))
   }
 
-  def matches(offer: Offer): Option[String] = {
+  def matches(offer: Offer): String = {
     val offerResources = offer.getResourcesList.toList.map(res => res.getName -> res).toMap
 
     offerResources.get("cpus") match {
-      case Some(cpusResource) => if (cpusResource.getScalar.getValue < cpu) return Some(s"cpus ${cpusResource.getScalar.getValue} < $cpu")
-      case None => return Some("no cpus")
+      case Some(cpusResource) => if (cpusResource.getScalar.getValue < cpu) return s"cpus ${cpusResource.getScalar.getValue} < $cpu"
+      case None => return "no cpus"
     }
 
     offerResources.get("mem") match {
-      case Some(memResource) => if (memResource.getScalar.getValue.toLong < mem) return Some(s"mem ${memResource.getScalar.getValue.toLong} < $mem")
-      case None => return Some("no mem")
+      case Some(memResource) => if (memResource.getScalar.getValue.toLong < mem) return s"mem ${memResource.getScalar.getValue.toLong} < $mem"
+      case None => return "no mem"
     }
 
     offerResources.get("ports") match {
@@ -91,15 +96,15 @@ class Node extends Constrained {
           .map(r => Range.inclusive(r.getBegin.toInt, r.getEnd.toInt))
           .sortBy(_.start)
 
-        for (port <- ports) {
-          if (!ranges.exists(r => r contains port._2)) {
-            return Some(s"unavailable port $port")
+        for (port <- ports.values.toSeq.sorted) {
+          if (!ranges.exists(r => r contains port)) {
+            return s"unavailable port $port"
           }
         }
-      case None => return Some("no ports")
+      case None => return "no ports"
     }
 
-    None
+    null
   }
 
   def ports: Map[String, Int] =
@@ -111,28 +116,32 @@ class Node extends Constrained {
       DSEProcess.RPC_PORT -> rpcPort
     )
 
-  def createTaskInfo(taskId: String, execId: String, offer: Offer): TaskInfo = {
-    TaskInfo.newBuilder().setName(taskId).setTaskId(TaskID.newBuilder().setValue(taskId).build()).setSlaveId(offer.getSlaveId)
-      .setExecutor(createExecutorInfo(execId))
+  private[dse] def newTask(): TaskInfo = {
+    if (runtime == null) throw new IllegalStateException("runtime == null")
+
+    val builder: TaskInfo.Builder = TaskInfo.newBuilder()
+      .setName(runtime.taskId)
+      .setTaskId(TaskID.newBuilder().setValue(runtime.taskId).build())
+      .setSlaveId(SlaveID.newBuilder().setValue(runtime.slaveId))
+      .setExecutor(newExecutor())
       .setData(ByteString.copyFromUtf8("" + toJson(expanded = true)))
-      .addResources(Protos.Resource.newBuilder().setName("cpus").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.cpu)))
-      .addResources(Protos.Resource.newBuilder().setName("mem").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.mem)))
-      .addResources(
-        Protos.Resource.newBuilder()
-          .setName("ports")
-          .setType(Protos.Value.Type.RANGES)
-          .setRanges(
-            Protos.Value.Ranges.newBuilder()
-              .addAllRange(
-                ports.values.toSeq.map { port => Protos.Value.Range.newBuilder().setBegin(port.toLong).setEnd(port.toLong).build()}
-              )
-              .build()
-          )
-      )
-      .build()
+
+    // resources
+    val cpus: Resource = Protos.Resource.newBuilder().setName("cpus").setRole("*").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.cpu)).build()
+    val mem: Resource = Protos.Resource.newBuilder().setName("mem").setRole("*").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.mem)).build()
+
+    val ports = new ListBuffer[Resource]
+    for (port <- this.ports.values.toSeq.sorted) {
+      val range = Protos.Value.Ranges.newBuilder().addRange(Protos.Value.Range.newBuilder().setBegin(port.toLong).setEnd(port.toLong).build())
+      ports += Protos.Resource.newBuilder().setName("ports").setRole("*").setType(Protos.Value.Type.RANGES).setRanges(range).build()
+    }
+
+    builder.addAllResources(List(cpus, mem) ++ ports).build()
   }
 
-  private def createExecutorInfo(id: String): ExecutorInfo = {
+  private[dse] def newExecutor(): ExecutorInfo = {
+    if (runtime == null) throw new IllegalStateException("runtime == null")
+
     var java = "java"
     val commandBuilder = CommandInfo.newBuilder()
       .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/dse/" + Config.dse.getName))
@@ -142,19 +151,25 @@ class Node extends Constrained {
       java = "$(find jre* -maxdepth 0 -type d)/bin/java"
     }
 
+    var cmd: String = s"$java -cp ${Config.jar.getName}"
+    if (jvmOptions != null) cmd += " " + jvmOptions
+    if (Config.debug) cmd += " -Ddebug"
+    cmd += " net.elodina.mesos.dse.Executor"
+
     commandBuilder
-      .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/jar/" + Config.jar.getName))
-      .setValue(s"$java -cp ${Config.jar.getName}${if (Config.debug) " -Ddebug" else ""} net.elodina.mesos.dse.Executor")
+      .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/jar/" + Config.jar.getName).setExtract(false))
+      .setValue(cmd)
 
     ExecutorInfo.newBuilder()
-      .setExecutorId(ExecutorID.newBuilder().setValue(id))
+      .setExecutorId(ExecutorID.newBuilder().setValue(runtime.executorId))
       .setCommand(commandBuilder)
-      .setName(id)
+      .setName(runtime.executorId)
       .build
   }
 
   def waitFor(state: Node.State.Value, timeout: Duration): Boolean = {
     var t = timeout.toMillis
+
     while (t > 0 && this.state != state) {
       val delay = Math.min(100, t)
       Thread.sleep(delay)
@@ -176,6 +191,10 @@ class Node extends Constrained {
     if (json.contains("broadcast")) broadcast = json("broadcast").asInstanceOf[String]
     seed = json("seed").asInstanceOf[Boolean]
     if (json.contains("replaceAddress")) replaceAddress = json("replaceAddress").asInstanceOf[String]
+    if (json.contains("jvmOptions")) jvmOptions = json("jvmOptions").asInstanceOf[String]
+
+    rack = json("rack").asInstanceOf[String]
+    dc = json("dc").asInstanceOf[String]
 
     constraints.clear()
     if (json.contains("constraints")) constraints ++= Constraint.parse(json("constraints").asInstanceOf[String])
@@ -202,6 +221,10 @@ class Node extends Constrained {
     if (broadcast != null) json("broadcast") = broadcast
     json("seed") = seed
     if (replaceAddress != null) json("replaceAddress") = replaceAddress
+    if (jvmOptions != null) json("jvmOptions") = jvmOptions
+
+    json("rack") = rack
+    json("dc") = dc
 
     if (!constraints.isEmpty) json("constraints") = Util.formatConstraints(constraints)
     if (!seedConstraints.isEmpty) json("seedConstraints") = Util.formatConstraints(seedConstraints)
@@ -267,6 +290,20 @@ object Node {
         taskId, execId, offer.getSlaveId.getValue, offer.getHostname, seeds,
         offer.getAttributesList.toList.filter(_.hasText).map(attr => attr.getName -> attr.getText.getValue).toMap
       )
+    }
+
+    def this(node: Node, offer: Offer) = {
+      this(null, null, null, offer)
+
+      seeds = node.ring.availSeeds
+      if (seeds.isEmpty) {
+        Scheduler.logger.info(s"No seed nodes available in ring ${node.ring.id}. Forcing seed==true for node ${node.id}")
+        node.seed = true
+        seeds = List(offer.getHostname)
+      }
+
+      taskId = "node-" + node.id + "-" + System.currentTimeMillis()
+      executorId = "node-" + node.id + "-" + System.currentTimeMillis()
     }
 
     def this(json: Map[String, Any]) = {
