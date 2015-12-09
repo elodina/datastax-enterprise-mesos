@@ -3,7 +3,7 @@ package net.elodina.mesos.dse
 import java.io.IOException
 import joptsimple.{OptionException, OptionSet, OptionParser}
 import scala.collection.mutable
-import Cli.{out, printLine, handleGenericOptions}
+import Cli.{out, printLine, handleGenericOptions, Error}
 
 object NodeCli {
   def handle(_args: Array[String], help: Boolean = false): Unit = {
