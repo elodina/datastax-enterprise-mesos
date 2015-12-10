@@ -2,7 +2,6 @@ package net.elodina.mesos.dse
 
 import org.junit.{Before, Test}
 import org.junit.Assert._
-import scala.util.parsing.json.JSONObject
 
 class RingTest {
   @Before
@@ -31,12 +30,34 @@ class RingTest {
   @Test
   def toJSON_fromJSON {
     val ring: Ring = new Ring("1")
+    var read = new Ring(ring.toJson.obj)
+    assertRingEquals(ring, read)
+
     ring.name = "name"
+    ring.storagePort = 0
+    ring.jmxPort = 1
+    ring.nativePort = 2
+    ring.rpcPort = 3
 
-    val json: JSONObject = ring.toJson
-    val read = new Ring(json.obj)
+    read = new Ring(ring.toJson.obj)
+    assertRingEquals(ring, read)
+  }
 
-    assertEquals(ring.id, read.id)
-    assertEquals(ring.name, read.name)
+  private def assertRingEquals(expected: Ring, actual: Ring) {
+    if (checkNulls(expected, actual)) return
+    assertEquals(expected.id, actual.id)
+    assertEquals(expected.name, actual.name)
+
+    assertEquals(expected.storagePort, actual.storagePort)
+    assertEquals(expected.jmxPort, actual.jmxPort)
+    assertEquals(expected.nativePort, actual.nativePort)
+    assertEquals(expected.rpcPort, actual.rpcPort)
+  }
+
+  private def checkNulls(expected: Object, actual: Object): Boolean = {
+    if (expected == actual) return true
+    if (expected == null) throw new AssertionError("actual != null")
+    if (actual == null) throw new AssertionError("actual == null")
+    false
   }
 }

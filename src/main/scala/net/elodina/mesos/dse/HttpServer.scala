@@ -311,6 +311,27 @@ object HttpServer {
 
       val name: String = request.getParameter("name")
 
+      val storagePort: String = request.getParameter("storagePort")
+      if (storagePort != null && !storagePort.isEmpty)
+        try { storagePort.toInt }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid storagePort") }
+
+      val jmxPort: String = request.getParameter("jmxPort")
+      if (jmxPort != null && !jmxPort.isEmpty)
+        try { jmxPort.toInt }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid jmxPort") }
+
+      val nativePort: String = request.getParameter("nativePort")
+      if (nativePort != null && !nativePort.isEmpty)
+        try { nativePort.toInt }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid nativePort") }
+
+      val rpcPort: String = request.getParameter("rpcPort")
+      if (rpcPort != null && !rpcPort.isEmpty)
+        try { rpcPort.toInt }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid rpcPort") }
+
+
       var ring = Cluster.getRing(id)
       if (add && ring != null) throw new HttpError(400, "duplicate ring")
       if (!add && ring == null) throw new HttpError(400, "ring not found")
@@ -319,6 +340,11 @@ object HttpServer {
         ring = Cluster.addRing(new Ring(id))
 
       if (name != null) ring.name = if (name != "") name else null
+
+      if (storagePort != null) ring.storagePort = if (storagePort != "") storagePort.toInt else null
+      if (jmxPort != null) ring.jmxPort = if (jmxPort != "") jmxPort.toInt else null
+      if (nativePort != null) ring.nativePort = if (nativePort != "") nativePort.toInt else null
+      if (rpcPort != null) ring.rpcPort = if (rpcPort != "") rpcPort.toInt else null
 
       Cluster.save()
       response.getWriter.println(ring.toJson)

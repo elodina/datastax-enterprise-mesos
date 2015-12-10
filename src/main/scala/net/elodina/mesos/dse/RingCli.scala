@@ -79,6 +79,11 @@ object RingCli {
     val parser = new OptionParser()
     parser.accepts("name", "Ring name.").withRequiredArg().ofType(classOf[String])
 
+    parser.accepts("storage-port", "Inter-node communication port.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("jmx-port", "Node JMX monitoring port.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("native-port", "Cassandra client port.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("rpc-port", "Cassandra client port (thrift).").withRequiredArg().ofType(classOf[String])
+
     if (help) {
       printLine(s"${cmd.capitalize} ring \nUsage: ring $cmd <id> [options]\n")
       parser.printHelpOn(out)
@@ -99,8 +104,18 @@ object RingCli {
 
     val name = options.valueOf("name").asInstanceOf[String]
 
+    val storagePort = options.valueOf("storage-port").asInstanceOf[String]
+    val jmxPort = options.valueOf("jmx-port").asInstanceOf[String]
+    val nativePort = options.valueOf("native-port").asInstanceOf[String]
+    val rpcPort = options.valueOf("rpc-port").asInstanceOf[String]
+
     val params = mutable.HashMap("ring" -> id)
     if (name != null) params("name") = name
+
+    if (storagePort != null) params("storagePort") = storagePort
+    if (jmxPort != null) params("jmxPort") = jmxPort
+    if (nativePort != null) params("nativePort") = nativePort
+    if (rpcPort != null) params("rpcPort") = rpcPort
 
     var json: Map[String, Any] = null
     try { json = Cli.sendRequest(s"/ring/$cmd", params.toMap).asInstanceOf[Map[String, Any]] }
@@ -139,5 +154,15 @@ object RingCli {
   private def printRing(ring: Ring, indent: Int): Unit = {
     printLine("id: " + ring.id, indent)
     if (ring.name != null) printLine("name: " + ring.name, indent)
+    printLine(s"ports: ${ringPorts(ring)}", indent)
+  }
+
+  private def ringPorts(ring: Ring): String = {
+    var s = ""
+    s += "storage:" + (if (ring.storagePort != null) ring.storagePort else "<auto>")
+    s += ", jmx:" + (if (ring.jmxPort != null) ring.jmxPort else "<auto>")
+    s += ", native:" + (if (ring.nativePort != null) ring.nativePort else "<auto>")
+    s += ", rpc:" + (if (ring.rpcPort != null) ring.rpcPort else "<auto>")
+    s
   }
 }

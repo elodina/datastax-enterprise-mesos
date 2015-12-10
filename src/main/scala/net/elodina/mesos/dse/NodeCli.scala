@@ -135,9 +135,6 @@ object NodeCli {
     val constraints = options.valueOf("constraints").asInstanceOf[String]
     val seedConstraints = options.valueOf("seed-constraints").asInstanceOf[String]
 
-    val nodeOut = options.valueOf("node-out").asInstanceOf[String]
-    val agentOut = options.valueOf("agent-out").asInstanceOf[String]
-
     val seed = options.valueOf("seed").asInstanceOf[java.lang.Boolean]
     val replaceAddress = options.valueOf("replace-address").asInstanceOf[String]
     val jvmOptions = options.valueOf("jvm-options").asInstanceOf[String]
@@ -159,9 +156,6 @@ object NodeCli {
 
     if (constraints != null) params("constraints") = constraints
     if (seedConstraints != null) params("seedConstraints") = seedConstraints
-
-    if (nodeOut != null) params("nodeOut") = nodeOut
-    if (agentOut != null) params("agentOut") = agentOut
 
     if (seed != null) params("seed") = "" + seed
     if (replaceAddress != null) params("replaceAddress") = replaceAddress

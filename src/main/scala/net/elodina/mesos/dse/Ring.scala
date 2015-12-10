@@ -7,6 +7,11 @@ class Ring {
   var id: String = null
   var name: String = null
 
+  var storagePort: Integer = null
+  var jmxPort: Integer = null
+  var nativePort: Integer = null
+  var rpcPort: Integer = null
+
   def this(_id: String) {
     this
     id = _id
@@ -29,12 +34,24 @@ class Ring {
   def fromJson(json: Map[String, Any]): Unit = {
     id = json("id").asInstanceOf[String]
     if (json.contains("name")) name = json("name").asInstanceOf[String]
+
+    if (json.contains("storagePort")) storagePort = json("storagePort").asInstanceOf[Number].intValue()
+    if (json.contains("jmxPort")) jmxPort = json("jmxPort").asInstanceOf[Number].intValue()
+    if (json.contains("nativePort")) nativePort = json("nativePort").asInstanceOf[Number].intValue()
+    if (json.contains("rpcPort")) rpcPort = json("rpcPort").asInstanceOf[Number].intValue()
   }
 
   def toJson: JSONObject = {
     val json = new mutable.LinkedHashMap[String, Any]()
+
     json("id") = id
     if (name != null) json("name") = name
+
+    if (storagePort != null) json("storagePort") = storagePort
+    if (jmxPort != null) json("jmxPort") = jmxPort
+    if (nativePort != null) json("nativePort") = nativePort
+    if (rpcPort != null) json("rpcPort") = rpcPort
+
     new JSONObject(json.toMap)
   }
 
