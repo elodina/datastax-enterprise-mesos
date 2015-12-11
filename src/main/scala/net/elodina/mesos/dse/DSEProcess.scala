@@ -140,8 +140,6 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     Files.getFileAttributeView(dir.toPath, classOf[PosixFileAttributeView], LinkOption.NOFOLLOW_LINKS).setOwner(userPrincipal)
   }
 
-  final private val PORT_KEYS = Map("storage" -> "storage_port", "native" -> "native_transport_port", "rpc" -> "rpc_port")
-
   private def editCassandraYaml(file: File) {
     val yaml = new Yaml()
     val cassandraYaml = mutable.Map(yaml.load(Source.fromFile(file).reader()).asInstanceOf[util.Map[String, AnyRef]].toSeq: _*)
@@ -153,9 +151,10 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     cassandraYaml.put("listen_address", hostname)
     cassandraYaml.put("rpc_address", hostname)
 
+    val portKeys = Map("internal" -> "storage_port", "cql" -> "native_transport_port", "thrift" -> "rpc_port")
     for ((key, port) <- node.runtime.reservation.ports)
-      if (PORT_KEYS.contains(key))
-        cassandraYaml.put(PORT_KEYS(key), port.asInstanceOf[AnyRef])
+      if (portKeys.contains(key))
+        cassandraYaml.put(portKeys(key), port.asInstanceOf[AnyRef])
 
     setSeeds(cassandraYaml, node.runtime.seeds.mkString(","))
     if (node.broadcast != null) {

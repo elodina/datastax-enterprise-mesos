@@ -20,7 +20,7 @@ class NodeTest extends MesosTestCase {
     assertEquals(s"mem < 500", node.matches(offer(resources = "cpus:0.5; mem:400")))
 
     assertEquals("no suitable jmx port", node.matches(offer(resources = "cpus:0.5; mem:500; ports:5..5")))
-    assertEquals("no suitable rpc port", node.matches(offer(resources = "cpus:0.5; mem:500; ports:5..7")))
+    assertEquals("no suitable thrift port", node.matches(offer(resources = "cpus:0.5; mem:500; ports:5..7")))
 
     assertNull(node.matches(offer(resources = "cpus:0.5; mem:500; ports:0..4")))
   }
@@ -35,13 +35,13 @@ class NodeTest extends MesosTestCase {
     var reservation = node.reserve(offer(resources = "cpus:0.3;mem:300;ports:0..1"))
     assertEquals(0.3d, reservation.cpus, 0.001)
     assertEquals(300, reservation.mem)
-    assertEquals(Map("storage" -> 0, "jmx" -> 1, "native" -> -1, "rpc" -> -1), reservation.ports)
+    assertEquals(Map("internal" -> 0, "jmx" -> 1, "cql" -> -1, "thrift" -> -1), reservation.ports)
 
     // complete reservation
     reservation = node.reserve(offer(resources = "cpus:0.7;mem:1000;ports:0..10"))
     assertEquals(node.cpu, reservation.cpus, 0.001)
     assertEquals(node.mem, reservation.mem)
-    assertEquals(Map("storage" -> 0, "jmx" -> 1, "native" -> 2, "rpc" -> 3), reservation.ports)
+    assertEquals(Map("internal" -> 0, "jmx" -> 1, "cql" -> 2, "thrift" -> 3), reservation.ports)
   }
 
   @Test
@@ -49,7 +49,7 @@ class NodeTest extends MesosTestCase {
     val node: Node = new Node("0")
 
     def test(portsDef: String, resources: String, expected: Map[String, Int]) {
-      // parses expr like: storage=0..4,jmx=5,rpc=100..110
+      // parses expr like: storage=0..4,jmx=5,cql=100..110
       def parsePortsDef(s: String): Map[String, Util.Range] = {
         val ports = new mutable.HashMap[String, Util.Range]()
         Node.portNames.foreach(ports(_) = null)
@@ -69,19 +69,19 @@ class NodeTest extends MesosTestCase {
     }
 
     // any ports
-    test("", "ports:0", Map("storage" -> 0, "jmx" -> -1, "native" -> -1, "rpc" -> -1))
-    test("", "ports:0..2", Map("storage" -> 0, "jmx" -> 1, "native" -> 2, "rpc" -> -1))
-    test("", "ports:0..1,10..20", Map("storage" -> 0, "jmx" -> 1, "native" -> 10, "rpc" -> 11))
+    test("", "ports:0", Map("internal" -> 0, "jmx" -> -1, "cql" -> -1, "thrift" -> -1))
+    test("", "ports:0..2", Map("internal" -> 0, "jmx" -> 1, "cql" -> 2, "thrift" -> -1))
+    test("", "ports:0..1,10..20", Map("internal" -> 0, "jmx" -> 1, "cql" -> 10, "thrift" -> 11))
 
     // single port
-    test("storage=0", "ports:0", Map("storage" -> 0))
-    test("storage=1000,jmx=1001", "ports:1000..1001", Map("storage" -> 1000, "jmx" -> 1001))
-    test("storage=1000,jmx=1001", "ports:999..1000;ports:1002..1010", Map("storage" -> 1000, "jmx" -> -1))
-    test("storage=1000,jmx=1001,native=1005,rpc=1010", "ports:1001..1008,1011..1100", Map("storage" -> -1, "jmx" -> 1001, "native" -> 1005, "rpc" -> -1))
+    test("internal=0", "ports:0", Map("internal" -> 0))
+    test("internal=1000,jmx=1001", "ports:1000..1001", Map("internal" -> 1000, "jmx" -> 1001))
+    test("internal=1000,jmx=1001", "ports:999..1000;ports:1002..1010", Map("internal" -> 1000, "jmx" -> -1))
+    test("internal=1000,jmx=1001,cql=1005,thrift=1010", "ports:1001..1008,1011..1100", Map("internal" -> -1, "jmx" -> 1001, "cql" -> 1005, "thrift" -> -1))
 
     // port ranges
-    test("storage=10..20", "ports:15..25", Map("storage" -> 15))
-    test("storage=10..20,jmx=100..200", "ports:15..25,150..160", Map("storage" -> 15, "jmx" -> 150))
+    test("internal=10..20", "ports:15..25", Map("internal" -> 15))
+    test("internal=10..20,jmx=100..200", "ports:15..25,150..160", Map("internal" -> 15, "jmx" -> 150))
   }
 
   @Test
@@ -195,7 +195,7 @@ class NodeTest extends MesosTestCase {
 
   @Test
   def Reservation_toJson_fromJson {
-    val reservation = new Reservation(1.0, 256, Map("storage" -> 7000))
+    val reservation = new Reservation(1.0, 256, Map("internal" -> 7000))
     val read = new Reservation(Util.parseJsonAsMap("" + reservation.toJson))
     assertReservationEquals(reservation, read)
   }
@@ -203,7 +203,7 @@ class NodeTest extends MesosTestCase {
   @Test
   def Reservation_toResources {
     assertEquals(resources("").toList, new Reservation().toResources)
-    assertEquals(resources("cpus:0.5;mem:500;ports:1000..1000;ports:2000").toList, new Reservation(0.5, 500, Map("storage" -> 1000, "jmx" -> 2000)).toResources)
+    assertEquals(resources("cpus:0.5;mem:500;ports:1000..1000;ports:2000").toList, new Reservation(0.5, 500, Map("internal" -> 1000, "jmx" -> 2000)).toResources)
   }
 
   def assertNodeEquals(expected: Node, actual: Node) {

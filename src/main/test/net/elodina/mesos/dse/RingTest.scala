@@ -36,7 +36,7 @@ class RingTest extends MesosTestCase {
     assertRingEquals(ring, read)
 
     ring.name = "name"
-    ring.ports ++= Map("storage" -> new Range("100..110"), "jmx" -> new Range("200..210"))
+    ring.ports ++= Map("internal" -> new Range("100..110"), "jmx" -> new Range("200..210"))
     read = new Ring(Util.parseJsonAsMap("" + ring.toJson))
     assertRingEquals(ring, read)
   }

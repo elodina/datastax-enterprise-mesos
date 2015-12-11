@@ -311,25 +311,25 @@ object HttpServer {
 
       val name: String = request.getParameter("name")
 
-      val storagePort: String = request.getParameter("storagePort")
-      if (storagePort != null && !storagePort.isEmpty)
-        try { new Util.Range(storagePort) }
-        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid storagePort") }
+      val internalPort: String = request.getParameter("internalPort")
+      if (internalPort != null && !internalPort.isEmpty)
+        try { new Util.Range(internalPort) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid internalPort") }
 
       val jmxPort: String = request.getParameter("jmxPort")
       if (jmxPort != null && !jmxPort.isEmpty)
         try { new Util.Range(jmxPort) }
         catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid jmxPort") }
 
-      val nativePort: String = request.getParameter("nativePort")
-      if (nativePort != null && !nativePort.isEmpty)
-        try { new Util.Range(nativePort) }
-        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid nativePort") }
+      val cqlPort: String = request.getParameter("cqlPort")
+      if (cqlPort != null && !cqlPort.isEmpty)
+        try { new Util.Range(cqlPort) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid cqlPort") }
 
-      val rpcPort: String = request.getParameter("rpcPort")
-      if (rpcPort != null && !rpcPort.isEmpty)
-        try { new Util.Range(rpcPort) }
-        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid rpcPort") }
+      val thriftPort: String = request.getParameter("thriftPort")
+      if (thriftPort != null && !thriftPort.isEmpty)
+        try { new Util.Range(thriftPort) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid thriftPort") }
 
 
       var ring = Cluster.getRing(id)
@@ -341,10 +341,10 @@ object HttpServer {
 
       if (name != null) ring.name = if (name != "") name else null
 
-      if (storagePort != null) ring.ports("storage") = if (storagePort != "") new Util.Range(storagePort) else null
+      if (internalPort != null) ring.ports("internal") = if (internalPort != "") new Util.Range(internalPort) else null
       if (jmxPort != null) ring.ports("jmx") = if (jmxPort != "") new Util.Range(jmxPort) else null
-      if (nativePort != null) ring.ports("native") = if (nativePort != "") new Util.Range(nativePort) else null
-      if (rpcPort != null) ring.ports("rpc") = if (rpcPort != "") new Util.Range(rpcPort) else null
+      if (cqlPort != null) ring.ports("cql") = if (cqlPort != "") new Util.Range(cqlPort) else null
+      if (thriftPort != null) ring.ports("thrift") = if (thriftPort != "") new Util.Range(thriftPort) else null
 
       Cluster.save()
       response.getWriter.println(ring.toJson)

@@ -37,8 +37,6 @@ object Executor extends org.apache.mesos.Executor {
   private var dseProcess: DSEProcess = null
   private var agentProcess: AgentProcess = null
 
-  val dseDir = findDSEDir()
-
   def main(args: Array[String]) {
     initLogging()
 
@@ -164,10 +162,15 @@ object Executor extends org.apache.mesos.Executor {
     None
   }
 
-  private[dse] def findDSEDir(): File = {
+  private var _dseDir: File = null
+  private[dse] def dseDir: File = {
+    if (_dseDir != null) return _dseDir
+
     for (file <- new File(".").listFiles()) {
-      if (file.isDirectory && file.getName.matches(Config.dseDirMask) && file.getName != "dse-data")
-        return file
+      if (file.isDirectory && file.getName.matches(Config.dseDirMask) && file.getName != "dse-data") {
+        _dseDir = file
+        return _dseDir
+      }
     }
 
     throw new FileNotFoundException(s"${Config.dseDirMask} not found in current directory")

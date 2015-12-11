@@ -76,10 +76,8 @@ class Node extends Constrained {
     if (reservation.cpus < cpu) return s"cpus < $cpu"
     if (reservation.mem < mem) return s"mem < $mem"
 
-    if (reservation.ports("storage") == -1) return "no suitable storage port"
-    if (reservation.ports("jmx") == -1) return "no suitable jmx port"
-    if (reservation.ports("native") == -1) return "no suitable native port"
-    if (reservation.ports("rpc") == -1) return "no suitable rpc port"
+    for (name <- Node.portNames)
+      if (reservation.ports(name) == -1) return s"no suitable $name port"
 
     null
   }
@@ -257,7 +255,7 @@ class Node extends Constrained {
 }
 
 object Node {
-  def portNames: List[String] = List("storage", "jmx", "native", "rpc")
+  def portNames: List[String] = List("internal", "jmx", "cql", "thrift")
 
   def idFromTaskId(taskId: String): String = {
     taskId.split("-", 3) match {

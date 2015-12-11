@@ -79,10 +79,10 @@ object RingCli {
     val parser = new OptionParser()
     parser.accepts("name", "Ring name.").withRequiredArg().ofType(classOf[String])
 
-    parser.accepts("storage-port", "Inter-node communication port.").withRequiredArg().ofType(classOf[String])
-    parser.accepts("jmx-port", "Node JMX monitoring port.").withRequiredArg().ofType(classOf[String])
-    parser.accepts("native-port", "Cassandra client port.").withRequiredArg().ofType(classOf[String])
-    parser.accepts("rpc-port", "Cassandra client port (thrift).").withRequiredArg().ofType(classOf[String])
+    parser.accepts("internal-port", "Inter-node port.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("jmx-port", "JMX monitoring port.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("cql-port", "CQL port.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("thrift-port", "Thrift port.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
       printLine(s"${cmd.capitalize} ring \nUsage: ring $cmd <id> [options]\n")
@@ -104,18 +104,18 @@ object RingCli {
 
     val name = options.valueOf("name").asInstanceOf[String]
 
-    val storagePort = options.valueOf("storage-port").asInstanceOf[String]
+    val internalPort = options.valueOf("internal-port").asInstanceOf[String]
     val jmxPort = options.valueOf("jmx-port").asInstanceOf[String]
-    val nativePort = options.valueOf("native-port").asInstanceOf[String]
-    val rpcPort = options.valueOf("rpc-port").asInstanceOf[String]
+    val cqlPort = options.valueOf("cql-port").asInstanceOf[String]
+    val thriftPort = options.valueOf("thrift-port").asInstanceOf[String]
 
     val params = mutable.HashMap("ring" -> id)
     if (name != null) params("name") = name
 
-    if (storagePort != null) params("storagePort") = storagePort
+    if (internalPort != null) params("internalPort") = internalPort
     if (jmxPort != null) params("jmxPort") = jmxPort
-    if (nativePort != null) params("nativePort") = nativePort
-    if (rpcPort != null) params("rpcPort") = rpcPort
+    if (cqlPort != null) params("cqlPort") = cqlPort
+    if (thriftPort != null) params("thriftPort") = thriftPort
 
     var json: Map[String, Any] = null
     try { json = Cli.sendRequest(s"/ring/$cmd", params.toMap).asInstanceOf[Map[String, Any]] }
