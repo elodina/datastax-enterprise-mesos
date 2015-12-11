@@ -36,12 +36,11 @@ case class AgentProcess(node: Node, env: Map[String, String] = Map.empty) {
   def start() {
     if (started.getAndSet(true)) throw new IllegalStateException("Datastax Agent already started")
     logger.info("Starting Datastax Agent")
-
-    process = startProcess(node, DSEProcess.findDSEDir())
+    process = startProcess()
   }
 
-  private def startProcess(node: Node, dseDir: File): Process = {
-    val cmd = util.Arrays.asList("" + new File(dseDir, "datastax-agent/bin/datastax-agent"), "-f")
+  private def startProcess(): Process = {
+    val cmd = util.Arrays.asList("" + new File(Executor.dseDir, "datastax-agent/bin/datastax-agent"), "-f")
 
     val out: File = new File("agent.log")
     val builder: ProcessBuilder = new ProcessBuilder(cmd)

@@ -49,19 +49,18 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     if (started.getAndSet(true)) throw new IllegalStateException(s"Process ${node.id} already started")
     logger.info(s"Starting process ${node.id}")
 
-    val dseDir = DSEProcess.findDSEDir()
-    val workDir = new File(".")
-    makeDseDirs(workDir)
+    makeDseDirs()
 
+    val dseDir = Executor.dseDir
     editCassandraYaml(new File(dseDir, "resources/cassandra/conf/cassandra.yaml"))
     editCassandraEnvSh(new File(dseDir, "resources/cassandra/conf/cassandra-env.sh"))
     editRackDcProps(new File(dseDir, "resources/cassandra/conf/cassandra-rackdc.properties"))
 
-    process = startProcess(node, dseDir)
+    process = startProcess()
   }
 
-  private def startProcess(node: Node, dseDir: File): Process = {
-    val cmd = util.Arrays.asList("" + new File(dseDir, "bin/dse"), "cassandra", "-f")
+  private def startProcess(): Process = {
+    val cmd = util.Arrays.asList("" + new File(Executor.dseDir, "bin/dse"), "cassandra", "-f")
 
     val out: File = new File("dse.log")
     val builder: ProcessBuilder = new ProcessBuilder(cmd)
@@ -125,15 +124,10 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     }
   }
 
-  private def makeDseDirs(currentDir: File) {
-    makeDir(new File(currentDir, "lib/cassandra")) //TODO Cassandra/Spark lib/log dirs look unnecessary, remove them a bit later
-    makeDir(new File(currentDir, "log/cassandra"))
-    makeDir(new File(currentDir, "lib/spark"))
-    makeDir(new File(currentDir, "log/spark"))
-
-    if (node.dataFileDirs == null) node.dataFileDirs = "" + new File(currentDir, "dse-data")
-    if (node.commitLogDir == null) node.commitLogDir = "" + new File(currentDir, "dse-data/commitlog")
-    if (node.savedCachesDir == null) node.savedCachesDir = "" + new File(currentDir, "dse-data/saved_caches")
+  private def makeDseDirs() {
+    if (node.dataFileDirs == null) node.dataFileDirs = "" + new File("dse-data")
+    if (node.commitLogDir == null) node.commitLogDir = "" + new File("dse-data/commitlog")
+    if (node.savedCachesDir == null) node.savedCachesDir = "" + new File("dse-data/saved_caches")
 
     node.dataFileDirs.split(",").foreach(dir => makeDir(new File(dir)))
     makeDir(new File(node.commitLogDir))
@@ -216,16 +210,5 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
         paramMap.put("seeds", seeds)
       }
     }
-  }
-}
-
-object DSEProcess {
-  private[dse] def findDSEDir(): File = {
-    for (file <- new File(".").listFiles()) {
-      if (file.isDirectory && file.getName.matches(Config.dseDirMask) && file.getName != "dse-data")
-        return file
-    }
-
-    throw new FileNotFoundException(s"${Config.dseDirMask} not found in current directory")
   }
 }

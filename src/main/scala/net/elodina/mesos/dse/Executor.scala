@@ -18,7 +18,7 @@
 
 package net.elodina.mesos.dse
 
-import java.io.{PrintWriter, StringWriter}
+import java.io.{FileNotFoundException, File, PrintWriter, StringWriter}
 
 import org.apache.log4j._
 import org.apache.mesos.Protos._
@@ -36,6 +36,8 @@ object Executor extends org.apache.mesos.Executor {
   private var hostname: String = null
   private var dseProcess: DSEProcess = null
   private var agentProcess: AgentProcess = null
+
+  val dseDir = findDSEDir()
 
   def main(args: Array[String]) {
     initLogging()
@@ -160,5 +162,14 @@ object Executor extends org.apache.mesos.Executor {
     }
 
     None
+  }
+
+  private[dse] def findDSEDir(): File = {
+    for (file <- new File(".").listFiles()) {
+      if (file.isDirectory && file.getName.matches(Config.dseDirMask) && file.getName != "dse-data")
+        return file
+    }
+
+    throw new FileNotFoundException(s"${Config.dseDirMask} not found in current directory")
   }
 }
