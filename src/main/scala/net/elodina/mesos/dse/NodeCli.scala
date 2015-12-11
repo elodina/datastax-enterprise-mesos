@@ -280,6 +280,7 @@ object NodeCli {
     printLine(s"executor id: ${runtime.executorId}", indent + 1)
     printLine(s"slave id: ${runtime.slaveId}", indent + 1)
     printLine(s"hostname: ${runtime.hostname}", indent + 1)
+    printLine(s"reservation: ${nodeReservation(runtime.reservation)}", indent + 1)
     printLine(s"seeds: ${runtime.seeds.mkString(",")}", indent + 1)
     if (!runtime.attributes.isEmpty) printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
   }
@@ -296,6 +297,17 @@ object NodeCli {
     var s = ""
     s += s"cpu:${node.cpu}"
     s += s", mem:${node.mem}"
+    s
+  }
+
+  private def nodeReservation(reservation: Node.Reservation): String = {
+    var s = ""
+    s += s"cpu:${reservation.cpus}"
+    s += s", mem:${reservation.mem}"
+
+    for (name <- Node.portNames)
+      s += s", $name-port:${reservation.ports(name)}"
+
     s
   }
 }

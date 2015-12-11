@@ -76,7 +76,7 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
   def awaitConsistentState(): Boolean = {
     while (!stopped) {
       try {
-        val probe = new NodeProbe("localhost", node.jmxPort)
+        val probe = new NodeProbe("localhost", node.runtime.reservation.ports("jmx"))
 
         val initialized = probe.isInitialized
         val joined = probe.isJoined
@@ -155,9 +155,9 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     cassandraYaml.put(DSEProcess.LISTEN_ADDRESS_KEY, hostname)
     cassandraYaml.put(DSEProcess.RPC_ADDRESS_KEY, hostname)
 
-    for ((key, port) <- node.ports if key != DSEProcess.JMX_PORT) {
-      cassandraYaml.put(key, port.asInstanceOf[AnyRef])
-    }
+    for ((key, port) <- node.runtime.reservation.ports)
+      if (DSEProcess.PORT_KEYS.contains(key))
+        cassandraYaml.put(DSEProcess.PORT_KEYS(key), port.asInstanceOf[AnyRef])
 
     setSeeds(cassandraYaml, node.runtime.seeds.mkString(","))
     if (node.broadcast != null) {
@@ -206,12 +206,6 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
 }
 
 object DSEProcess {
-  final val STORAGE_PORT: String = "storage_port"
-  final val SSL_STORAGE_PORT: String = "ssl_storage_port"
-  final val NATIVE_TRANSPORT_PORT: String = "native_transport_port"
-  final val RPC_PORT: String = "rpc_port"
-  final val JMX_PORT: String = "jmx_port"
-
   final private val CASSANDRA_LIB_DIR = "lib/cassandra"
   final private val CASSANDRA_LOG_DIR = "log/cassandra"
   final private val SPARK_LIB_DIR = "lib/spark"
@@ -236,6 +230,8 @@ object DSEProcess {
   final private val CLUSTER_NAME_KEY = "cluster_name"
   final private val BROADCAST_ADDRESS_KEY = "broadcast_address"
   final private val ENDPOINT_SNITCH_KEY = "endpoint_snitch"
+
+  final private val PORT_KEYS = Map("storage" -> "storage_port", "native" -> "native_transport_port", "rpc" -> "rpc_port")
 
   final private val DSE_CMD = "bin/dse"
   final private[dse] val DSE_AGENT_CMD = "datastax-agent/bin/datastax-agent"

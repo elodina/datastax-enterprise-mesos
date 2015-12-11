@@ -6,11 +6,9 @@ import scala.collection.mutable
 class Ring {
   var id: String = null
   var name: String = null
+  var ports: mutable.HashMap[String, Util.Range] = new mutable.HashMap[String, Util.Range]()
 
-  var storagePort: Integer = null
-  var jmxPort: Integer = null
-  var nativePort: Integer = null
-  var rpcPort: Integer = null
+  resetPorts
 
   def this(_id: String) {
     this
@@ -31,14 +29,18 @@ class Ring {
     nodes.map(_.runtime.hostname).sorted
   }
 
+  def resetPorts: Unit = {
+    ports.clear()
+    Node.portNames.foreach(ports(_) = null)
+  }
+
   def fromJson(json: Map[String, Any]): Unit = {
     id = json("id").asInstanceOf[String]
     if (json.contains("name")) name = json("name").asInstanceOf[String]
 
-    if (json.contains("storagePort")) storagePort = json("storagePort").asInstanceOf[Number].intValue()
-    if (json.contains("jmxPort")) jmxPort = json("jmxPort").asInstanceOf[Number].intValue()
-    if (json.contains("nativePort")) nativePort = json("nativePort").asInstanceOf[Number].intValue()
-    if (json.contains("rpcPort")) rpcPort = json("rpcPort").asInstanceOf[Number].intValue()
+    resetPorts
+    for ((name, range) <- json("ports").asInstanceOf[Map[String, String]])
+      ports(name) = new Util.Range(range)
   }
 
   def toJson: JSONObject = {
@@ -47,10 +49,10 @@ class Ring {
     json("id") = id
     if (name != null) json("name") = name
 
-    if (storagePort != null) json("storagePort") = storagePort
-    if (jmxPort != null) json("jmxPort") = jmxPort
-    if (nativePort != null) json("nativePort") = nativePort
-    if (rpcPort != null) json("rpcPort") = rpcPort
+    val portsJson = new mutable.HashMap[String, Any]()
+    for ((name, range) <- ports)
+      if (range != null) portsJson(name) = "" + range
+    json("ports") = new JSONObject(portsJson.toMap)
 
     new JSONObject(json.toMap)
   }

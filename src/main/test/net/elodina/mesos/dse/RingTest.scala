@@ -2,10 +2,12 @@ package net.elodina.mesos.dse
 
 import org.junit.{Before, Test}
 import org.junit.Assert._
+import Util.Range
 
-class RingTest {
+class RingTest extends MesosTestCase {
   @Before
-  def before {
+  override def before {
+    super.before
     Cluster.reset()
   }
 
@@ -30,16 +32,12 @@ class RingTest {
   @Test
   def toJSON_fromJSON {
     val ring: Ring = new Ring("1")
-    var read = new Ring(ring.toJson.obj)
+    var read = new Ring(Util.parseJsonAsMap("" + ring.toJson))
     assertRingEquals(ring, read)
 
     ring.name = "name"
-    ring.storagePort = 0
-    ring.jmxPort = 1
-    ring.nativePort = 2
-    ring.rpcPort = 3
-
-    read = new Ring(ring.toJson.obj)
+    ring.ports ++= Map("storage" -> new Range("100..110"), "jmx" -> new Range("200..210"))
+    read = new Ring(Util.parseJsonAsMap("" + ring.toJson))
     assertRingEquals(ring, read)
   }
 
@@ -47,11 +45,7 @@ class RingTest {
     if (checkNulls(expected, actual)) return
     assertEquals(expected.id, actual.id)
     assertEquals(expected.name, actual.name)
-
-    assertEquals(expected.storagePort, actual.storagePort)
-    assertEquals(expected.jmxPort, actual.jmxPort)
-    assertEquals(expected.nativePort, actual.nativePort)
-    assertEquals(expected.rpcPort, actual.rpcPort)
+    assertEquals(expected.ports, actual.ports)
   }
 
   private def checkNulls(expected: Object, actual: Object): Boolean = {

@@ -86,7 +86,7 @@ class MesosTestCase {
     frameworkId: String = "" + UUID.randomUUID(),
     slaveId: String = "" + UUID.randomUUID(),
     hostname: String = "host",
-    resources: String = "ports:9092",
+    resources: String = null,
     attributes: String = null
   ): Offer = {
     val builder = Offer.newBuilder()

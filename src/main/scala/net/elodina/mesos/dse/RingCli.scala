@@ -159,10 +159,13 @@ object RingCli {
 
   private def ringPorts(ring: Ring): String = {
     var s = ""
-    s += "storage:" + (if (ring.storagePort != null) ring.storagePort else "<auto>")
-    s += ", jmx:" + (if (ring.jmxPort != null) ring.jmxPort else "<auto>")
-    s += ", native:" + (if (ring.nativePort != null) ring.nativePort else "<auto>")
-    s += ", rpc:" + (if (ring.rpcPort != null) ring.rpcPort else "<auto>")
+
+    for (name <- Node.portNames) {
+      if (!s.isEmpty) s += ", "
+      val range = ring.ports(name)
+      s += name + ":" + (if (range != null) range else "<auto>")
+    }
+
     s
   }
 }
