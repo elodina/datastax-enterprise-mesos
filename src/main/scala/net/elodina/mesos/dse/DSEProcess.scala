@@ -35,7 +35,6 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.io.Source
 import scala.language.postfixOps
-import java.util.Properties
 
 case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
@@ -49,13 +48,16 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     if (started.getAndSet(true)) throw new IllegalStateException(s"Process ${node.id} already started")
     logger.info(s"Starting process ${node.id}")
 
-    makeDseDirs()
+    makeDataDirs()
 
     val dseDir = Executor.dseDir
-    editCassandraYaml(new File(dseDir, "resources/cassandra/conf/cassandra.yaml"))
-    editCassandraEnvSh(new File(dseDir, "resources/cassandra/conf/cassandra-env.sh"))
-    editRackDcProps(new File(dseDir, "resources/cassandra/conf/cassandra-rackdc.properties"))
+    replaceInFile(new File(dseDir, "bin/dse.in.sh"), Map("CASSANDRA_LOG_DIR=.*" -> "CASSANDRA_LOG_DIR=data/log"))
 
+    val confDir = new File(dseDir, "resources/cassandra/conf")
+    editCassandraYaml(new File(confDir , "cassandra.yaml"))
+    replaceInFile(new File(confDir, "cassandra-rackdc.properties"), Map("dc=.*" -> s"dc=${node.dc}", "rack=.*" -> s"rack=${node.rack}"))
+    replaceInFile(new File(confDir, "cassandra-env.sh"), Map("JMX_PORT=.*" -> s"JMX_PORT=${node.runtime.reservation.ports("jmx")}"))
+    
     process = startProcess()
   }
 
@@ -124,11 +126,12 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     }
   }
 
-  private def makeDseDirs() {
-    if (node.dataFileDirs == null) node.dataFileDirs = "" + new File("dse-data")
-    if (node.commitLogDir == null) node.commitLogDir = "" + new File("dse-data/commitlog")
-    if (node.savedCachesDir == null) node.savedCachesDir = "" + new File("dse-data/saved_caches")
+  private def makeDataDirs() {
+    if (node.dataFileDirs == null) node.dataFileDirs = "" + new File("data/storage")
+    if (node.commitLogDir == null) node.commitLogDir = "" + new File("data/commit_log")
+    if (node.savedCachesDir == null) node.savedCachesDir = "" + new File("data/saved_caches")
 
+    makeDir(new File("data/log"))
     node.dataFileDirs.split(",").foreach(dir => makeDir(new File(dir)))
     makeDir(new File(node.commitLogDir))
     makeDir(new File(node.savedCachesDir))
@@ -169,24 +172,15 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     finally { writer.close() }
   }
 
-  private def editCassandraEnvSh(file: File) {
+  private def replaceInFile(file: File, replacements: Map[String, String]) {
     val buffer = new ByteArrayOutputStream()
     Util.copyAndClose(new FileInputStream(file), buffer)
 
     var content = buffer.toString("utf-8")
-    content = content.replaceAll("JMX_PORT=.*", "JMX_PORT=" + node.runtime.reservation.ports("jmx"))
-
+    for ((regex, value) <- replacements)
+      content = content.replaceAll(regex, value)
+    
     Util.copyAndClose(new ByteArrayInputStream(content.getBytes("utf-8")), new FileOutputStream(file))
-  }
-
-  private def editRackDcProps(file: File) {
-    val props = new Properties()
-    props.put("dc", node.dc)
-    props.put("rack", node.rack)
-
-    val writer = new FileWriter(file)
-    try { props.store(writer, "") }
-    finally { writer.close() }
   }
 
   private def getIP(networkInterface: String): String = {

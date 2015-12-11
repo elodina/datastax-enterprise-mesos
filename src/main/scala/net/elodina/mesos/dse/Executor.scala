@@ -167,7 +167,7 @@ object Executor extends org.apache.mesos.Executor {
     if (_dseDir != null) return _dseDir
 
     for (file <- new File(".").listFiles()) {
-      if (file.isDirectory && file.getName.matches(Config.dseDirMask) && file.getName != "dse-data") {
+      if (file.isDirectory && file.getName.matches(Config.dseDirMask)) {
         _dseDir = file
         return _dseDir
       }
