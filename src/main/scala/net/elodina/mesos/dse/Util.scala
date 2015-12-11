@@ -29,6 +29,7 @@ import scala.collection.mutable
 import scala.util.parsing.json.JSON
 import java.util.Date
 import java.text.SimpleDateFormat
+import scala.collection.mutable.ListBuffer
 
 object Util {
   def parseList(s: String, entrySep: Char = ',', valueSep: Char = '=', nullValues: Boolean = true): List[(String, String)] = {
@@ -200,6 +201,18 @@ object Util {
       val start = y.start
       val end = Math.min(x.end, y.end)
       new Range(start, end)
+    }
+
+    def contains(p: Int): Boolean = start <= p && p <= end
+
+    def split(p: Int): List[Range] = {
+      if (!contains(p)) throw new IllegalArgumentException("point not in range")
+
+      val result = new ListBuffer[Range]
+      if (start < p) result += new Range(start, p - 1)
+      if (p < end) result += new Range(p + 1, end)
+
+      result.toList
     }
 
     override def equals(obj: scala.Any): Boolean = {

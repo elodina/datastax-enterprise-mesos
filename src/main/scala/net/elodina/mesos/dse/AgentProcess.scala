@@ -41,7 +41,7 @@ case class AgentProcess(node: Node, env: Map[String, String] = Map.empty) {
   }
 
   private def startProcess(node: Node, dseDir: File): Process = {
-    val cmd = util.Arrays.asList("" + new File(dseDir, DSEProcess.DSE_AGENT_CMD), "-f")
+    val cmd = util.Arrays.asList("" + new File(dseDir, "datastax-agent/bin/datastax-agent"), "-f")
 
     val out: File = new File("agent.log")
     val builder: ProcessBuilder = new ProcessBuilder(cmd)

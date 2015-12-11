@@ -64,6 +64,38 @@ class UtilTest {
   }
 
   @Test
+  def Range_contains {
+    assertTrue(new Range(0).contains(0))
+    assertTrue(new Range(0,1).contains(0))
+    assertTrue(new Range(0,1).contains(1))
+
+    val range = new Range(100, 200)
+    assertTrue(range.contains(100))
+    assertTrue(range.contains(150))
+    assertTrue(range.contains(200))
+
+    assertFalse(range.contains(99))
+    assertFalse(range.contains(201))
+  }
+
+  @Test
+  def Range_split {
+    assertEquals(List(), new Range(0).split(0))
+
+    assertEquals(List(new Range(1)), new Range(0, 1).split(0))
+    assertEquals(List(new Range(0)), new Range(0, 1).split(1))
+
+    assertEquals(List(new Range(0), new Range(2)), new Range(0, 2).split(1))
+    assertEquals(List(new Range(100, 149), new Range(151, 200)), new Range(100, 200).split(150))
+
+    try { new Range(100, 200).split(10); fail() }
+    catch { case e: IllegalArgumentException => }
+
+    try { new Range(100, 200).split(210); fail() }
+    catch { case e: IllegalArgumentException => }
+  }
+
+  @Test
   def Range_toString {
     assertEquals("0", "" + new Range("0"))
     assertEquals("0..10", "" + new Range("0..10"))

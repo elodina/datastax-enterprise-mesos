@@ -19,7 +19,6 @@
 package net.elodina.mesos.dse
 
 import com.google.protobuf.ByteString
-import org.apache.mesos.Protos
 import org.apache.mesos.Protos._
 
 import scala.collection.JavaConversions._
@@ -117,18 +116,18 @@ class Node extends Constrained {
     def allocPort(ports: Range): Int = {
       var r: Range = null
 
-      if (ports == null) r = availPorts.headOption.getOrElse(null) // take first avail port
-      else r = availPorts.find(ports.overlap(_) != null).getOrElse(null) // take first port included in range
+      if (ports == null) r = availPorts.headOption.getOrElse(null) // take first avail range
+      else r = availPorts.find(ports.overlap(_) != null).getOrElse(null) // take first range overlapping with ports
 
       if (r == null) return -1
-      if (ports != null) r = r.overlap(ports)
+      val port = if (ports != null) r.overlap(ports).start else r.start
 
       // remove allocated port
       availPorts -= r
-      if (r.start < r.end) availPorts += new Range(r.start + 1, r.end)
+      availPorts ++= r.split(port)
       availPorts = availPorts.sortBy(_.start)
 
-      r.start
+      port
     }
 
     for (name <- Node.portNames)
