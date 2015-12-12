@@ -289,13 +289,13 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
 
     for (file <- new File(".").listFiles()) {
       if (file.getName.matches(jarMask)) Config.jar = file
-      if (file.getName.matches(dseMask)) Config.dse = file
       if (file.getName.matches(cassandraMask)) Config.cassandra = file
+      if (file.getName.matches(dseMask)) Config.dse = file
     }
 
     if (Config.jar == null) throw new IllegalStateException(jarMask + " not found in current dir")
     if (Config.dse == null && Config.cassandra == null)
-      throw new IllegalStateException(s"Either $dseMask or $cassandraMask should be present in current dir")
+      throw new IllegalStateException(s"Either $cassandraMask or $dseMask should be present in current dir")
   }
 
   private def initLogging() {
