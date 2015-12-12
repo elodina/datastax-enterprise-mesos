@@ -65,5 +65,21 @@ object Config {
        |JRE:               ${if (jre != null) jre else "<pre-installed>"}
     """.stripMargin
   }
+
+  def resolveDeps() {
+    val jarMask = "dse-mesos.*jar"
+    val dseMask = "dse.*gz"
+    val cassandraMask = "apache-cassandra.*gz"
+
+    for (file <- new File(".").listFiles()) {
+      if (file.getName.matches(jarMask)) jar = file
+      if (file.getName.matches(cassandraMask)) cassandra = file
+      if (file.getName.matches(dseMask)) dse = file
+    }
+
+    if (jar == null) throw new IllegalStateException(jarMask + " not found in current dir")
+    if (dse == null && cassandra == null)
+      throw new IllegalStateException(s"Either $cassandraMask or $dseMask should be present in current dir")
+  }
 }
 
