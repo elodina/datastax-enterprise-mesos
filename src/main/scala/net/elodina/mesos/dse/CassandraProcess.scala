@@ -49,16 +49,9 @@ case class CassandraProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskIn
     logger.info(s"Starting cassandra process for node ${node.id}")
 
     makeDataDirs()
+    redirectCassandraLogs()
+    editCassandraConfigs()
 
-    val dseDir: File = Executor.dseDir
-    if (dseDir != null)
-      Util.IO.replaceInFile(new File(Executor.dseDir, "bin/dse.in.sh"), Map("CASSANDRA_LOG_DIR=.*" -> s"CASSANDRA_LOG_DIR=${Executor.dir}/data/log"))
-
-    val confDir = if (dseDir != null) new File(dseDir, "resources/cassandra/conf") else new File(Executor.cassandraDir, "conf")
-    editCassandraYaml(new File(confDir , "cassandra.yaml"))
-    Util.IO.replaceInFile(new File(confDir, "cassandra-rackdc.properties"), Map("dc=.*" -> s"dc=${node.dc}", "rack=.*" -> s"rack=${node.rack}"))
-    Util.IO.replaceInFile(new File(confDir, "cassandra-env.sh"), Map("JMX_PORT=.*" -> s"JMX_PORT=${node.runtime.reservation.ports("jmx")}"))
-    
     process = startProcess()
   }
 
@@ -130,11 +123,11 @@ case class CassandraProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskIn
   }
 
   private def makeDataDirs() {
-    if (node.dataFileDirs == null) node.dataFileDirs = "" + new File("data/storage")
-    if (node.commitLogDir == null) node.commitLogDir = "" + new File("data/commit_log")
-    if (node.savedCachesDir == null) node.savedCachesDir = "" + new File("data/saved_caches")
+    if (node.dataFileDirs == null) node.dataFileDirs = "" + new File(Executor.dir, "data/storage")
+    if (node.commitLogDir == null) node.commitLogDir = "" + new File(Executor.dir, "data/commit_log")
+    if (node.savedCachesDir == null) node.savedCachesDir = "" + new File(Executor.dir, "data/saved_caches")
 
-    makeDir(new File("data/log"))
+    makeDir(new File(Executor.dir, "data/log"))
     node.dataFileDirs.split(",").foreach(dir => makeDir(new File(dir)))
     makeDir(new File(node.commitLogDir))
     makeDir(new File(node.savedCachesDir))
@@ -144,6 +137,21 @@ case class CassandraProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskIn
     dir.mkdirs()
     val userPrincipal = FileSystems.getDefault.getUserPrincipalLookupService.lookupPrincipalByName(System.getProperty("user.name"))
     Files.getFileAttributeView(dir.toPath, classOf[PosixFileAttributeView], LinkOption.NOFOLLOW_LINKS).setOwner(userPrincipal)
+  }
+
+  private def redirectCassandraLogs() {
+    if (Executor.dseDir != null)
+      Util.IO.replaceInFile(new File(Executor.dseDir, "bin/dse.in.sh"), Map("CASSANDRA_LOG_DIR=.*" -> s"CASSANDRA_LOG_DIR=${Executor.dir}/data/log"))
+    else
+      Util.IO.replaceInFile(new File(Executor.cassandraDir, "bin/cassandra"), Map("(.*)-Dcassandra.logdir=\\$CASSANDRA_HOME/logs" -> s"$$1-Dcassandra.logdir=${Executor.dir}/data/log"))
+  }
+
+  private def editCassandraConfigs() {
+    val confDir = if (Executor.dseDir != null) new File(Executor.dseDir, "resources/cassandra/conf") else new File(Executor.cassandraDir, "conf")
+
+    editCassandraYaml(new File(confDir , "cassandra.yaml"))
+    Util.IO.replaceInFile(new File(confDir, "cassandra-rackdc.properties"), Map("dc=.*" -> s"dc=${node.dc}", "rack=.*" -> s"rack=${node.rack}"))
+    Util.IO.replaceInFile(new File(confDir, "cassandra-env.sh"), Map("JMX_PORT=.*" -> s"JMX_PORT=${node.runtime.reservation.ports("jmx")}"))
   }
 
   private def editCassandraYaml(file: File) {
