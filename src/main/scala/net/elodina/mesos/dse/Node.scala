@@ -152,7 +152,9 @@ class Node extends Constrained {
 
     var java = "java"
     val commandBuilder = CommandInfo.newBuilder()
-      .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/dse/" + Config.dse.getName))
+
+    if (Config.cassandra != null) commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/cassandra/" + Config.cassandra.getName))
+    else commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/dse/" + Config.dse.getName))
 
     if (Config.jre != null) {
       commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/jre/" + Config.jre.getName))

@@ -48,6 +48,7 @@ class MesosTestCase {
 
     Config.api = "http://localhost:7000"
     Config.dse = new File("dse.tar.gz")
+    Config.cassandra = new File("cassandra.tar.gz")
     Config.jar = new File("dse-mesos.jar")
   }
 
@@ -58,6 +59,7 @@ class MesosTestCase {
 
     Config.api = null
     Config.dse = null
+    Config.cassandra = null
     Config.jar = null
   }
 

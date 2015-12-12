@@ -18,7 +18,7 @@
 
 package net.elodina.mesos.dse
 
-import java.io.{IOException, InputStream, OutputStream}
+import java.io._
 import java.util
 
 import org.apache.mesos.Protos
@@ -117,32 +117,6 @@ object Util {
       val node: Any = JSON.parseFull(json).getOrElse(null)
       if (node == null) throw new IllegalArgumentException("Failed to parse json: " + json)
       node
-    }
-  }
-
-  def copyAndClose(in: InputStream, out: OutputStream): Unit = {
-    val buffer = new Array[Byte](128 * 1024)
-    var actuallyRead = 0
-
-    try {
-      while (actuallyRead != -1) {
-        actuallyRead = in.read(buffer)
-        if (actuallyRead != -1) out.write(buffer, 0, actuallyRead)
-      }
-    } finally {
-      try {
-        in.close()
-      }
-      catch {
-        case ignore: IOException =>
-      }
-
-      try {
-        out.close()
-      }
-      catch {
-        case ignore: IOException =>
-      }
     }
   }
 
@@ -365,6 +339,70 @@ object Util {
     def suffix(s: String, maxLen: Int): String = {
       if (s.length <= maxLen) return s
       s.substring(s.length - maxLen)
+    }
+  }
+
+  object IO {
+    def copyAndClose(in: InputStream, out: OutputStream): Unit = {
+      val buffer = new Array[Byte](128 * 1024)
+      var actuallyRead = 0
+
+      try {
+        while (actuallyRead != -1) {
+          actuallyRead = in.read(buffer)
+          if (actuallyRead != -1) out.write(buffer, 0, actuallyRead)
+        }
+      } finally {
+        try {
+          in.close()
+        }
+        catch {
+          case ignore: IOException =>
+        }
+
+        try {
+          out.close()
+        }
+        catch {
+          case ignore: IOException =>
+        }
+      }
+    }
+
+    def delete(file: File): Unit = {
+      if (file.isDirectory) {
+        val files: Array[File] = file.listFiles()
+        for (file <- files) delete(file)
+      }
+
+      file.delete()
+    }
+
+    def findDir(dir: File, mask: String): File = {
+      for (file <- dir.listFiles())
+        if (file.isDirectory && file.getName.matches(mask))
+          return file
+
+      null
+    }
+
+    def readFile(file: File): String = {
+      val buffer = new ByteArrayOutputStream()
+      copyAndClose(new FileInputStream(file), buffer)
+      buffer.toString("utf-8")
+    }
+
+    def writeFile(file: File, content: String): Unit = {
+      copyAndClose(new ByteArrayInputStream(content.getBytes("utf-8")), new FileOutputStream(file))
+    }
+
+    def replaceInFile(file: File, replacements: Map[String, String]) {
+      var content = readFile(file)
+
+      for ((regex, value) <- replacements)
+        content = content.replaceAll(regex, value)
+
+      writeFile(file, content)
     }
   }
 }

@@ -283,13 +283,19 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   }
 
   private def resolveDeps() {
+    val jarMask = "dse-mesos.*jar"
+    val dseMask = "dse.*gz"
+    val cassandraMask = "apache-cassandra.*gz"
+
     for (file <- new File(".").listFiles()) {
-      if (file.getName.matches(Config.jarMask)) Config.jar = file
-      if (file.getName.matches(Config.dseMask)) Config.dse = file
+      if (file.getName.matches(jarMask)) Config.jar = file
+      if (file.getName.matches(dseMask)) Config.dse = file
+      if (file.getName.matches(cassandraMask)) Config.cassandra = file
     }
 
-    if (Config.jar == null) throw new IllegalStateException(Config.jarMask + " not found in current dir")
-    if (Config.dse == null) throw new IllegalStateException(Config.dseMask + " not found in in current dir")
+    if (Config.jar == null) throw new IllegalStateException(jarMask + " not found in current dir")
+    if (Config.dse == null && Config.cassandra == null)
+      throw new IllegalStateException(s"Either $dseMask or $cassandraMask should be present in current dir")
   }
 
   private def initLogging() {

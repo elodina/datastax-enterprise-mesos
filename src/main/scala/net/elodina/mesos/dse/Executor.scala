@@ -18,7 +18,7 @@
 
 package net.elodina.mesos.dse
 
-import java.io.{FileNotFoundException, File, PrintWriter, StringWriter}
+import java.io.{File, PrintWriter, StringWriter}
 
 import org.apache.log4j._
 import org.apache.mesos.Protos._
@@ -32,13 +32,17 @@ import Util.Str
 
 object Executor extends org.apache.mesos.Executor {
   private val logger = Logger.getLogger(Executor.getClass)
+  private[dse] var dir: File = new File(".")
 
   private var hostname: String = null
-  private var dseProcess: DSEProcess = null
+  private var cassandraProcess: CassandraProcess = null
   private var agentProcess: AgentProcess = null
 
   def main(args: Array[String]) {
     initLogging()
+
+    if (dseDir == null && cassandraDir == null)
+      throw new IllegalStateException("Either cassandra or dse dir should exist")
 
     val driver = new MesosExecutorDriver(Executor)
     val status = if (driver.run eq Status.DRIVER_STOPPED) 0 else 1
@@ -75,32 +79,32 @@ object Executor extends org.apache.mesos.Executor {
         setName("executor-processes")
 
         var env = Map[String, String]()
-        findJreDir().foreach { env += "JAVA_HOME" -> _ }
+        if (Executor.jreDir != null) env += "JAVA_HOME" -> Executor.jreDir.toString
 
-        dseProcess = DSEProcess(node, driver, taskInfo, hostname, env)
-        agentProcess = AgentProcess(node, env)
+        cassandraProcess = CassandraProcess(node, driver, taskInfo, hostname, env)
+        cassandraProcess.start()
 
-        dseProcess.start()
-        agentProcess.start()
+        if (dseDir != null) {
+          agentProcess = AgentProcess(node, env)
+          agentProcess.start()
+        }
 
-        Future(blocking(dseProcess.awaitConsistentState())).map {
+        Future(blocking(cassandraProcess.awaitConsistentState())).map {
           case true => driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_RUNNING).build)
           case false => logger.info("DSEProcess stopped, abandon waiting for consistent state")
         }
 
-        Future.firstCompletedOf(Seq(Future(dseProcess.await()), Future(agentProcess.await()))).onComplete { result =>
+        Future.firstCompletedOf(Seq(Future(cassandraProcess.await()))).onComplete { result =>
           result match {
             case Success(exitCode) =>
-              if ((exitCode == 0 || exitCode == 143) && (dseProcess.stopped || agentProcess.stopped))
+              if ((exitCode == 0 || exitCode == 143) && cassandraProcess.stopped)
                 driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FINISHED).build)
               else
                 driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FAILED).setMessage(s"exitCode=$exitCode").build)
 
-              dseProcess.stop()
-              agentProcess.stop()
+              stopProcesses()
             case Failure(ex) =>
-              dseProcess.stop()
-              agentProcess.stop()
+              stopProcesses()
               sendTaskFailed(driver, taskInfo, ex)
           }
 
@@ -112,9 +116,7 @@ object Executor extends org.apache.mesos.Executor {
 
   def killTask(driver: ExecutorDriver, id: TaskID) {
     logger.info("[killTask] " + id.getValue)
-
-    dseProcess.stop()
-    agentProcess.stop()
+    stopProcesses()
   }
 
   def frameworkMessage(driver: ExecutorDriver, data: Array[Byte]) {
@@ -123,9 +125,7 @@ object Executor extends org.apache.mesos.Executor {
 
   def shutdown(driver: ExecutorDriver) {
     logger.info("[shutdown]")
-
-    dseProcess.stop()
-    agentProcess.stop()
+    stopProcesses()
   }
 
   def error(driver: ExecutorDriver, message: String) {
@@ -138,6 +138,11 @@ object Executor extends org.apache.mesos.Executor {
 
     driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(task.getTaskId).setState(TaskState.TASK_FAILED)
       .setMessage("" + stackTrace).build)
+  }
+
+  private def stopProcesses() {
+    cassandraProcess.stop()
+    if (agentProcess != null) agentProcess.stop()
   }
 
   private def initLogging() {
@@ -153,26 +158,21 @@ object Executor extends org.apache.mesos.Executor {
     root.addAppender(new ConsoleAppender(layout))
   }
 
-  private[dse] def findJreDir(): Option[String] = {
-    for (file <- new java.io.File(System.getProperty("user.dir")).listFiles()) {
-      if (file.isDirectory && file.getName.matches(Config.jreMask))
-        return Some(file.getCanonicalPath)
-    }
-
-    None
+  private [dse] var _jreDir: Option[File] = null
+  def jreDir: File = {
+    if (_jreDir == null) _jreDir = Option(Util.IO.findDir(dir, "jre.*"))
+    _jreDir.getOrElse(null)
   }
 
-  private var _dseDir: File = null
-  private[dse] def dseDir: File = {
-    if (_dseDir != null) return _dseDir
+  private[dse] var _cassandraDir: Option[File] = null
+  def cassandraDir: File = {
+    if (_cassandraDir == null) _cassandraDir = Option(Util.IO.findDir(dir, "apache-cassandra.*"))
+    _cassandraDir.getOrElse(null)
+  }
 
-    for (file <- new File(".").listFiles()) {
-      if (file.isDirectory && file.getName.matches(Config.dseDirMask)) {
-        _dseDir = file
-        return _dseDir
-      }
-    }
-
-    throw new FileNotFoundException(s"${Config.dseDirMask} not found in current directory")
+  private[dse] var _dseDir: Option[File] = null
+  def dseDir: File = {
+    if (_dseDir == null) _dseDir = Option(Util.IO.findDir(dir, "dse.*"))
+    _dseDir.getOrElse(null)
   }
 }

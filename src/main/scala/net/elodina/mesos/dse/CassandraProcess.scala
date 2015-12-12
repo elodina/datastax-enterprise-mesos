@@ -36,7 +36,7 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.language.postfixOps
 
-case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
+case class CassandraProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
 
   private val started = new AtomicBoolean(false)
@@ -46,25 +46,28 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
 
   def start() {
     if (started.getAndSet(true)) throw new IllegalStateException(s"Process ${node.id} already started")
-    logger.info(s"Starting process ${node.id}")
+    logger.info(s"Starting cassandra process for node ${node.id}")
 
     makeDataDirs()
 
-    val dseDir = Executor.dseDir
-    replaceInFile(new File(dseDir, "bin/dse.in.sh"), Map("CASSANDRA_LOG_DIR=.*" -> "CASSANDRA_LOG_DIR=data/log"))
+    val dseDir: File = Executor.dseDir
+    if (dseDir != null)
+      Util.IO.replaceInFile(new File(Executor.dseDir, "bin/dse.in.sh"), Map("CASSANDRA_LOG_DIR=.*" -> s"CASSANDRA_LOG_DIR=${Executor.dir}/data/log"))
 
-    val confDir = new File(dseDir, "resources/cassandra/conf")
+    val confDir = if (dseDir != null) new File(dseDir, "resources/cassandra/conf") else new File(Executor.cassandraDir, "conf")
     editCassandraYaml(new File(confDir , "cassandra.yaml"))
-    replaceInFile(new File(confDir, "cassandra-rackdc.properties"), Map("dc=.*" -> s"dc=${node.dc}", "rack=.*" -> s"rack=${node.rack}"))
-    replaceInFile(new File(confDir, "cassandra-env.sh"), Map("JMX_PORT=.*" -> s"JMX_PORT=${node.runtime.reservation.ports("jmx")}"))
+    Util.IO.replaceInFile(new File(confDir, "cassandra-rackdc.properties"), Map("dc=.*" -> s"dc=${node.dc}", "rack=.*" -> s"rack=${node.rack}"))
+    Util.IO.replaceInFile(new File(confDir, "cassandra-env.sh"), Map("JMX_PORT=.*" -> s"JMX_PORT=${node.runtime.reservation.ports("jmx")}"))
     
     process = startProcess()
   }
 
   private def startProcess(): Process = {
-    val cmd = util.Arrays.asList("" + new File(Executor.dseDir, "bin/dse"), "cassandra", "-f")
+    var cmd: List[String] = null
+    if (Executor.dseDir != null) cmd = List("" + new File(Executor.dseDir, "bin/dse"), "cassandra", "-f")
+    else cmd = List("" + new File(Executor.cassandraDir, "bin/cassandra"), "-f")
 
-    val out: File = new File("dse.log")
+    val out: File = new File("cassandra.log")
     val builder: ProcessBuilder = new ProcessBuilder(cmd)
       .redirectOutput(out)
       .redirectError(out)
@@ -170,17 +173,6 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     val writer = new FileWriter(file)
     try { yaml.dump(mapAsJavaMap(cassandraYaml), writer)}
     finally { writer.close() }
-  }
-
-  private def replaceInFile(file: File, replacements: Map[String, String]) {
-    val buffer = new ByteArrayOutputStream()
-    Util.copyAndClose(new FileInputStream(file), buffer)
-
-    var content = buffer.toString("utf-8")
-    for ((regex, value) <- replacements)
-      content = content.replaceAll(regex, value)
-    
-    Util.copyAndClose(new ByteArrayInputStream(content.getBytes("utf-8")), new FileOutputStream(file))
   }
 
   private def getIP(networkInterface: String): String = {

@@ -35,7 +35,7 @@ object HttpServer {
   private val logger = Logger.getLogger(HttpServer.getClass)
   private var server: Server = null
 
-  def start(resolveDeps: Boolean = true) {
+  def start() {
     if (server != null) throw new IllegalStateException("HttpServer already started")
 
     val threadPool = new QueuedThreadPool(16)
@@ -90,6 +90,7 @@ object HttpServer {
       if (uri.startsWith("/health")) handleHealth(response)
       else if (uri.startsWith("/jar/")) downloadFile(Config.jar, response)
       else if (uri.startsWith("/dse/")) downloadFile(Config.dse, response)
+      else if (uri.startsWith("/cassandra/")) downloadFile(Config.cassandra, response)
       else if (Config.jre != null && uri.startsWith("/jre/")) downloadFile(Config.jre, response)
       else if (uri.startsWith("/api/node")) handleNodeApi(request, response)
       else if (uri.startsWith("/api/ring")) handleRingApi(request, response)
@@ -100,7 +101,7 @@ object HttpServer {
       response.setContentType("application/zip")
       response.setHeader("Content-Length", "" + file.length())
       response.setHeader("Content-Disposition", "attachment; filename=\"" + file.getName + "\"")
-      Util.copyAndClose(new FileInputStream(file), response.getOutputStream)
+      Util.IO.copyAndClose(new FileInputStream(file), response.getOutputStream)
     }
     
     def handleNodeApi(request: HttpServletRequest, response: HttpServletResponse) {

@@ -27,11 +27,6 @@ import scala.language.postfixOps
 object Config {
   final val API_ENV = "DM_API"
 
-  val jarMask = "dse-mesos.*\\.jar"
-  val dseMask = "dse.*gz"
-  val dseDirMask = "^dse.*$"
-  val jreMask = "jre.*"
-
   var debug: Boolean = false
 
   var master: String = null
@@ -49,6 +44,7 @@ object Config {
 
   var jar: File = null
   var dse: File = null
+  var cassandra: File = null
   var jre: File = null
 
   def httpServerPort: Int = {

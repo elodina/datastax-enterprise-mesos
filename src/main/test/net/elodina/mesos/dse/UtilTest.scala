@@ -1,8 +1,10 @@
 package net.elodina.mesos.dse
 
-import Util.Range
+import Util.{Range, IO}
 import org.junit.Test
 import org.junit.Assert._
+import java.io.File
+import java.nio.file.Files
 
 class UtilTest {
   // Range
@@ -100,5 +102,29 @@ class UtilTest {
     assertEquals("0", "" + new Range("0"))
     assertEquals("0..10", "" + new Range("0..10"))
     assertEquals("0", "" + new Range("0..0"))
+  }
+
+  @Test
+  def IO_findDir {
+    val dir: File = Files.createTempDirectory(classOf[UtilTest].getSimpleName).toFile
+
+    try {
+      assertNull(IO.findDir(dir, "mask.*"))
+
+      val matchedDir: File = new File(dir, "mask-123")
+      matchedDir.mkdir()
+      assertEquals(matchedDir, IO.findDir(dir, "mask.*"))
+    } finally {
+      IO.delete(dir)
+    }
+  }
+
+  @Test
+  def IO_replaceInFile {
+    val file: File = Files.createTempFile(classOf[UtilTest].getSimpleName, null).toFile
+    IO.writeFile(file, "a=1\nb=2\nc=3")
+
+    IO.replaceInFile(file, Map("a=*." -> "a=4", "b=*." -> "b=5"))
+    assertEquals("a=4\nb=5\nc=3", IO.readFile(file))
   }
 }
