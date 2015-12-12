@@ -22,41 +22,25 @@ class ExecutorTest extends MesosTestCase {
   }
 
   @Test
-  def jreDir {
-    assertNull(Executor.jreDir)
-    assertEquals(Executor._jreDir, None)
-
-    Executor._jreDir = null
-    val dir: File = new File(Executor.dir, "jre-1.7.0")
-    dir.mkdirs()
-
-    assertEquals(dir, Executor.jreDir)
-    assertEquals(Some(dir), Executor._jreDir)
-  }
-
- @Test
-  def cassandraDir {
+  def resolveDeps {
+    try { Executor.resolveDeps(); fail() }
+    catch { case e: IllegalStateException => assertTrue(e.getMessage, e.getMessage.contains("cassandra or dse dir should exist")) }
     assertNull(Executor.cassandraDir)
-    assertEquals(Executor._cassandraDir, None)
-
-    Executor._cassandraDir = null
-    val dir: File = new File(Executor.dir, "apache-cassandra-3.0.1")
-    dir.mkdirs()
-
-    assertEquals(dir, Executor.cassandraDir)
-    assertEquals(Some(dir), Executor._cassandraDir)
-  }
-
-  @Test
-  def dseDir {
     assertNull(Executor.dseDir)
-    assertEquals(Executor._dseDir, None)
+    assertNull(Executor.jreDir)
 
-    Executor._dseDir = null
-    val dir: File = new File(Executor.dir, "dse-4.8.2")
-    dir.mkdirs()
+    val cassandraDir: File = new File(Executor.dir, "apache-cassandra-3.0.1")
+    cassandraDir.mkdirs()
 
-    assertEquals(dir, Executor.dseDir)
-    assertEquals(Some(dir), Executor._dseDir)
+    val dseDir: File = new File(Executor.dir, "dse-4.8.2")
+    dseDir.mkdirs()
+
+    val jreDir: File = new File(Executor.dir, "jre-1.7.0")
+    jreDir.mkdirs()
+
+    Executor.resolveDeps()
+    assertEquals(cassandraDir, Executor.cassandraDir)
+    assertEquals(dseDir, Executor.dseDir)
+    assertEquals(jreDir, Executor.jreDir)
   }
 }

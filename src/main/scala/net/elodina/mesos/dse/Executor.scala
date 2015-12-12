@@ -40,9 +40,7 @@ object Executor extends org.apache.mesos.Executor {
 
   def main(args: Array[String]) {
     initLogging()
-
-    if (dseDir == null && cassandraDir == null)
-      throw new IllegalStateException("Either cassandra or dse dir should exist")
+    resolveDeps()
 
     val driver = new MesosExecutorDriver(Executor)
     val status = if (driver.run eq Status.DRIVER_STOPPED) 0 else 1
@@ -158,21 +156,16 @@ object Executor extends org.apache.mesos.Executor {
     root.addAppender(new ConsoleAppender(layout))
   }
 
-  private [dse] var _jreDir: Option[File] = null
-  def jreDir: File = {
-    if (_jreDir == null) _jreDir = Option(Util.IO.findDir(dir, "jre.*"))
-    _jreDir.getOrElse(null)
-  }
+  var cassandraDir: File = null
+  var dseDir: File = null
+  var jreDir: File = null
 
-  private[dse] var _cassandraDir: Option[File] = null
-  def cassandraDir: File = {
-    if (_cassandraDir == null) _cassandraDir = Option(Util.IO.findDir(dir, "apache-cassandra.*"))
-    _cassandraDir.getOrElse(null)
-  }
+  def resolveDeps() {
+    cassandraDir = Util.IO.findDir(dir, "apache-cassandra.*")
+    dseDir = Util.IO.findDir(dir, "dse.*")
+    jreDir = Util.IO.findDir(dir, "jre.*")
 
-  private[dse] var _dseDir: Option[File] = null
-  def dseDir: File = {
-    if (_dseDir == null) _dseDir = Option(Util.IO.findDir(dir, "dse.*"))
-    _dseDir.getOrElse(null)
+    if (dseDir == null && cassandraDir == null)
+      throw new IllegalStateException("Either cassandra or dse dir should exist")
   }
 }
