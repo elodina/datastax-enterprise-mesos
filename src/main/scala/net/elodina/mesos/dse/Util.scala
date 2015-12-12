@@ -30,6 +30,7 @@ import scala.util.parsing.json.JSON
 import java.util.Date
 import java.text.SimpleDateFormat
 import scala.collection.mutable.ListBuffer
+import java.util.regex.{Matcher, Pattern}
 
 object Util {
   def parseList(s: String, entrySep: Char = ',', valueSep: Char = '=', nullValues: Boolean = true): List[(String, String)] = {
@@ -396,11 +397,15 @@ object Util {
       copyAndClose(new ByteArrayInputStream(content.getBytes("utf-8")), new FileOutputStream(file))
     }
 
-    def replaceInFile(file: File, replacements: Map[String, String]) {
+    def replaceInFile(file: File, replacements: Map[String, String], ignoreMisses: Boolean = false) {
       var content = readFile(file)
 
-      for ((regex, value) <- replacements)
-        content = content.replaceAll(regex, value)
+      for ((regex, value) <- replacements) {
+        val matcher: Matcher = Pattern.compile(regex).matcher(content)
+        if (!ignoreMisses && !matcher.find()) throw new IllegalStateException(s"regex $regex not found in file $file")
+
+        content = matcher.replaceAll(value)
+      }
 
       writeFile(file, content)
     }

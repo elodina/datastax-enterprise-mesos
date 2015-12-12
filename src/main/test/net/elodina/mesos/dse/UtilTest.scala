@@ -122,9 +122,19 @@ class UtilTest {
   @Test
   def IO_replaceInFile {
     val file: File = Files.createTempFile(classOf[UtilTest].getSimpleName, null).toFile
-    IO.writeFile(file, "a=1\nb=2\nc=3")
 
+    IO.writeFile(file, "a=1\nb=2\nc=3")
     IO.replaceInFile(file, Map("a=*." -> "a=4", "b=*." -> "b=5"))
     assertEquals("a=4\nb=5\nc=3", IO.readFile(file))
+
+    // error on miss
+    IO.writeFile(file, "a=1\nb=2")
+    try { IO.replaceInFile(file, Map("a=*." -> "a=3", "c=*." -> "c=4")) }
+    catch { case e: IllegalStateException => assertTrue(e.getMessage, e.getMessage.contains("not found in file")) }
+
+    // ignore misses
+    IO.writeFile(file, "a=1\nb=2")
+    IO.replaceInFile(file, Map("a=*." -> "a=3", "c=*." -> "c=4"), ignoreMisses = true)
+    assertEquals("a=3\nb=2", IO.readFile(file))
   }
 }

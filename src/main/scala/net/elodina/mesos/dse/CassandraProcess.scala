@@ -140,10 +140,10 @@ case class CassandraProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskIn
   }
 
   private def redirectCassandraLogs() {
-    if (Executor.dseDir != null)
-      Util.IO.replaceInFile(new File(Executor.dseDir, "bin/dse.in.sh"), Map("CASSANDRA_LOG_DIR=.*" -> s"CASSANDRA_LOG_DIR=${Executor.dir}/data/log"))
-    else
+    if (Executor.cassandraDir != null)
       Util.IO.replaceInFile(new File(Executor.cassandraDir, "bin/cassandra"), Map("(.*)-Dcassandra.logdir=\\$CASSANDRA_HOME/logs" -> s"$$1-Dcassandra.logdir=${Executor.dir}/data/log"))
+    else
+      Util.IO.replaceInFile(new File(Executor.dseDir, "bin/dse.in.sh"), Map("CASSANDRA_LOG_DIR=.*" -> s"CASSANDRA_LOG_DIR=${Executor.dir}/data/log"))
   }
 
   private def editCassandraConfigs() {
