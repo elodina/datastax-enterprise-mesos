@@ -20,6 +20,8 @@ class Ring {
     fromJson(json)
   }
 
+  def getNodes: List[Node] = Cluster.getNodes.filter(_.ring == this)
+
   def availSeeds: List[String] = {
     val nodes: List[Node] = Cluster.getNodes
       .filter(_.ring == this)

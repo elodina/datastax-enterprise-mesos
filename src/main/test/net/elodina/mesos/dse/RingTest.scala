@@ -12,6 +12,22 @@ class RingTest extends MesosTestCase {
   }
 
   @Test
+  def getNodes {
+    val n0 = Cluster.addNode(new Node("0"))
+    val n1 = Cluster.addNode(new Node("1"))
+
+    val r0 = Cluster.addRing(new Ring("r0"))
+    val n2 = Cluster.addNode(new Node("2"))
+    val n3 = Cluster.addNode(new Node("3"))
+
+    n2.ring = r0
+    n3.ring = r0
+
+    assertEquals(List(n0, n1), Cluster.defaultRing.getNodes)
+    assertEquals(List(n2, n3), r0.getNodes)
+  }
+
+  @Test
   def availSeeds {
     val ring: Ring = Cluster.defaultRing
     val n0: Node = Cluster.addNode(new Node("0"))

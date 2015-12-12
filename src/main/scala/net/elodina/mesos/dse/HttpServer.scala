@@ -336,6 +336,7 @@ object HttpServer {
       var ring = Cluster.getRing(id)
       if (add && ring != null) throw new HttpError(400, "duplicate ring")
       if (!add && ring == null) throw new HttpError(400, "ring not found")
+      if (!add && ring.getNodes.exists(_.state != Node.State.Inactive)) throw new HttpError(400, "ring has active nodes")
 
       if (add)
         ring = Cluster.addRing(new Ring(id))
