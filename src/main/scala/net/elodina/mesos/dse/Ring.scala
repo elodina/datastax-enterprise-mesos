@@ -22,6 +22,9 @@ class Ring {
 
   def getNodes: List[Node] = Cluster.getNodes.filter(_.ring == this)
 
+  def active: Boolean = getNodes.exists(_.state != Node.State.Inactive)
+  def idle: Boolean = !active
+
   def availSeeds: List[String] = {
     val nodes: List[Node] = Cluster.getNodes
       .filter(_.ring == this)
