@@ -48,7 +48,7 @@ class NodeTest extends MesosTestCase {
 
   @Test
   def reservePorts {
-    val node: Node = new Node("0")
+    val node: Node = Cluster.addNode(new Node("0"))
 
     def test(portsDef: String, resources: String, expected: Map[String, Int]) {
       // parses expr like: storage=0..4,jmx=5,cql=100..110
@@ -84,6 +84,15 @@ class NodeTest extends MesosTestCase {
     // port ranges
     test("internal=10..20", "ports:15..25", Map("internal" -> 15))
     test("internal=10..20,jmx=100..200", "ports:15..25,150..160", Map("internal" -> 15, "jmx" -> 150))
+
+    // ring has active node
+    node.state = Node.State.Running
+    node.runtime = new Node.Runtime(reservation = new Reservation(ports = Map("internal" -> 100)))
+
+    test("internal=10..20", "ports:0..1000", Map("internal" -> 100))
+    test("", "ports:0..1000", Map("internal" -> 100))
+    test("internal=10..20", "ports:0..99", Map("internal" -> -1))
+
   }
 
   @Test

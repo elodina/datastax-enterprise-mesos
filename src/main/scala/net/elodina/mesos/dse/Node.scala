@@ -69,6 +69,9 @@ class Node extends Constrained {
     if (name == "hostname") Some(runtime.hostname)
     else Some(runtime.attributes(name))
   }
+  
+  def active: Boolean = state != Node.State.Inactive
+  def idle: Boolean = !active
 
   def matches(offer: Offer): String = {
     val reservation: Reservation = reserve(offer)
@@ -111,8 +114,18 @@ class Node extends Constrained {
     var availPorts: ListBuffer[Range] = new ListBuffer[Range]()
     availPorts ++= resource.getRanges.getRangeList.map(r => new Util.Range(r.getBegin.toInt, r.getEnd.toInt)).sortBy(_.start)
 
-    for (name <- Node.portNames)
-      result(name) = reservePort(ring.ports(name), availPorts)
+    for (name <- Node.portNames) {
+      var range: Range = ring.ports(name)
+
+      // use same internal port for the whole ring
+      val activeNode = ring.getNodes.find(_.runtime != null).getOrElse(null)
+      if (name == "internal" && activeNode != null) {
+        val port = activeNode.runtime.reservation.ports("internal")
+        range = new Range(port, port)
+      }
+      
+      result(name) = reservePort(range, availPorts)
+    }
 
     result.toMap
   }
