@@ -108,30 +108,30 @@ class Node extends Constrained {
     val resource = offer.getResourcesList.toList.find(_.getName == "ports").getOrElse(null)
     if (resource == null) return result.toMap
 
-    var availPorts: ListBuffer[Util.Range] = new ListBuffer[Util.Range]()
+    var availPorts: ListBuffer[Range] = new ListBuffer[Range]()
     availPorts ++= resource.getRanges.getRangeList.map(r => new Util.Range(r.getBegin.toInt, r.getEnd.toInt)).sortBy(_.start)
 
-    def allocPort(ports: Range): Int = {
-      var r: Range = null
-
-      if (ports == null) r = availPorts.headOption.getOrElse(null) // take first avail range
-      else r = availPorts.find(ports.overlap(_) != null).getOrElse(null) // take first range overlapping with ports
-
-      if (r == null) return -1
-      val port = if (ports != null) r.overlap(ports).start else r.start
-
-      // remove allocated port
-      availPorts -= r
-      availPorts ++= r.split(port)
-      availPorts = availPorts.sortBy(_.start)
-
-      port
-    }
-
     for (name <- Node.portNames)
-      result(name) = allocPort(ring.ports(name))
+      result(name) = reservePort(ring.ports(name), availPorts)
 
     result.toMap
+  }
+
+  private[dse] def reservePort(range: Range, availPorts: ListBuffer[Range]): Int = {
+    var r: Range = null
+
+    if (range == null) r = availPorts.headOption.getOrElse(null)       // take first avail range
+    else r = availPorts.find(range.overlap(_) != null).getOrElse(null) // take first range overlapping with ports
+
+    if (r == null) return -1
+    val port = if (range != null) r.overlap(range).start else r.start
+
+    // remove allocated port
+    val idx = availPorts.indexOf(r)
+    availPorts -= r
+    availPorts.insertAll(idx, r.split(port))
+
+    port
   }
 
   private[dse] def newTask(): TaskInfo = {

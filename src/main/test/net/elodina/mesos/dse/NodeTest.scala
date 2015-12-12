@@ -7,6 +7,8 @@ import scala.concurrent.duration.Duration
 import net.elodina.mesos.dse.Node.Reservation
 import scala.collection.mutable
 import scala.collection.JavaConversions._
+import scala.collection.mutable.ListBuffer
+import Util.Range
 
 class NodeTest extends MesosTestCase {
   @Test
@@ -50,12 +52,12 @@ class NodeTest extends MesosTestCase {
 
     def test(portsDef: String, resources: String, expected: Map[String, Int]) {
       // parses expr like: storage=0..4,jmx=5,cql=100..110
-      def parsePortsDef(s: String): Map[String, Util.Range] = {
-        val ports = new mutable.HashMap[String, Util.Range]()
+      def parsePortsDef(s: String): Map[String, Range] = {
+        val ports = new mutable.HashMap[String, Range]()
         Node.portNames.foreach(ports(_) = null)
 
         for ((k,v) <- Util.parseMap(s))
-          ports(k) = new Util.Range(v)
+          ports(k) = new Range(v)
 
         ports.toMap
       }
@@ -82,6 +84,25 @@ class NodeTest extends MesosTestCase {
     // port ranges
     test("internal=10..20", "ports:15..25", Map("internal" -> 15))
     test("internal=10..20,jmx=100..200", "ports:15..25,150..160", Map("internal" -> 15, "jmx" -> 150))
+  }
+
+  @Test
+  def reservePort {
+    val node = new Node("0")
+    var ports = new ListBuffer[Range]()
+    ports += new Range("0..100")
+
+    assertEquals(10, node.reservePort(new Range("10..20"), ports))
+    assertEquals(List(new Range("0..9"), new Range("11..100")), ports.toList)
+
+    assertEquals(0, node.reservePort(new Range("0..0"), ports))
+    assertEquals(List(new Range("1..9"), new Range("11..100")), ports.toList)
+
+    assertEquals(100, node.reservePort(new Range("100..200"), ports))
+    assertEquals(List(new Range("1..9"), new Range("11..99")), ports.toList)
+
+    assertEquals(50, node.reservePort(new Range("50..60"), ports))
+    assertEquals(List(new Range("1..9"), new Range("11..49"), new Range("51..99")), ports.toList)
   }
 
   @Test
