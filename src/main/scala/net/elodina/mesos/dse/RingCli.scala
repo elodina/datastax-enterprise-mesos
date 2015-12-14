@@ -79,6 +79,11 @@ object RingCli {
     val parser = new OptionParser()
     parser.accepts("name", "Ring name.").withRequiredArg().ofType(classOf[String])
 
+    parser.accepts("internal-port", "Inter-node port.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("jmx-port", "JMX monitoring port.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("cql-port", "CQL port.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("thrift-port", "Thrift port.").withRequiredArg().ofType(classOf[String])
+
     if (help) {
       printLine(s"${cmd.capitalize} ring \nUsage: ring $cmd <id> [options]\n")
       parser.printHelpOn(out)
@@ -99,8 +104,18 @@ object RingCli {
 
     val name = options.valueOf("name").asInstanceOf[String]
 
+    val internalPort = options.valueOf("internal-port").asInstanceOf[String]
+    val jmxPort = options.valueOf("jmx-port").asInstanceOf[String]
+    val cqlPort = options.valueOf("cql-port").asInstanceOf[String]
+    val thriftPort = options.valueOf("thrift-port").asInstanceOf[String]
+
     val params = mutable.HashMap("ring" -> id)
     if (name != null) params("name") = name
+
+    if (internalPort != null) params("internalPort") = internalPort
+    if (jmxPort != null) params("jmxPort") = jmxPort
+    if (cqlPort != null) params("cqlPort") = cqlPort
+    if (thriftPort != null) params("thriftPort") = thriftPort
 
     var json: Map[String, Any] = null
     try { json = Cli.sendRequest(s"/ring/$cmd", params.toMap).asInstanceOf[Map[String, Any]] }
@@ -139,5 +154,18 @@ object RingCli {
   private def printRing(ring: Ring, indent: Int): Unit = {
     printLine("id: " + ring.id, indent)
     if (ring.name != null) printLine("name: " + ring.name, indent)
+    printLine(s"ports: ${ringPorts(ring)}", indent)
+  }
+
+  private def ringPorts(ring: Ring): String = {
+    var s = ""
+
+    for (name <- Node.portNames) {
+      if (!s.isEmpty) s += ", "
+      val range = ring.ports(name)
+      s += name + ":" + (if (range != null) range else "<auto>")
+    }
+
+    s
   }
 }

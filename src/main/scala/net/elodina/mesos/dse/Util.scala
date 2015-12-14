@@ -18,7 +18,7 @@
 
 package net.elodina.mesos.dse
 
-import java.io.{IOException, InputStream, OutputStream}
+import java.io._
 import java.util
 
 import org.apache.mesos.Protos
@@ -29,6 +29,8 @@ import scala.collection.mutable
 import scala.util.parsing.json.JSON
 import java.util.Date
 import java.text.SimpleDateFormat
+import scala.collection.mutable.ListBuffer
+import java.util.regex.{Matcher, Pattern}
 
 object Util {
   def parseList(s: String, entrySep: Char = ',', valueSep: Char = '=', nullValues: Boolean = true): List[(String, String)] = {
@@ -119,32 +121,6 @@ object Util {
     }
   }
 
-  def copyAndClose(in: InputStream, out: OutputStream): Unit = {
-    val buffer = new Array[Byte](128 * 1024)
-    var actuallyRead = 0
-
-    try {
-      while (actuallyRead != -1) {
-        actuallyRead = in.read(buffer)
-        if (actuallyRead != -1) out.write(buffer, 0, actuallyRead)
-      }
-    } finally {
-      try {
-        in.close()
-      }
-      catch {
-        case ignore: IOException =>
-      }
-
-      try {
-        out.close()
-      }
-      catch {
-        case ignore: IOException =>
-      }
-    }
-  }
-
   def getScalarResources(offer: Offer, name: String): Double = {
     offer.getResourcesList.foldLeft(0.0) { (all, current) =>
       if (current.getName == name) all + current.getScalar.getValue
@@ -200,6 +176,18 @@ object Util {
       val start = y.start
       val end = Math.min(x.end, y.end)
       new Range(start, end)
+    }
+
+    def contains(p: Int): Boolean = start <= p && p <= end
+
+    def split(p: Int): List[Range] = {
+      if (!contains(p)) throw new IllegalArgumentException("point not in range")
+
+      val result = new ListBuffer[Range]
+      if (start < p) result += new Range(start, p - 1)
+      if (p < end) result += new Range(p + 1, end)
+
+      result.toList
     }
 
     override def equals(obj: scala.Any): Boolean = {
@@ -352,6 +340,74 @@ object Util {
     def suffix(s: String, maxLen: Int): String = {
       if (s.length <= maxLen) return s
       s.substring(s.length - maxLen)
+    }
+  }
+
+  object IO {
+    def copyAndClose(in: InputStream, out: OutputStream): Unit = {
+      val buffer = new Array[Byte](128 * 1024)
+      var actuallyRead = 0
+
+      try {
+        while (actuallyRead != -1) {
+          actuallyRead = in.read(buffer)
+          if (actuallyRead != -1) out.write(buffer, 0, actuallyRead)
+        }
+      } finally {
+        try {
+          in.close()
+        }
+        catch {
+          case ignore: IOException =>
+        }
+
+        try {
+          out.close()
+        }
+        catch {
+          case ignore: IOException =>
+        }
+      }
+    }
+
+    def delete(file: File): Unit = {
+      if (file.isDirectory) {
+        val files: Array[File] = file.listFiles()
+        for (file <- files) delete(file)
+      }
+
+      file.delete()
+    }
+
+    def findDir(dir: File, mask: String): File = {
+      for (file <- dir.listFiles())
+        if (file.isDirectory && file.getName.matches(mask))
+          return file
+
+      null
+    }
+
+    def readFile(file: File): String = {
+      val buffer = new ByteArrayOutputStream()
+      copyAndClose(new FileInputStream(file), buffer)
+      buffer.toString("utf-8")
+    }
+
+    def writeFile(file: File, content: String): Unit = {
+      copyAndClose(new ByteArrayInputStream(content.getBytes("utf-8")), new FileOutputStream(file))
+    }
+
+    def replaceInFile(file: File, replacements: Map[String, String], ignoreMisses: Boolean = false) {
+      var content = readFile(file)
+
+      for ((regex, value) <- replacements) {
+        val matcher: Matcher = Pattern.compile(regex).matcher(content)
+        if (!ignoreMisses && !matcher.find()) throw new IllegalStateException(s"regex $regex not found in file $file")
+
+        content = matcher.replaceAll(value)
+      }
+
+      writeFile(file, content)
     }
   }
 }

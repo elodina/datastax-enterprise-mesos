@@ -18,7 +18,6 @@
 
 package net.elodina.mesos.dse
 
-import java.io.File
 import java.util
 import java.util.concurrent.TimeUnit
 
@@ -44,7 +43,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     initLogging()
     logger.info(s"Starting scheduler:\n$Config")
 
-    resolveDeps()
+    Config.resolveDeps()
     Cluster.load()
     HttpServer.start()
 
@@ -280,16 +279,6 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
       logger.fatal(s"""Minimum supported Mesos version is "$minVersion", whereas current version is $versionStr. Stopping Scheduler""")
       driver.stop
     }
-  }
-
-  private def resolveDeps() {
-    for (file <- new File(".").listFiles()) {
-      if (file.getName.matches(Config.jarMask)) Config.jar = file
-      if (file.getName.matches(Config.dseMask)) Config.dse = file
-    }
-
-    if (Config.jar == null) throw new IllegalStateException(Config.jarMask + " not found in current dir")
-    if (Config.dse == null) throw new IllegalStateException(Config.dseMask + " not found in in current dir")
   }
 
   private def initLogging() {

@@ -135,9 +135,6 @@ object NodeCli {
     val constraints = options.valueOf("constraints").asInstanceOf[String]
     val seedConstraints = options.valueOf("seed-constraints").asInstanceOf[String]
 
-    val nodeOut = options.valueOf("node-out").asInstanceOf[String]
-    val agentOut = options.valueOf("agent-out").asInstanceOf[String]
-
     val seed = options.valueOf("seed").asInstanceOf[java.lang.Boolean]
     val replaceAddress = options.valueOf("replace-address").asInstanceOf[String]
     val jvmOptions = options.valueOf("jvm-options").asInstanceOf[String]
@@ -159,9 +156,6 @@ object NodeCli {
 
     if (constraints != null) params("constraints") = constraints
     if (seedConstraints != null) params("seedConstraints") = seedConstraints
-
-    if (nodeOut != null) params("nodeOut") = nodeOut
-    if (agentOut != null) params("agentOut") = agentOut
 
     if (seed != null) params("seed") = "" + seed
     if (replaceAddress != null) params("replaceAddress") = replaceAddress
@@ -286,6 +280,7 @@ object NodeCli {
     printLine(s"executor id: ${runtime.executorId}", indent + 1)
     printLine(s"slave id: ${runtime.slaveId}", indent + 1)
     printLine(s"hostname: ${runtime.hostname}", indent + 1)
+    printLine(s"reservation: ${nodeReservation(runtime.reservation)}", indent + 1)
     printLine(s"seeds: ${runtime.seeds.mkString(",")}", indent + 1)
     if (!runtime.attributes.isEmpty) printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
   }
@@ -302,6 +297,17 @@ object NodeCli {
     var s = ""
     s += s"cpu:${node.cpu}"
     s += s", mem:${node.mem}"
+    s
+  }
+
+  private def nodeReservation(reservation: Node.Reservation): String = {
+    var s = ""
+    s += s"cpu:${reservation.cpus}"
+    s += s", mem:${reservation.mem}"
+
+    for (name <- Node.portNames)
+      s += s", $name-port:${reservation.ports(name)}"
+
     s
   }
 }

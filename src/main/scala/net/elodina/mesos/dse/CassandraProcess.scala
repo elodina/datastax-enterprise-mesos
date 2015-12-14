@@ -35,9 +35,8 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.io.Source
 import scala.language.postfixOps
-import java.util.Properties
 
-case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
+case class CassandraProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
 
   private val started = new AtomicBoolean(false)
@@ -47,21 +46,21 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
 
   def start() {
     if (started.getAndSet(true)) throw new IllegalStateException(s"Process ${node.id} already started")
-    logger.info(s"Starting process ${node.id}")
+    logger.info(s"Starting cassandra process for node ${node.id}")
 
-    val dseDir = DSEProcess.findDSEDir()
-    val workDir = new File(".")
-    makeDseDirs(workDir)
-    editCassandraYaml(new File(dseDir, DSEProcess.CASSANDRA_YAML_LOCATION))
-    editRackDcProps(new File(dseDir, DSEProcess.RACK_DC_LOCATION))
+    makeDataDirs()
+    redirectCassandraLogs()
+    editCassandraConfigs()
 
-    process = startProcess(node, dseDir)
+    process = startProcess()
   }
 
-  private def startProcess(node: Node, dseDir: File): Process = {
-    val cmd = util.Arrays.asList("" + new File(dseDir, DSEProcess.DSE_CMD), "cassandra", "-f")
+  private def startProcess(): Process = {
+    var cmd: List[String] = null
+    if (Executor.dseDir != null) cmd = List("" + new File(Executor.dseDir, "bin/dse"), "cassandra", "-f")
+    else cmd = List("" + new File(Executor.cassandraDir, "bin/cassandra"), "-f")
 
-    val out: File = new File("dse.log")
+    val out: File = new File("cassandra.log")
     val builder: ProcessBuilder = new ProcessBuilder(cmd)
       .redirectOutput(out)
       .redirectError(out)
@@ -76,7 +75,7 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
   def awaitConsistentState(): Boolean = {
     while (!stopped) {
       try {
-        val probe = new NodeProbe("localhost", node.jmxPort)
+        val probe = new NodeProbe("localhost", node.runtime.reservation.ports("jmx"))
 
         val initialized = probe.isInitialized
         val joined = probe.isJoined
@@ -123,16 +122,12 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     }
   }
 
-  private def makeDseDirs(currentDir: File) {
-    makeDir(new File(currentDir, DSEProcess.CASSANDRA_LIB_DIR)) //TODO Cassandra/Spark lib/log dirs look unnecessary, remove them a bit later
-    makeDir(new File(currentDir, DSEProcess.CASSANDRA_LOG_DIR))
-    makeDir(new File(currentDir, DSEProcess.SPARK_LIB_DIR))
-    makeDir(new File(currentDir, DSEProcess.SPARK_LOG_DIR))
+  private def makeDataDirs() {
+    if (node.dataFileDirs == null) node.dataFileDirs = "" + new File(Executor.dir, "data/storage")
+    if (node.commitLogDir == null) node.commitLogDir = "" + new File(Executor.dir, "data/commit_log")
+    if (node.savedCachesDir == null) node.savedCachesDir = "" + new File(Executor.dir, "data/saved_caches")
 
-    if (node.dataFileDirs == null) node.dataFileDirs = "" + new File(currentDir, DSEProcess.DSE_DATA_DIR)
-    if (node.commitLogDir == null) node.commitLogDir = "" + new File(currentDir, DSEProcess.COMMIT_LOG_DIR)
-    if (node.savedCachesDir == null) node.savedCachesDir = "" + new File(currentDir, DSEProcess.SAVED_CACHES_DIR)
-
+    makeDir(new File(Executor.dir, "data/log"))
     node.dataFileDirs.split(",").foreach(dir => makeDir(new File(dir)))
     makeDir(new File(node.commitLogDir))
     makeDir(new File(node.savedCachesDir))
@@ -144,41 +139,47 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
     Files.getFileAttributeView(dir.toPath, classOf[PosixFileAttributeView], LinkOption.NOFOLLOW_LINKS).setOwner(userPrincipal)
   }
 
+  private def redirectCassandraLogs() {
+    if (Executor.cassandraDir != null)
+      Util.IO.replaceInFile(new File(Executor.cassandraDir, "bin/cassandra"), Map("(.*)-Dcassandra.logdir=\\$CASSANDRA_HOME/logs" -> s"$$1-Dcassandra.logdir=${Executor.dir}/data/log"))
+    else
+      Util.IO.replaceInFile(new File(Executor.dseDir, "bin/dse.in.sh"), Map("CASSANDRA_LOG_DIR=.*" -> s"CASSANDRA_LOG_DIR=${Executor.dir}/data/log"))
+  }
+
+  private def editCassandraConfigs() {
+    val confDir = if (Executor.dseDir != null) new File(Executor.dseDir, "resources/cassandra/conf") else new File(Executor.cassandraDir, "conf")
+
+    editCassandraYaml(new File(confDir , "cassandra.yaml"))
+    Util.IO.replaceInFile(new File(confDir, "cassandra-rackdc.properties"), Map("dc=.*" -> s"dc=${node.dc}", "rack=.*" -> s"rack=${node.rack}"))
+    Util.IO.replaceInFile(new File(confDir, "cassandra-env.sh"), Map("JMX_PORT=.*" -> s"JMX_PORT=${node.runtime.reservation.ports("jmx")}"))
+  }
+
   private def editCassandraYaml(file: File) {
     val yaml = new Yaml()
     val cassandraYaml = mutable.Map(yaml.load(Source.fromFile(file).reader()).asInstanceOf[util.Map[String, AnyRef]].toSeq: _*)
 
-    cassandraYaml.put(DSEProcess.CLUSTER_NAME_KEY, if (node.ring.name != null) node.ring.name else node.ring.id)
-    cassandraYaml.put(DSEProcess.DATA_FILE_DIRECTORIES_KEY, node.dataFileDirs.split(","))
-    cassandraYaml.put(DSEProcess.COMMIT_LOG_DIRECTORY_KEY, Array(node.commitLogDir))
-    cassandraYaml.put(DSEProcess.SAVED_CACHES_DIRECTORY_KEY, Array(node.savedCachesDir))
-    cassandraYaml.put(DSEProcess.LISTEN_ADDRESS_KEY, hostname)
-    cassandraYaml.put(DSEProcess.RPC_ADDRESS_KEY, hostname)
+    cassandraYaml.put("cluster_name", if (node.ring.name != null) node.ring.name else node.ring.id)
+    cassandraYaml.put("data_file_directories", node.dataFileDirs.split(","))
+    cassandraYaml.put("commitlog_directory", Array(node.commitLogDir))
+    cassandraYaml.put("saved_caches_directory", Array(node.savedCachesDir))
+    cassandraYaml.put("listen_address", hostname)
+    cassandraYaml.put("rpc_address", hostname)
 
-    for ((key, port) <- node.ports if key != DSEProcess.JMX_PORT) {
-      cassandraYaml.put(key, port.asInstanceOf[AnyRef])
-    }
+    val portKeys = Map("internal" -> "storage_port", "cql" -> "native_transport_port", "thrift" -> "rpc_port")
+    for ((key, port) <- node.runtime.reservation.ports)
+      if (portKeys.contains(key))
+        cassandraYaml.put(portKeys(key), port.asInstanceOf[AnyRef])
 
     setSeeds(cassandraYaml, node.runtime.seeds.mkString(","))
     if (node.broadcast != null) {
       val ip = getIP(node.broadcast)
-      cassandraYaml.put(DSEProcess.BROADCAST_ADDRESS_KEY, ip)
+      cassandraYaml.put("broadcast_address", ip)
     }
 
-    cassandraYaml.put(DSEProcess.ENDPOINT_SNITCH_KEY, "GossipingPropertyFileSnitch")
+    cassandraYaml.put("endpoint_snitch", "GossipingPropertyFileSnitch")
 
     val writer = new FileWriter(file)
     try { yaml.dump(mapAsJavaMap(cassandraYaml), writer)}
-    finally { writer.close() }
-  }
-
-  private def editRackDcProps(file: File) {
-    val props = new Properties()
-    props.put("dc", node.dc)
-    props.put("rack", node.rack)
-
-    val writer = new FileWriter(file)
-    try { props.store(writer, "") }
     finally { writer.close() }
   }
 
@@ -193,59 +194,14 @@ case class DSEProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, ho
   }
 
   private def setSeeds(cassandraYaml: mutable.Map[String, AnyRef], seeds: String) {
-    val seedProviders = cassandraYaml(DSEProcess.SEED_PROVIDER_KEY).asInstanceOf[util.List[AnyRef]].toList
+    val seedProviders = cassandraYaml("seed_provider").asInstanceOf[util.List[AnyRef]].toList
     seedProviders.foreach { rawSeedProvider =>
       val seedProvider = rawSeedProvider.asInstanceOf[util.Map[String, AnyRef]].toMap
-      val parameters = seedProvider(DSEProcess.PARAMETERS_KEY).asInstanceOf[util.List[AnyRef]].toList
+      val parameters = seedProvider("parameters").asInstanceOf[util.List[AnyRef]].toList
       parameters.foreach { param =>
         val paramMap = param.asInstanceOf[util.Map[String, AnyRef]]
-        paramMap.put(DSEProcess.SEEDS_KEY, seeds)
+        paramMap.put("seeds", seeds)
       }
     }
-  }
-}
-
-object DSEProcess {
-  final val STORAGE_PORT: String = "storage_port"
-  final val SSL_STORAGE_PORT: String = "ssl_storage_port"
-  final val NATIVE_TRANSPORT_PORT: String = "native_transport_port"
-  final val RPC_PORT: String = "rpc_port"
-  final val JMX_PORT: String = "jmx_port"
-
-  final private val CASSANDRA_LIB_DIR = "lib/cassandra"
-  final private val CASSANDRA_LOG_DIR = "log/cassandra"
-  final private val SPARK_LIB_DIR = "lib/spark"
-  final private val SPARK_LOG_DIR = "log/spark"
-  final private val DSE_DATA_DIR = "dse-data"
-  final private val COMMIT_LOG_DIR = "dse-data/commitlog"
-  final private val SAVED_CACHES_DIR = "dse-data/saved_caches"
-
-  final private val CASSANDRA_YAML_LOCATION = "resources/cassandra/conf/cassandra.yaml"
-  final private val RACK_DC_LOCATION = "resources/cassandra/conf/cassandra-rackdc.properties"
-
-  final private val DATA_FILE_DIRECTORIES_KEY = "data_file_directories"
-  final private val COMMIT_LOG_DIRECTORY_KEY = "commitlog_directory"
-  final private val SAVED_CACHES_DIRECTORY_KEY = "saved_caches_directory"
-  final private val LISTEN_ADDRESS_KEY = "listen_address"
-  final private val LISTEN_INTERFACE_KEY = "listen_interface"
-  final private val SEED_PROVIDER_KEY = "seed_provider"
-  final private val PARAMETERS_KEY = "parameters"
-  final private val SEEDS_KEY = "seeds"
-  final private val RPC_ADDRESS_KEY = "rpc_address"
-  final private val RPC_INTERFACE_KEY = "rpc_interface"
-  final private val CLUSTER_NAME_KEY = "cluster_name"
-  final private val BROADCAST_ADDRESS_KEY = "broadcast_address"
-  final private val ENDPOINT_SNITCH_KEY = "endpoint_snitch"
-
-  final private val DSE_CMD = "bin/dse"
-  final private[dse] val DSE_AGENT_CMD = "datastax-agent/bin/datastax-agent"
-
-  private[dse] def findDSEDir(): File = {
-    for (file <- new File(".").listFiles()) {
-      if (file.isDirectory && file.getName.matches(Config.dseDirMask) && file.getName != DSEProcess.DSE_DATA_DIR)
-        return file
-    }
-
-    throw new FileNotFoundException(s"${Config.dseDirMask} not found in current directory")
   }
 }

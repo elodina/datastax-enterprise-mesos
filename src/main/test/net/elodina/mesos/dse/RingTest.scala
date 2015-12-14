@@ -2,12 +2,29 @@ package net.elodina.mesos.dse
 
 import org.junit.{Before, Test}
 import org.junit.Assert._
-import scala.util.parsing.json.JSONObject
+import Util.Range
 
-class RingTest {
+class RingTest extends MesosTestCase {
   @Before
-  def before {
+  override def before {
+    super.before
     Cluster.reset()
+  }
+
+  @Test
+  def getNodes {
+    val n0 = Cluster.addNode(new Node("0"))
+    val n1 = Cluster.addNode(new Node("1"))
+
+    val r0 = Cluster.addRing(new Ring("r0"))
+    val n2 = Cluster.addNode(new Node("2"))
+    val n3 = Cluster.addNode(new Node("3"))
+
+    n2.ring = r0
+    n3.ring = r0
+
+    assertEquals(List(n0, n1), Cluster.defaultRing.getNodes)
+    assertEquals(List(n2, n3), r0.getNodes)
   }
 
   @Test
@@ -31,12 +48,26 @@ class RingTest {
   @Test
   def toJSON_fromJSON {
     val ring: Ring = new Ring("1")
+    var read = new Ring(Util.parseJsonAsMap("" + ring.toJson))
+    assertRingEquals(ring, read)
+
     ring.name = "name"
+    ring.ports ++= Map("internal" -> new Range("100..110"), "jmx" -> new Range("200..210"))
+    read = new Ring(Util.parseJsonAsMap("" + ring.toJson))
+    assertRingEquals(ring, read)
+  }
 
-    val json: JSONObject = ring.toJson
-    val read = new Ring(json.obj)
+  private def assertRingEquals(expected: Ring, actual: Ring) {
+    if (checkNulls(expected, actual)) return
+    assertEquals(expected.id, actual.id)
+    assertEquals(expected.name, actual.name)
+    assertEquals(expected.ports, actual.ports)
+  }
 
-    assertEquals(ring.id, read.id)
-    assertEquals(ring.name, read.name)
+  private def checkNulls(expected: Object, actual: Object): Boolean = {
+    if (expected == actual) return true
+    if (expected == null) throw new AssertionError("actual != null")
+    if (actual == null) throw new AssertionError("actual == null")
+    false
   }
 }

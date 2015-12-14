@@ -6,6 +6,9 @@ import scala.collection.mutable
 class Ring {
   var id: String = null
   var name: String = null
+  var ports: mutable.HashMap[String, Util.Range] = new mutable.HashMap[String, Util.Range]()
+
+  resetPorts
 
   def this(_id: String) {
     this
@@ -17,6 +20,11 @@ class Ring {
     fromJson(json)
   }
 
+  def getNodes: List[Node] = Cluster.getNodes.filter(_.ring == this)
+
+  def active: Boolean = getNodes.exists(_.state != Node.State.Inactive)
+  def idle: Boolean = !active
+
   def availSeeds: List[String] = {
     val nodes: List[Node] = Cluster.getNodes
       .filter(_.ring == this)
@@ -26,15 +34,31 @@ class Ring {
     nodes.map(_.runtime.hostname).sorted
   }
 
+  def resetPorts: Unit = {
+    ports.clear()
+    Node.portNames.foreach(ports(_) = null)
+  }
+
   def fromJson(json: Map[String, Any]): Unit = {
     id = json("id").asInstanceOf[String]
     if (json.contains("name")) name = json("name").asInstanceOf[String]
+
+    resetPorts
+    for ((name, range) <- json("ports").asInstanceOf[Map[String, String]])
+      ports(name) = new Util.Range(range)
   }
 
   def toJson: JSONObject = {
     val json = new mutable.LinkedHashMap[String, Any]()
+
     json("id") = id
     if (name != null) json("name") = name
+
+    val portsJson = new mutable.HashMap[String, Any]()
+    for ((name, range) <- ports)
+      if (range != null) portsJson(name) = "" + range
+    json("ports") = new JSONObject(portsJson.toMap)
+
     new JSONObject(json.toMap)
   }
 

@@ -4,6 +4,11 @@ import org.junit.Test
 import org.junit.Assert._
 import org.apache.mesos.Protos.{TaskInfo, CommandInfo, ExecutorInfo}
 import scala.concurrent.duration.Duration
+import net.elodina.mesos.dse.Node.Reservation
+import scala.collection.mutable
+import scala.collection.JavaConversions._
+import scala.collection.mutable.ListBuffer
+import Util.Range
 
 class NodeTest extends MesosTestCase {
   @Test
@@ -11,23 +16,102 @@ class NodeTest extends MesosTestCase {
     val node = new Node("0")
     node.cpu = 0.5
     node.mem = 500
+    node.ring.resetPorts
 
-    node.storagePort = 0
-    node.sslStoragePort = 1
-    node.jmxPort = 2
-    node.nativeTransportPort = 3
-    node.rpcPort = 4
+    assertEquals(s"cpus < 0.5", node.matches(offer(resources = "cpus:0.1")))
+    assertEquals(s"mem < 500", node.matches(offer(resources = "cpus:0.5; mem:400")))
 
-    assertEquals("no cpus", node.matches(offer()))
-    assertEquals(s"cpus 0.1 < 0.5", node.matches(offer(resources = "cpus:0.1")))
-
-    assertEquals("no mem", node.matches(offer(resources = "cpus:0.5")))
-    assertEquals(s"mem 400 < 500", node.matches(offer(resources = "cpus:0.5; mem:400")))
-
-    assertEquals("no ports", node.matches(offer(resources = "cpus:0.5; mem:500")))
-    assertEquals("unavailable port 0", node.matches(offer(resources = "cpus:0.5; mem:500; ports:5..5")))
+    assertEquals("no suitable jmx port", node.matches(offer(resources = "cpus:0.5; mem:500; ports:5..5")))
+    assertEquals("no suitable thrift port", node.matches(offer(resources = "cpus:0.5; mem:500; ports:5..7")))
 
     assertNull(node.matches(offer(resources = "cpus:0.5; mem:500; ports:0..4")))
+  }
+
+  @Test
+  def reserve {
+    val node = new Node("0")
+    node.cpu = 0.5
+    node.mem = 400
+
+    // incomplete reservation
+    var reservation = node.reserve(offer(resources = "cpus:0.3;mem:300;ports:0..1"))
+    assertEquals(0.3d, reservation.cpus, 0.001)
+    assertEquals(300, reservation.mem)
+    assertEquals(Map("internal" -> 0, "jmx" -> 1, "cql" -> -1, "thrift" -> -1), reservation.ports)
+
+    // complete reservation
+    reservation = node.reserve(offer(resources = "cpus:0.7;mem:1000;ports:0..10"))
+    assertEquals(node.cpu, reservation.cpus, 0.001)
+    assertEquals(node.mem, reservation.mem)
+    assertEquals(Map("internal" -> 0, "jmx" -> 1, "cql" -> 2, "thrift" -> 3), reservation.ports)
+  }
+
+  @Test
+  def reservePorts {
+    val node: Node = Cluster.addNode(new Node("0"))
+
+    def test(portsDef: String, resources: String, expected: Map[String, Int]) {
+      // parses expr like: storage=0..4,jmx=5,cql=100..110
+      def parsePortsDef(s: String): Map[String, Range] = {
+        val ports = new mutable.HashMap[String, Range]()
+        Node.portNames.foreach(ports(_) = null)
+
+        for ((k,v) <- Util.parseMap(s))
+          ports(k) = new Range(v)
+
+        ports.toMap
+      }
+
+      node.ring.ports.clear()
+      node.ring.ports ++= parsePortsDef(portsDef)
+      val ports: Map[String, Int] = node.reservePorts(offer(resources = resources))
+
+      for ((name, port) <- expected)
+        assertTrue(s"portsDef:$portsDef, resources:$resources, expected:$expected, actual:$ports", ports.getOrElse(name, null) == port)
+    }
+
+    // any ports
+    test("", "ports:0", Map("internal" -> 0, "jmx" -> -1, "cql" -> -1, "thrift" -> -1))
+    test("", "ports:0..2", Map("internal" -> 0, "jmx" -> 1, "cql" -> 2, "thrift" -> -1))
+    test("", "ports:0..1,10..20", Map("internal" -> 0, "jmx" -> 1, "cql" -> 10, "thrift" -> 11))
+
+    // single port
+    test("internal=0", "ports:0", Map("internal" -> 0))
+    test("internal=1000,jmx=1001", "ports:1000..1001", Map("internal" -> 1000, "jmx" -> 1001))
+    test("internal=1000,jmx=1001", "ports:999..1000;ports:1002..1010", Map("internal" -> 1000, "jmx" -> -1))
+    test("internal=1000,jmx=1001,cql=1005,thrift=1010", "ports:1001..1008,1011..1100", Map("internal" -> -1, "jmx" -> 1001, "cql" -> 1005, "thrift" -> -1))
+
+    // port ranges
+    test("internal=10..20", "ports:15..25", Map("internal" -> 15))
+    test("internal=10..20,jmx=100..200", "ports:15..25,150..160", Map("internal" -> 15, "jmx" -> 150))
+
+    // ring has active node
+    node.state = Node.State.Running
+    node.runtime = new Node.Runtime(reservation = new Reservation(ports = Map("internal" -> 100)))
+
+    test("internal=10..20", "ports:0..1000", Map("internal" -> 100))
+    test("", "ports:0..1000", Map("internal" -> 100))
+    test("internal=10..20", "ports:0..99", Map("internal" -> -1))
+
+  }
+
+  @Test
+  def reservePort {
+    val node = new Node("0")
+    var ports = new ListBuffer[Range]()
+    ports += new Range("0..100")
+
+    assertEquals(10, node.reservePort(new Range("10..20"), ports))
+    assertEquals(List(new Range("0..9"), new Range("11..100")), ports.toList)
+
+    assertEquals(0, node.reservePort(new Range("0..0"), ports))
+    assertEquals(List(new Range("1..9"), new Range("11..100")), ports.toList)
+
+    assertEquals(100, node.reservePort(new Range("100..200"), ports))
+    assertEquals(List(new Range("1..9"), new Range("11..99")), ports.toList)
+
+    assertEquals(50, node.reservePort(new Range("50..60"), ports))
+    assertEquals(List(new Range("1..9"), new Range("11..49"), new Range("51..99")), ports.toList)
   }
 
   @Test
@@ -35,14 +119,7 @@ class NodeTest extends MesosTestCase {
     val node = new Node("0")
     node.cpu = 0.1
     node.mem = 500
-
-    node.storagePort = 0
-    node.sslStoragePort = 1
-    node.jmxPort = 2
-    node.nativeTransportPort = 3
-    node.rpcPort = 4
-
-    node.runtime = new Node.Runtime(node, offer())
+    node.runtime = new Node.Runtime(node, offer(resources = "cpus:1;mem:1000;ports:0..10"))
 
     val task: TaskInfo = node.newTask()
     assertEquals(node.runtime.taskId, task.getTaskId.getValue)
@@ -53,7 +130,7 @@ class NodeTest extends MesosTestCase {
     val read: Node = new Node(Util.parseJsonAsMap(data), expanded = true)
     assertEquals(node, read)
 
-    assertEquals(resources("cpus:0.1; mem:500; ports:0..0; ports:1..1; ports:2..2; ports:3..3; ports:4..4"), task.getResourcesList)
+    assertEquals(resources("cpus:0.1; mem:500; ports:0..0; ports:1..1; ports:2..2; ports:3..3"), task.getResourcesList)
   }
 
   @Test
@@ -104,7 +181,7 @@ class NodeTest extends MesosTestCase {
     assertNodeEquals(node, read)
 
     node.state = Node.State.Running
-    node.runtime = new Node.Runtime("task", "executor", "slave", "host", List("n0", "n1"), Map("a" -> "1"))
+    node.runtime = new Node.Runtime("task", "executor", "slave", "host", List("n0", "n1"), new Node.Reservation(), Map("a" -> "1"))
 
     node.cpu = 1
     node.mem = 1024
@@ -139,10 +216,24 @@ class NodeTest extends MesosTestCase {
     catch { case e: IllegalArgumentException => }
   }
 
+  @Test
   def Runtime_toJson_fromJson {
-    val runtime = new Node.Runtime("task", "executor", "slave", "host", List("n0", "n1"), Map("a" -> "1"))
+    val runtime = new Node.Runtime("task", "executor", "slave", "host", List("n0", "n1"), new Node.Reservation(), Map("a" -> "1"))
     val read = new Node.Runtime(Util.parseJsonAsMap(runtime.toJson.toString()))
     assertRuntimeEquals(runtime, read)
+  }
+
+  @Test
+  def Reservation_toJson_fromJson {
+    val reservation = new Reservation(1.0, 256, Map("internal" -> 7000))
+    val read = new Reservation(Util.parseJsonAsMap("" + reservation.toJson))
+    assertReservationEquals(reservation, read)
+  }
+
+  @Test
+  def Reservation_toResources {
+    assertEquals(resources("").toList, new Reservation().toResources)
+    assertEquals(resources("cpus:0.5;mem:500;ports:1000..1000;ports:2000").toList, new Reservation(0.5, 500, Map("internal" -> 1000, "jmx" -> 2000)).toResources)
   }
 
   def assertNodeEquals(expected: Node, actual: Node) {
@@ -181,7 +272,16 @@ class NodeTest extends MesosTestCase {
     assertEquals(expected.hostname, actual.hostname)
 
     assertEquals(expected.seeds, actual.seeds)
+    assertReservationEquals(expected.reservation, actual.reservation)
     assertEquals(expected.attributes, actual.attributes)
+  }
+
+  def assertReservationEquals(expected: Reservation, actual: Reservation) {
+    if (checkNulls(expected, actual)) return
+
+    assertEquals(expected.cpus, actual.cpus, 0.001)
+    assertEquals(expected.mem, actual.mem)
+    assertEquals(expected.ports, actual.ports)
   }
 
   private def checkNulls(expected: Object, actual: Object): Boolean = {

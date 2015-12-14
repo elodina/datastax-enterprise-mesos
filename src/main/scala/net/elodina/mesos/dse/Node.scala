@@ -19,7 +19,6 @@
 package net.elodina.mesos.dse
 
 import com.google.protobuf.ByteString
-import org.apache.mesos.Protos
 import org.apache.mesos.Protos._
 
 import scala.collection.JavaConversions._
@@ -28,6 +27,8 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.collection.mutable.ListBuffer
+import net.elodina.mesos.dse.Util.Range
+import net.elodina.mesos.dse.Node.Reservation
 
 class Node extends Constrained {
   var id: String = null
@@ -53,12 +54,6 @@ class Node extends Constrained {
   var commitLogDir: String = null
   var savedCachesDir: String = null
 
-  var storagePort = 7000
-  var sslStoragePort = 7001
-  var jmxPort = 7199
-  var nativeTransportPort = 9042
-  var rpcPort = 9160
-
   def this(id: String) = {
     this
     this.id = id
@@ -74,69 +69,95 @@ class Node extends Constrained {
     if (name == "hostname") Some(runtime.hostname)
     else Some(runtime.attributes(name))
   }
+  
+  def active: Boolean = state != Node.State.Inactive
+  def idle: Boolean = !active
 
   def matches(offer: Offer): String = {
-    val offerResources = offer.getResourcesList.toList.map(res => res.getName -> res).toMap
+    val reservation: Reservation = reserve(offer)
 
-    offerResources.get("cpus") match {
-      case Some(cpusResource) => if (cpusResource.getScalar.getValue < cpu) return s"cpus ${cpusResource.getScalar.getValue} < $cpu"
-      case None => return "no cpus"
-    }
+    if (reservation.cpus < cpu) return s"cpus < $cpu"
+    if (reservation.mem < mem) return s"mem < $mem"
 
-    offerResources.get("mem") match {
-      case Some(memResource) => if (memResource.getScalar.getValue.toLong < mem) return s"mem ${memResource.getScalar.getValue.toLong} < $mem"
-      case None => return "no mem"
-    }
-
-    offerResources.get("ports") match {
-      case Some(portsResource) =>
-        val ranges = portsResource
-          .getRanges
-          .getRangeList
-          .map(r => Range.inclusive(r.getBegin.toInt, r.getEnd.toInt))
-          .sortBy(_.start)
-
-        for (port <- ports.values.toSeq.sorted) {
-          if (!ranges.exists(r => r contains port)) {
-            return s"unavailable port $port"
-          }
-        }
-      case None => return "no ports"
-    }
+    for (name <- Node.portNames)
+      if (reservation.ports(name) == -1) return s"no suitable $name port"
 
     null
   }
 
-  def ports: Map[String, Int] =
-    Map(
-      DSEProcess.STORAGE_PORT -> storagePort,
-      DSEProcess.SSL_STORAGE_PORT -> sslStoragePort,
-      DSEProcess.JMX_PORT -> jmxPort,
-      DSEProcess.NATIVE_TRANSPORT_PORT -> nativeTransportPort,
-      DSEProcess.RPC_PORT -> rpcPort
-    )
+  def reserve(offer: Offer): Node.Reservation = {
+    val resources = offer.getResourcesList.toList.map(res => res.getName -> res).toMap
+
+    // cpu
+    var reservedCpus = 0d
+    val cpusResource = resources.getOrElse("cpus", null)
+    if (cpusResource != null) reservedCpus = Math.min(cpusResource.getScalar.getValue, cpu)
+
+    // mem
+    var reservedMem = 0l
+    val memResource = resources.getOrElse("mem", null)
+    if (memResource != null) reservedMem = Math.min(memResource.getScalar.getValue.toLong, mem)
+
+    // ports
+    val reservedPorts: Map[String, Int] = reservePorts(offer)
+   
+    new Reservation(reservedCpus, reservedMem, reservedPorts)
+  }
+
+  def reservePorts(offer: Offer): Map[String, Int] = {
+    val result = new mutable.HashMap[String, Int]()
+    Node.portNames.foreach(result(_) = -1)
+
+    val resource = offer.getResourcesList.toList.find(_.getName == "ports").getOrElse(null)
+    if (resource == null) return result.toMap
+
+    var availPorts: ListBuffer[Range] = new ListBuffer[Range]()
+    availPorts ++= resource.getRanges.getRangeList.map(r => new Util.Range(r.getBegin.toInt, r.getEnd.toInt)).sortBy(_.start)
+
+    for (name <- Node.portNames) {
+      var range: Range = ring.ports(name)
+
+      // use same internal port for the whole ring
+      val activeNode = ring.getNodes.find(_.runtime != null).getOrElse(null)
+      if (name == "internal" && activeNode != null) {
+        val port = activeNode.runtime.reservation.ports("internal")
+        range = new Range(port, port)
+      }
+      
+      result(name) = reservePort(range, availPorts)
+    }
+
+    result.toMap
+  }
+
+  private[dse] def reservePort(range: Range, availPorts: ListBuffer[Range]): Int = {
+    var r: Range = null
+
+    if (range == null) r = availPorts.headOption.getOrElse(null)       // take first avail range
+    else r = availPorts.find(range.overlap(_) != null).getOrElse(null) // take first range overlapping with ports
+
+    if (r == null) return -1
+    val port = if (range != null) r.overlap(range).start else r.start
+
+    // remove allocated port
+    val idx = availPorts.indexOf(r)
+    availPorts -= r
+    availPorts.insertAll(idx, r.split(port))
+
+    port
+  }
 
   private[dse] def newTask(): TaskInfo = {
     if (runtime == null) throw new IllegalStateException("runtime == null")
 
-    val builder: TaskInfo.Builder = TaskInfo.newBuilder()
+    TaskInfo.newBuilder()
       .setName(runtime.taskId)
       .setTaskId(TaskID.newBuilder().setValue(runtime.taskId).build())
       .setSlaveId(SlaveID.newBuilder().setValue(runtime.slaveId))
       .setExecutor(newExecutor())
       .setData(ByteString.copyFromUtf8("" + toJson(expanded = true)))
-
-    // resources
-    val cpus: Resource = Protos.Resource.newBuilder().setName("cpus").setRole("*").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.cpu)).build()
-    val mem: Resource = Protos.Resource.newBuilder().setName("mem").setRole("*").setType(Protos.Value.Type.SCALAR).setScalar(Protos.Value.Scalar.newBuilder().setValue(this.mem)).build()
-
-    val ports = new ListBuffer[Resource]
-    for (port <- this.ports.values.toSeq.sorted) {
-      val range = Protos.Value.Ranges.newBuilder().addRange(Protos.Value.Range.newBuilder().setBegin(port.toLong).setEnd(port.toLong).build())
-      ports += Protos.Resource.newBuilder().setName("ports").setRole("*").setType(Protos.Value.Type.RANGES).setRanges(range).build()
-    }
-
-    builder.addAllResources(List(cpus, mem) ++ ports).build()
+      .addAllResources(runtime.reservation.toResources)
+      .build()
   }
 
   private[dse] def newExecutor(): ExecutorInfo = {
@@ -144,7 +165,9 @@ class Node extends Constrained {
 
     var java = "java"
     val commandBuilder = CommandInfo.newBuilder()
-      .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/dse/" + Config.dse.getName))
+
+    if (Config.cassandra != null) commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/cassandra/" + Config.cassandra.getName))
+    else commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/dse/" + Config.dse.getName))
 
     if (Config.jre != null) {
       commandBuilder.addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/jre/" + Config.jre.getName))
@@ -247,6 +270,8 @@ class Node extends Constrained {
 }
 
 object Node {
+  def portNames: List[String] = List("internal", "jmx", "cql", "thrift")
+
   def idFromTaskId(taskId: String): String = {
     taskId.split("-", 3) match {
       case Array(_, value, _) => value
@@ -271,9 +296,11 @@ object Node {
     var hostname: String = null
 
     var seeds: List[String] = null
+    var reservation: Reservation = null
     var attributes: Map[String, String] = null
 
-    def this(taskId: String = null, executorId: String = null, slaveId: String = null, hostname: String = null, seeds: List[String] = null, attributes: Map[String, String] = Map()) {
+    def this(taskId: String = null, executorId: String = null, slaveId: String = null, hostname: String = null,
+             seeds: List[String] = null, reservation: Reservation = new Reservation(), attributes: Map[String, String] = Map()) {
       this
       this.taskId = taskId
       this.executorId = executorId
@@ -282,18 +309,19 @@ object Node {
       this.hostname = hostname
 
       this.seeds = seeds
+      this.reservation = reservation
       this.attributes = attributes
     }
 
-    def this(taskId: String, execId: String, seeds: List[String], offer: Offer) = {
+    def this(taskId: String, execId: String, seeds: List[String], reservation: Reservation, offer: Offer) = {
       this(
-        taskId, execId, offer.getSlaveId.getValue, offer.getHostname, seeds,
+        taskId, execId, offer.getSlaveId.getValue, offer.getHostname, seeds, reservation,
         offer.getAttributesList.toList.filter(_.hasText).map(attr => attr.getName -> attr.getText.getValue).toMap
       )
     }
 
     def this(node: Node, offer: Offer) = {
-      this(null, null, null, offer)
+      this(null, null, null, null, offer)
 
       seeds = node.ring.availSeeds
       if (seeds.isEmpty) {
@@ -301,6 +329,8 @@ object Node {
         node.seed = true
         seeds = List(offer.getHostname)
       }
+
+      reservation = node.reserve(offer)
 
       taskId = "node-" + node.id + "-" + System.currentTimeMillis()
       executorId = "node-" + node.id + "-" + System.currentTimeMillis()
@@ -319,6 +349,7 @@ object Node {
       hostname = json("hostname").asInstanceOf[String]
 
       seeds = json("seeds").asInstanceOf[List[String]]
+      reservation = new Reservation(json("reservation").asInstanceOf[Map[String, Any]])
       attributes = json("attributes").asInstanceOf[Map[String, String]]
     }
 
@@ -331,7 +362,94 @@ object Node {
       json("hostname") = hostname
 
       json("seeds") = new JSONArray(seeds)
+      json("reservation") = reservation.toJson
       json("attributes") = new JSONObject(attributes)
+      new JSONObject(json.toMap)
+    }
+  }
+
+  class Reservation {
+    var cpus: Double = 0
+    var mem: Long = 0
+
+    var ports: mutable.HashMap[String, Int] = new mutable.HashMap[String, Int]()
+    resetPorts()
+
+    def this(cpus: Double = 0, mem: Long = 0, ports: Map[String, Int] = Map()) {
+      this
+      this.cpus = cpus
+      this.mem = mem
+
+      this.resetPorts()
+      this.ports ++= ports
+    }
+
+    def this(json: Map[String, Any]) {
+      this
+      fromJson(json)
+    }
+
+    def resetPorts() {
+      ports.clear()
+      Node.portNames.foreach(ports(_) = -1)
+    }
+
+    def toResources: List[Resource] = {
+      def cpusResource(value: Double): Resource = {
+        Resource.newBuilder
+          .setName("cpus")
+          .setType(Value.Type.SCALAR)
+          .setScalar(Value.Scalar.newBuilder.setValue(value))
+          .setRole("*")
+          .build()
+      }
+
+      def memResource(value: Long): Resource = {
+        Resource.newBuilder
+          .setName("mem")
+          .setType(Value.Type.SCALAR)
+          .setScalar(Value.Scalar.newBuilder.setValue(value))
+          .setRole("*")
+          .build()
+      }
+
+      def portResource(value: Long): Resource = {
+        Resource.newBuilder
+          .setName("ports")
+          .setType(Value.Type.RANGES)
+          .setRanges(Value.Ranges.newBuilder.addRange(Value.Range.newBuilder().setBegin(value).setEnd(value)))
+          .setRole("*")
+          .build()
+      }
+
+      val resources: ListBuffer[Resource] = new ListBuffer[Resource]()
+
+      if (cpus > 0) resources += cpusResource(cpus)
+      if (mem > 0) resources += memResource(mem)
+
+      for (name <- Node.portNames) {
+        val port = ports(name)
+        if (port != -1) resources += portResource(port)
+      }
+
+      resources.toList
+    }
+
+    def fromJson(json: Map[String, Any]): Unit = {
+      cpus = json("cpus").asInstanceOf[Number].doubleValue()
+      mem = json("mem").asInstanceOf[Number].longValue()
+
+      resetPorts()
+      ports ++= json("ports").asInstanceOf[Map[String, Number]].mapValues(_.intValue)
+    }
+
+    def toJson: JSONObject = {
+      val json = new mutable.LinkedHashMap[String, Any]()
+
+      json("cpus") = cpus
+      json("mem") = mem
+      json("ports") = new JSONObject(ports.toMap)
+
       new JSONObject(json.toMap)
     }
   }

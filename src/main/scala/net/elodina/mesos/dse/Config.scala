@@ -27,11 +27,6 @@ import scala.language.postfixOps
 object Config {
   final val API_ENV = "DM_API"
 
-  val jarMask = "dse-mesos.*\\.jar"
-  val dseMask = "dse.*gz"
-  val dseDirMask = "^dse.*$"
-  val jreMask = "jre.*"
-
   var debug: Boolean = false
 
   var master: String = null
@@ -49,6 +44,7 @@ object Config {
 
   var jar: File = null
   var dse: File = null
+  var cassandra: File = null
   var jre: File = null
 
   def httpServerPort: Int = {
@@ -68,6 +64,22 @@ object Config {
        |Framework Timeout: $frameworkTimeout
        |JRE:               ${if (jre != null) jre else "<pre-installed>"}
     """.stripMargin
+  }
+
+  def resolveDeps() {
+    val jarMask = "dse-mesos.*jar"
+    val dseMask = "dse.*gz"
+    val cassandraMask = "apache-cassandra.*gz"
+
+    for (file <- new File(".").listFiles()) {
+      if (file.getName.matches(jarMask)) jar = file
+      if (file.getName.matches(cassandraMask)) cassandra = file
+      if (file.getName.matches(dseMask)) dse = file
+    }
+
+    if (jar == null) throw new IllegalStateException(jarMask + " not found in current dir")
+    if (dse == null && cassandra == null)
+      throw new IllegalStateException(s"Either $cassandraMask or $dseMask should be present in current dir")
   }
 }
 

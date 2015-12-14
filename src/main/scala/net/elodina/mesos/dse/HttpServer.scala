@@ -35,7 +35,7 @@ object HttpServer {
   private val logger = Logger.getLogger(HttpServer.getClass)
   private var server: Server = null
 
-  def start(resolveDeps: Boolean = true) {
+  def start() {
     if (server != null) throw new IllegalStateException("HttpServer already started")
 
     val threadPool = new QueuedThreadPool(16)
@@ -90,6 +90,7 @@ object HttpServer {
       if (uri.startsWith("/health")) handleHealth(response)
       else if (uri.startsWith("/jar/")) downloadFile(Config.jar, response)
       else if (uri.startsWith("/dse/")) downloadFile(Config.dse, response)
+      else if (uri.startsWith("/cassandra/")) downloadFile(Config.cassandra, response)
       else if (Config.jre != null && uri.startsWith("/jre/")) downloadFile(Config.jre, response)
       else if (uri.startsWith("/api/node")) handleNodeApi(request, response)
       else if (uri.startsWith("/api/ring")) handleRingApi(request, response)
@@ -100,7 +101,7 @@ object HttpServer {
       response.setContentType("application/zip")
       response.setHeader("Content-Length", "" + file.length())
       response.setHeader("Content-Disposition", "attachment; filename=\"" + file.getName + "\"")
-      Util.copyAndClose(new FileInputStream(file), response.getOutputStream)
+      Util.IO.copyAndClose(new FileInputStream(file), response.getOutputStream)
     }
     
     def handleNodeApi(request: HttpServletRequest, response: HttpServletResponse) {
@@ -311,14 +312,41 @@ object HttpServer {
 
       val name: String = request.getParameter("name")
 
+      val internalPort: String = request.getParameter("internalPort")
+      if (internalPort != null && !internalPort.isEmpty)
+        try { new Util.Range(internalPort) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid internalPort") }
+
+      val jmxPort: String = request.getParameter("jmxPort")
+      if (jmxPort != null && !jmxPort.isEmpty)
+        try { new Util.Range(jmxPort) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid jmxPort") }
+
+      val cqlPort: String = request.getParameter("cqlPort")
+      if (cqlPort != null && !cqlPort.isEmpty)
+        try { new Util.Range(cqlPort) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid cqlPort") }
+
+      val thriftPort: String = request.getParameter("thriftPort")
+      if (thriftPort != null && !thriftPort.isEmpty)
+        try { new Util.Range(thriftPort) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid thriftPort") }
+
+
       var ring = Cluster.getRing(id)
       if (add && ring != null) throw new HttpError(400, "duplicate ring")
       if (!add && ring == null) throw new HttpError(400, "ring not found")
+      if (!add && ring.active) throw new HttpError(400, "ring has active nodes")
 
       if (add)
         ring = Cluster.addRing(new Ring(id))
 
       if (name != null) ring.name = if (name != "") name else null
+
+      if (internalPort != null) ring.ports("internal") = if (internalPort != "") new Util.Range(internalPort) else null
+      if (jmxPort != null) ring.ports("jmx") = if (jmxPort != "") new Util.Range(jmxPort) else null
+      if (cqlPort != null) ring.ports("cql") = if (cqlPort != "") new Util.Range(cqlPort) else null
+      if (thriftPort != null) ring.ports("thrift") = if (thriftPort != "") new Util.Range(thriftPort) else null
 
       Cluster.save()
       response.getWriter.println(ring.toJson)
