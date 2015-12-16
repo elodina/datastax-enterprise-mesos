@@ -93,7 +93,7 @@ First lets start 1 Cassandra node with the default settings. Further you will se
 # ./dse-mesos.sh node add 0
 node added:
   id: 0
-  state: Inactive
+  state: idle
   topology: ring: default, dc:default, rack:default
   resources: cpu:0.5, mem:512
   seed: false
@@ -105,7 +105,7 @@ You now have a cluster with 1 Cassandra node that is not started.
 # ./dse-mesos.sh node list
 node:
   id: 0
-  state: Inactive
+  state: idle
   topology: ring: default, dc:default, rack:default
   resources: cpu:0.5, mem:512
   seed: false
@@ -117,7 +117,7 @@ Now lets start the task. This call to CLI will block until the task is actually 
 # ./dse-mesos.sh node start 0
 node started:
   id: 0
-  state: Running
+  state: running
   topology: ring: default, dc:default, rack:default
   resources: cpu:0.5, mem:512
   seed: true
@@ -137,7 +137,7 @@ Here's how you stop it:
 # ./dse-mesos.sh node stop 0
 node stopped:
   id: 0
-  state: Inactive
+  state: idle
   topology: ring: default, dc:default, rack:default
   resources: cpu:0.5, mem:512
   seed: true

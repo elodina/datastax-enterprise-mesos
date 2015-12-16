@@ -32,7 +32,7 @@ import net.elodina.mesos.dse.Node.Reservation
 
 class Node extends Constrained {
   var id: String = null
-  var state: Node.State.Value = Node.State.INACTIVE
+  var state: Node.State.Value = Node.State.IDLE
   var ring: Ring = Cluster.defaultRing
   var runtime: Node.Runtime = null
 
@@ -70,7 +70,7 @@ class Node extends Constrained {
     else Some(runtime.attributes(name))
   }
   
-  def active: Boolean = state != Node.State.INACTIVE
+  def active: Boolean = state != Node.State.IDLE
   def idle: Boolean = !active
 
   def matches(offer: Offer): String = {
@@ -280,7 +280,7 @@ object Node {
   }
 
   object State extends Enumeration {
-    val INACTIVE = Value("inactive")
+    val IDLE = Value("idle")
     val STOPPED = Value("stopped")
     val STAGING = Value("staging")
     val STARTING = Value("starting")

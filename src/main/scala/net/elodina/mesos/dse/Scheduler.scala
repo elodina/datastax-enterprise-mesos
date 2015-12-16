@@ -228,7 +228,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   private def onTaskFinished(nodeOpt: Option[Node], status: TaskStatus) {
     nodeOpt match {
       case Some(node) =>
-        node.state = Node.State.INACTIVE
+        node.state = Node.State.IDLE
         node.runtime = null
         logger.info(s"Node ${node.id} has finished")
       case None => logger.info(s"Got ${status.getState} for unknown/stopped node with task id ${status.getTaskId.getValue}")
@@ -244,7 +244,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
           case _ =>
         }
 
-        node.state = Node.State.INACTIVE
+        node.state = Node.State.IDLE
         Some(node)
       case None =>
         logger.warn(s"Node $id was removed, ignoring its stop call")

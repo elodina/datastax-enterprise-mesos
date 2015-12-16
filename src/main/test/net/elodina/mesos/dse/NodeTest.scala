@@ -167,8 +167,8 @@ class NodeTest extends MesosTestCase {
     deferStateSwitch(Node.State.RUNNING, 100)
     assertTrue(node.waitFor(Node.State.RUNNING, Duration("200ms")))
 
-    deferStateSwitch(Node.State.INACTIVE, 100)
-    assertTrue(node.waitFor(Node.State.INACTIVE, Duration("200ms")))
+    deferStateSwitch(Node.State.IDLE, 100)
+    assertTrue(node.waitFor(Node.State.IDLE, Duration("200ms")))
 
     // timeout
     assertFalse(node.waitFor(Node.State.RUNNING, Duration("50ms")))
