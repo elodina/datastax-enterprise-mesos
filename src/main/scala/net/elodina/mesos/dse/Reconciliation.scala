@@ -47,26 +47,26 @@ trait Reconciliation[T <: Node] {
 
   private def reconcile(driver: SchedulerDriver, isImplicit: Boolean, now: Date = new Date()) {
     if (now.getTime - reconcileTime.getTime >= reconcileDelay.toMillis) {
-      if (!nodes.exists(node => node.state == Node.State.Reconciling && node.runtime != null)) reconciles = 0
+      if (!nodes.exists(node => node.state == Node.State.RECONCILING && node.runtime != null)) reconciles = 0
       reconciles += 1
       reconcileTime = now
 
       nodes.filter(_.runtime == null).foreach { node =>
-        if (node.state == Node.State.Staging || node.state == Node.State.Running) node.state = Node.State.Stopped
+        if (node.state == Node.State.STAGING || node.state == Node.State.RUNNING) node.state = Node.State.STOPPED
       }
 
       if (reconciles > reconcileMaxTries) {
-        nodes.filter(_.state == Node.State.Reconciling).foreach { node =>
+        nodes.filter(_.state == Node.State.RECONCILING).foreach { node =>
           logger.info(s"Reconciling exceeded $reconcileMaxTries tries for node ${node.id}, sending killTask for node ${node.id}")
           driver.killTask(TaskID.newBuilder().setValue(node.id).build())
         }
       } else {
         if (isImplicit) {
-          nodes.foreach(_.state = Node.State.Reconciling)
+          nodes.foreach(_.state = Node.State.RECONCILING)
           driver.reconcileTasks(Collections.emptyList())
         } else {
           val statuses = nodes.filter(_.runtime != null).flatMap { node =>
-            if (node.state == Node.State.Reconciling) {
+            if (node.state == Node.State.RECONCILING) {
               logger.info(s"Reconciling $reconciles/$reconcileMaxTries state of node ${node.id} with node id ${node.runtime.taskId}")
               Some(TaskStatus.newBuilder()
                 .setTaskId(TaskID.newBuilder().setValue(node.runtime.taskId))

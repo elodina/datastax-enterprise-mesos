@@ -89,7 +89,7 @@ object Executor extends org.apache.mesos.Executor {
 
         Future(blocking(cassandraProcess.awaitConsistentState())).map {
           case true => driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_RUNNING).build)
-          case false => logger.info("DSEProcess stopped, abandon waiting for consistent state")
+          case false => logger.info("Cassandra process stopped, abandon waiting for consistent state")
         }
 
         Future.firstCompletedOf(Seq(Future(cassandraProcess.await()))).onComplete { result =>

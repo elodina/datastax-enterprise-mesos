@@ -148,10 +148,10 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   }
 
   private def acceptOffer(offer: Offer): String = {
-    Cluster.getNodes.filter(_.state == Node.State.Stopped).toList.sortBy(_.id.toInt) match {
+    Cluster.getNodes.filter(_.state == Node.State.STOPPED).toList.sortBy(_.id.toInt) match {
       case Nil => "all nodes are running"
       case nodes =>
-        if (Cluster.getNodes.exists(node => node.state == Node.State.Staging || node.state == Node.State.Starting))
+        if (Cluster.getNodes.exists(node => node.state == Node.State.STAGING || node.state == Node.State.STARTING))
           "should wait until other nodes are started"
         else {
           // Consider starting seeds first
@@ -183,7 +183,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
 
   private def launchTask(node: Node, offer: Offer) {
     node.runtime = new Node.Runtime(node, offer)
-    node.state = Node.State.Staging
+    node.state = Node.State.STAGING
 
     val task = node.newTask()
     driver.launchTasks(util.Arrays.asList(offer.getId), util.Arrays.asList(task), Filters.newBuilder().setRefuseSeconds(1).build)
@@ -208,7 +208,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   private def onTaskStarted(nodeOpt: Option[Node], driver: SchedulerDriver, status: TaskStatus) {
     nodeOpt match {
       case Some(node) =>
-        node.state = Node.State.Running
+        node.state = Node.State.RUNNING
         node.replaceAddress = null
       case None =>
         logger.info(s"Got ${status.getState} for unknown/stopped node, killing task ${status.getTaskId.getValue}")
@@ -219,7 +219,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   private def onTaskFailed(nodeOpt: Option[Node], status: TaskStatus) {
     nodeOpt match {
       case Some(node) =>
-        node.state = Node.State.Stopped
+        node.state = Node.State.STOPPED
         node.runtime = null
       case None => logger.info(s"Got ${status.getState} for unknown/stopped node with task id ${status.getTaskId.getValue}")
     }
@@ -228,7 +228,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   private def onTaskFinished(nodeOpt: Option[Node], status: TaskStatus) {
     nodeOpt match {
       case Some(node) =>
-        node.state = Node.State.Inactive
+        node.state = Node.State.INACTIVE
         node.runtime = null
         logger.info(s"Node ${node.id} has finished")
       case None => logger.info(s"Got ${status.getState} for unknown/stopped node with task id ${status.getTaskId.getValue}")
@@ -239,12 +239,12 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     Cluster.getNodes.find(_.id == id) match {
       case Some(node) =>
         node.state match {
-          case Node.State.Staging | Node.State.Starting | Node.State.Running =>
+          case Node.State.STAGING | Node.State.STARTING | Node.State.RUNNING =>
             driver.killTask(TaskID.newBuilder().setValue(node.runtime.taskId).build)
           case _ =>
         }
 
-        node.state = Node.State.Inactive
+        node.state = Node.State.INACTIVE
         Some(node)
       case None =>
         logger.warn(s"Node $id was removed, ignoring its stop call")
