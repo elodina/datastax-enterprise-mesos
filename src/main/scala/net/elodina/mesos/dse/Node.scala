@@ -284,9 +284,9 @@ object Node {
 
   object State extends Enumeration {
     val IDLE = Value("idle")
-    val STOPPED = Value("stopped")
     val STARTING = Value("starting")
     val RUNNING = Value("running")
+    val STOPPING = Value("stopping")
     val RECONCILING = Value("reconciling")
   }
 

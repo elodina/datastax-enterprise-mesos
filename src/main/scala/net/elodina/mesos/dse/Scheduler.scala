@@ -233,34 +233,13 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     }
   }
 
-  def stopNode(id: String): Option[Node] = {
-    Cluster.getNodes.find(_.id == id) match {
-      case Some(node) =>
-        node.state match {
-          case Node.State.STARTING | Node.State.RUNNING =>
-            driver.killTask(TaskID.newBuilder().setValue(node.runtime.taskId).build)
-          case _ =>
-        }
+  def stopNode(id: String): Unit = {
+    val node = Cluster.getNode(id)
+    if (node == null || node.runtime == null) return
 
-        node.state = Node.State.IDLE
-        Some(node)
-      case None =>
-        logger.warn(s"Node $id was removed, ignoring its stop call")
-        None
-    }
-  }
-
-  def removeNode(id: String): Option[Node] = {
-    Cluster.getNodes.find(_.id == id) match {
-      case Some(node) =>
-        stopNode(id)
-
-        Cluster.removeNode(node)
-        Some(node)
-      case None =>
-        logger.warn(s"Node $id is already removed")
-        None
-    }
+    logger.info(s"Sending killTask for task ${node.runtime.taskId} of node ${node.id}")
+    driver.killTask(TaskID.newBuilder().setValue(node.runtime.taskId).build)
+    node.state = Node.State.STOPPING
   }
 
   private def checkMesosVersion(master: MasterInfo, driver: SchedulerDriver): Unit = {
