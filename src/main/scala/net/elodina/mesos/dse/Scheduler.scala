@@ -232,7 +232,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     val node = Cluster.getNode(id)
     if (node == null || node.runtime == null) return
 
-    logger.info(s"Sending killTask for task ${node.runtime.taskId} of node ${node.id}")
+    logger.info(s"Killing task ${node.runtime.taskId} of node ${node.id}")
     driver.killTask(TaskID.newBuilder().setValue(node.runtime.taskId).build)
     node.state = Node.State.STOPPING
   }
