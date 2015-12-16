@@ -32,13 +32,11 @@ import scala.language.postfixOps
 
 import Util.Str
 import scala.collection.mutable.ListBuffer
+import java.util.{Collections, Date}
 
-object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with Reconciliation[Node] {
+object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
   private[dse] val logger = Logger.getLogger(this.getClass)
   private var driver: SchedulerDriver = null
-
-  override protected val reconcileDelay: Duration = Duration("20 seconds")
-  override protected val reconcileMaxTries: Int = 5
 
   def start() {
     initLogging()
@@ -87,6 +85,13 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     Cluster.save()
 
     this.driver = driver
+    Reconciler.reconcileTasksIfRequired(force = true)
+  }
+
+  override def reregistered(driver: SchedulerDriver, master: MasterInfo) {
+    logger.info("[reregistered] master:" + Str.master(master))
+    this.driver = driver
+    Reconciler.reconcileTasksIfRequired(force = true)
   }
 
   override def offerRescinded(driver: SchedulerDriver, id: OfferID) {
@@ -96,12 +101,6 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   override def disconnected(driver: SchedulerDriver) {
     logger.info("[disconnected]")
     this.driver = null
-  }
-
-  override def reregistered(driver: SchedulerDriver, master: MasterInfo) {
-    logger.info("[reregistered] master:" + Str.master(master))
-
-    this.driver = driver
   }
 
   override def slaveLost(driver: SchedulerDriver, id: SlaveID) {
@@ -142,10 +141,13 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
       }
     }
 
+    Reconciler.reconcileTasksIfRequired()
     Cluster.save()
   }
 
   private[dse] def acceptOffer(offer: Offer): String = {
+    if (Reconciler.isReconciling) return "reconciling"
+
     val nodes: List[Node] = Cluster.getNodes.filter(_.state == Node.State.STARTING)
     if (nodes.isEmpty) return "no nodes to start"
 
@@ -320,5 +322,51 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     }
 
     result
+  }
+  
+  object Reconciler {
+    private[dse] val RECONCILE_DELAY = Duration("20s")
+    private[dse] val RECONCILE_MAX_TRIES = 3
+
+    private[dse] var reconciles: Int = 0
+    private[dse] var reconcileTime: Date = null
+
+    private[dse] def isReconciling: Boolean = Cluster.getNodes.exists(_.state == Node.State.RECONCILING)
+
+    private[dse] def reconcileTasksIfRequired(force: Boolean = false, now: Date = new Date()): Unit = {
+      if (reconcileTime != null && now.getTime - reconcileTime.getTime < RECONCILE_DELAY.toMillis)
+        return
+
+      if (!isReconciling) reconciles = 0
+      reconciles += 1
+      reconcileTime = now
+
+      if (reconciles > RECONCILE_MAX_TRIES) {
+        for (node <- Cluster.getNodes.filter(n => n.runtime != null && n.state == Node.State.RECONCILING)) {
+          logger.info(s"Reconciling exceeded $RECONCILE_MAX_TRIES tries for node ${node.id}, sending killTask for task ${node.runtime.taskId}")
+          driver.killTask(TaskID.newBuilder().setValue(node.runtime.taskId).build())
+          node.runtime = null
+        }
+
+        return
+      }
+
+      val statuses = new util.ArrayList[TaskStatus]
+
+      for (node <- Cluster.getNodes.filter(_.runtime != null))
+        if (force || node.state == Node.State.RECONCILING) {
+          node.state = Node.State.RECONCILING
+          logger.info(s"Reconciling $reconciles/$RECONCILE_MAX_TRIES state of node ${node.id}, task ${node.runtime.taskId}")
+
+          statuses.add(TaskStatus.newBuilder()
+            .setTaskId(TaskID.newBuilder().setValue(node.runtime.taskId))
+            .setState(TaskState.TASK_STAGING)
+            .build()
+          )
+        }
+
+      if (force || !statuses.isEmpty)
+        driver.reconcileTasks(if (force) Collections.emptyList() else statuses)
+    }
   }
 }
