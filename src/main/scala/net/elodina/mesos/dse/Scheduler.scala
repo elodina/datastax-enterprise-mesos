@@ -87,7 +87,6 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     Cluster.save()
 
     this.driver = driver
-    implicitReconcile(driver)
   }
 
   override def offerRescinded(driver: SchedulerDriver, id: OfferID) {
@@ -103,7 +102,6 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     logger.info("[reregistered] master:" + Str.master(master))
 
     this.driver = driver
-    implicitReconcile(driver)
   }
 
   override def slaveLost(driver: SchedulerDriver, id: SlaveID) {
@@ -144,7 +142,6 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
       }
     }
 
-    explicitReconcile(driver)
     Cluster.save()
   }
 
