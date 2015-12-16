@@ -151,7 +151,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     Cluster.getNodes.filter(_.state == Node.State.STOPPED).toList.sortBy(_.id.toInt) match {
       case Nil => "all nodes are running"
       case nodes =>
-        if (Cluster.getNodes.exists(node => node.state == Node.State.STAGING || node.state == Node.State.STARTING))
+        if (Cluster.getNodes.exists(_.state == Node.State.STARTING))
           "should wait until other nodes are started"
         else {
           // Consider starting seeds first
@@ -183,11 +183,9 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
 
   private def launchTask(node: Node, offer: Offer) {
     node.runtime = new Node.Runtime(node, offer)
-    node.state = Node.State.STAGING
-
     val task = node.newTask()
-    driver.launchTasks(util.Arrays.asList(offer.getId), util.Arrays.asList(task), Filters.newBuilder().setRefuseSeconds(1).build)
 
+    driver.launchTasks(util.Arrays.asList(offer.getId), util.Arrays.asList(task), Filters.newBuilder().setRefuseSeconds(1).build)
     logger.info(s"Starting node ${node.id} with task ${node.runtime.taskId} for offer ${offer.getId.getValue}")
   }
 
@@ -239,7 +237,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     Cluster.getNodes.find(_.id == id) match {
       case Some(node) =>
         node.state match {
-          case Node.State.STAGING | Node.State.STARTING | Node.State.RUNNING =>
+          case Node.State.STARTING | Node.State.RUNNING =>
             driver.killTask(TaskID.newBuilder().setValue(node.runtime.taskId).build)
           case _ =>
         }

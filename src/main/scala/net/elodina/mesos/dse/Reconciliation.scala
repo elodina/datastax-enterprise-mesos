@@ -52,7 +52,7 @@ trait Reconciliation[T <: Node] {
       reconcileTime = now
 
       nodes.filter(_.runtime == null).foreach { node =>
-        if (node.state == Node.State.STAGING || node.state == Node.State.RUNNING) node.state = Node.State.STOPPED
+        if (node.state == Node.State.RUNNING) node.state = Node.State.STOPPED
       }
 
       if (reconciles > reconcileMaxTries) {
