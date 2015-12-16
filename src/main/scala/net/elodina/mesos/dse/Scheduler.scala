@@ -31,6 +31,7 @@ import scala.concurrent.duration.Duration
 import scala.language.postfixOps
 
 import Util.Str
+import scala.collection.mutable.ListBuffer
 
 object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with Reconciliation[Node] {
   private[dse] val logger = Logger.getLogger(this.getClass)
@@ -124,7 +125,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
 
   override def resourceOffers(driver: SchedulerDriver, offers: util.List[Offer]) {
     logger.debug("[resourceOffers]\n" + Str.offers(offers))
-    onResourceOffers(offers.toList)
+    onOffers(offers.toList)
   }
 
   override def executorLost(driver: SchedulerDriver, executorId: ExecutorID, slaveId: SlaveID, status: Int) {
@@ -133,7 +134,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
 
   override def nodes: Traversable[Node] = Cluster.getNodes
 
-  private def onResourceOffers(offers: List[Offer]) {
+  private def onOffers(offers: List[Offer]) {
     for (offer <- offers) {
       val declineReason = acceptOffer(offer)
 
@@ -147,33 +148,27 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     Cluster.save()
   }
 
-  private def acceptOffer(offer: Offer): String = {
-    Cluster.getNodes.filter(_.needsStart).toList.sortBy(_.id.toInt) match {
-      case Nil => "all nodes are running"
-      case nodes =>
-        if (Cluster.getNodes.exists(_.performsStart))
-          "should wait until other nodes are started"
-        else {
-          // Consider starting seeds first
-          val filteredNodes = nodes.filter(_.seed) match {
-            case Nil => nodes
-            case seeds =>
-              logger.info("There are seed nodes to be launched so will prefer them first.")
-              seeds
-          }
+  private[dse] def acceptOffer(offer: Offer): String = {
+    val nodes: List[Node] = Cluster.getNodes.filter(_.state == Node.State.STARTING)
+    if (nodes.isEmpty) return "no nodes to start"
 
-          val reason = filteredNodes.flatMap { node =>
-            checkSeedConstraints(offer, node).orElse(checkConstraints(offer, node)).orElse(Option(node.matches(offer))) match {
-              case Some(declineReason) => Some(s"node ${node.id}: $declineReason")
-              case None =>
-                launchTask(node, offer)
-                ""
-            }
-          }.mkString(", ")
+    val startingNode = nodes.find(_.runtime != null).getOrElse(null)
+    if (startingNode != null) return s"node ${startingNode.id} is starting"
 
-          if (reason.isEmpty) null else reason
-        }
+    val reasons = new ListBuffer[String]()
+    for (node <- nodes.sortBy(!_.seed)) {
+      var reason = node.matches(offer)
+      if (reason == null) reason = checkSeedConstraints(offer, node).getOrElse(null)
+      if (reason == null) reason = checkConstraints(offer, node).getOrElse(null)
+
+      if (reason != null) reasons += s"node ${node.id}: $reason"
+      else {
+        launchTask(node, offer)
+        return null
+      }
     }
+
+    reasons.mkString(", ")
   }
 
   private def checkSeedConstraints(offer: Offer, node: Node): Option[String] = {

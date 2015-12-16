@@ -73,9 +73,6 @@ class Node extends Constrained {
   def idle: Boolean = state == Node.State.IDLE
   def active: Boolean = !idle
 
-  def needsStart: Boolean = state == Node.State.STARTING && runtime == null
-  def performsStart: Boolean = state == Node.State.STARTING && runtime != null
-
   def matches(offer: Offer): String = {
     val reservation: Reservation = reserve(offer)
 

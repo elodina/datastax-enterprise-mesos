@@ -53,7 +53,7 @@ object Cluster {
   }
 
 
-  def getNodes: List[Node] = nodes.toList
+  def getNodes: List[Node] = nodes.toList.sortBy(_.id.toInt)
 
   def getNode(id: String) = nodes.filter(id == _.id).headOption.getOrElse(null)
 
