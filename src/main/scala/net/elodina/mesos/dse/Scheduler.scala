@@ -148,10 +148,10 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   }
 
   private def acceptOffer(offer: Offer): String = {
-    Cluster.getNodes.filter(_.state == Node.State.STOPPED).toList.sortBy(_.id.toInt) match {
+    Cluster.getNodes.filter(_.needsStart).toList.sortBy(_.id.toInt) match {
       case Nil => "all nodes are running"
       case nodes =>
-        if (Cluster.getNodes.exists(_.state == Node.State.STARTING))
+        if (Cluster.getNodes.exists(_.performsStart))
           "should wait until other nodes are started"
         else {
           // Consider starting seeds first
@@ -217,7 +217,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   private def onTaskFailed(nodeOpt: Option[Node], status: TaskStatus) {
     nodeOpt match {
       case Some(node) =>
-        node.state = Node.State.STOPPED
+        node.state = Node.State.STARTING
         node.runtime = null
       case None => logger.info(s"Got ${status.getState} for unknown/stopped node with task id ${status.getTaskId.getValue}")
     }

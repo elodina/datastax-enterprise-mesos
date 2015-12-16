@@ -69,9 +69,12 @@ class Node extends Constrained {
     if (name == "hostname") Some(runtime.hostname)
     else Some(runtime.attributes(name))
   }
-  
-  def active: Boolean = state != Node.State.IDLE
-  def idle: Boolean = !active
+
+  def idle: Boolean = state == Node.State.IDLE
+  def active: Boolean = !idle
+
+  def needsStart: Boolean = state == Node.State.STARTING && runtime == null
+  def performsStart: Boolean = state == Node.State.STARTING && runtime != null
 
   def matches(offer: Offer): String = {
     val reservation: Reservation = reserve(offer)
@@ -282,7 +285,6 @@ object Node {
   object State extends Enumeration {
     val IDLE = Value("idle")
     val STOPPED = Value("stopped")
-    val STAGING = Value("staging")
     val STARTING = Value("starting")
     val RUNNING = Value("running")
     val RECONCILING = Value("reconciling")

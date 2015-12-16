@@ -244,7 +244,7 @@ object HttpServer {
       for (id <- ids) {
         val node: Node = Cluster.getNode(id)
         if (node == null) throw new HttpError(400, s"node $id not found")
-        if (node.state != Node.State.IDLE) throw new HttpError(400, s"node $id is active")
+        if (node.state != Node.State.IDLE) throw new HttpError(400, s"node $id should be idle")
         nodes += node
       }
 
@@ -271,14 +271,14 @@ object HttpServer {
       for (id <- ids) {
         val node = Cluster.getNode(id)
         if (node == null) throw new HttpError(400, s"node $id not found")
-        if (start && node.state != Node.State.IDLE) throw new HttpError(400, s"node $id is already started")
-        if (!start && node.state == Node.State.IDLE) throw new HttpError(400, s"node $id is already stopped")
+        if (start && node.state != Node.State.IDLE) throw new HttpError(400, s"node $id should be idle")
+        if (!start && node.state == Node.State.IDLE) throw new HttpError(400, s"node $id is idle")
         nodes += node
       }
 
       // start|stop nodes
       for (node <- nodes) {
-        if (start) node.state = Node.State.STOPPED
+        if (start) node.state = Node.State.STARTING
         else Scheduler.stopNode(node.id)
       }
       Cluster.save()
