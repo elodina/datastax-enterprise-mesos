@@ -187,10 +187,10 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     val node = Cluster.getNode(Node.idFromTaskId(status.getTaskId.getValue))
 
     status.getState match {
-      case TaskState.TASK_RUNNING => onTaskStarted(node, status)
-      case TaskState.TASK_LOST | TaskState.TASK_FAILED | TaskState.TASK_ERROR => onTaskFailed(node, status)
-      case TaskState.TASK_FINISHED | TaskState.TASK_KILLED => onTaskFinished(node, status)
       case TaskState.TASK_STAGING | TaskState.TASK_STARTING =>
+      case TaskState.TASK_RUNNING => onTaskStarted(node, status)
+      case TaskState.TASK_LOST | TaskState.TASK_FAILED | TaskState.TASK_ERROR |
+           TaskState.TASK_FINISHED | TaskState.TASK_KILLED => onTaskStopped(node, status)
       case _ => logger.warn("Got unexpected node state: " + status.getState)
     }
 
@@ -215,7 +215,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     node.replaceAddress = null
   }
 
-  private[dse] def onTaskFailed(node: Node, status: TaskStatus) {
+  private[dse] def onTaskStopped(node: Node, status: TaskStatus) {
     val sameTask = node != null && node.runtime != null && node.runtime.taskId == status.getTaskId.getValue
     val expectedState = node != null && node.state != Node.State.IDLE
 
@@ -227,20 +227,6 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
 
     val targetState = if (node.state == Node.State.STOPPING) Node.State.IDLE else Node.State.STARTING
     node.state = targetState
-    node.runtime = null
-  }
-
-  private[dse] def onTaskFinished(node: Node, status: TaskStatus) {
-    val sameTask = node != null && node.runtime != null && node.runtime.taskId == status.getTaskId.getValue
-    val expectedState = node.state == Node.State.STOPPING
-
-    if (!sameTask || !expectedState) {
-      val id = if (node != null) s"${node.id}:${node.state}" else "<unknown>"
-      logger.info(s"Got ${status.getState} for node $id, ignoring it")
-      return
-    }
-
-    node.state = Node.State.IDLE
     node.runtime = null
   }
 

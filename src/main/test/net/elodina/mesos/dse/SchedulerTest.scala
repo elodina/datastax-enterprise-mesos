@@ -103,20 +103,20 @@ class SchedulerTest extends MesosTestCase {
   }
 
   @Test
-  def onTaskFailed {
+  def onTaskStopped {
     // unknown node
-    Scheduler.onTaskFailed(null, taskStatus(state = TaskState.TASK_FAILED))
+    Scheduler.onTaskStopped(null, taskStatus(state = TaskState.TASK_FAILED))
 
     val node = Cluster.addNode(new Node("0"))
     node.runtime = new Node.Runtime(taskId = "task")
 
     // idle
-    Scheduler.onTaskFailed(node, taskStatus(id = "task", state = TaskState.TASK_FAILED))
+    Scheduler.onTaskStopped(node, taskStatus(id = "task", state = TaskState.TASK_FAILED))
     assertEquals(Node.State.IDLE, node.state)
 
     // stopping
     node.state = Node.State.STOPPING
-    Scheduler.onTaskFailed(node, taskStatus(id = "task", state = TaskState.TASK_FAILED))
+    Scheduler.onTaskStopped(node, taskStatus(id = "task", state = TaskState.TASK_FAILED))
     assertEquals(Node.State.IDLE, node.state)
     assertNull(node.runtime)
 
@@ -125,36 +125,10 @@ class SchedulerTest extends MesosTestCase {
       node.runtime = new Node.Runtime(taskId = "task")
       node.state = state
 
-      Scheduler.onTaskFailed(node, taskStatus(id = "task", state = TaskState.TASK_FAILED))
+      Scheduler.onTaskStopped(node, taskStatus(id = "task", state = TaskState.TASK_FAILED))
       assertEquals("" + state, Node.State.STARTING, node.state)
       assertNull("" + state, node.runtime)
     }
-  }
-
-  @Test
-  def onTaskFinished {
-    // unknown node
-    Scheduler.onTaskFailed(null, taskStatus(state = TaskState.TASK_FINISHED))
-
-    val node = Cluster.addNode(new Node("0"))
-    node.runtime = new Node.Runtime(taskId = "task")
-
-    // idle, starting, running, reconciling
-    for (state <- List(Node.State.IDLE, Node.State.STARTING, Node.State.RUNNING, Node.State.RECONCILING)) {
-      node.runtime = new Node.Runtime(taskId = "task")
-      node.state = state
-
-      Scheduler.onTaskFinished(node, taskStatus(id = "task", state = TaskState.TASK_FINISHED))
-      assertEquals("" + state, node.state, node.state)
-      assertNotNull("" + state, node.runtime)
-    }
-
-    // stopping
-    node.runtime = new Node.Runtime(taskId = "task")
-    node.state = Node.State.STOPPING
-    Scheduler.onTaskFinished(node, taskStatus(id = "task", state = TaskState.TASK_FINISHED))
-    assertEquals(Node.State.IDLE, node.state)
-    assertNull(node.runtime)
   }
 
   @Test
