@@ -22,10 +22,11 @@ import org.apache.log4j.Logger
 
 import scala.collection.mutable
 import scala.util.parsing.json.{JSONArray, JSONObject}
+import java.io.File
 
 object Cluster {
   private val logger = Logger.getLogger(this.getClass)
-  private val storage = Cluster.newStorage(Config.storage)
+  private[dse] var storage = Cluster.newStorage(Config.storage)
 
   var frameworkId: String = null
   private val rings: mutable.ListBuffer[Ring] = new mutable.ListBuffer[Ring]
@@ -122,9 +123,9 @@ object Cluster {
     this.fromJson(json)
   }
 
-  private def newStorage(storage: String): Storage = {
+  private[dse] def newStorage(storage: String): Storage = {
     storage.split(":", 2) match {
-      case Array("file", fileName) => FileStorage(fileName)
+      case Array("file", fileName) => FileStorage(new File(fileName))
       case Array("zk", zk) => ZkStorage(zk)
       case _ => throw new IllegalArgumentException(s"Unsupported storage: $storage")
     }

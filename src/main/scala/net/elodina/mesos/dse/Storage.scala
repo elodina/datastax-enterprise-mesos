@@ -19,13 +19,10 @@
 package net.elodina.mesos.dse
 
 import java.io.File
-import java.nio.file.{Files, Paths}
-
 import org.I0Itec.zkclient.ZkClient
 import org.I0Itec.zkclient.exception.ZkNodeExistsException
 import org.I0Itec.zkclient.serialize.BytesPushThroughSerializer
 
-import scala.io.Source
 import scala.util.parsing.json.JSONObject
 
 trait Storage {
@@ -33,21 +30,15 @@ trait Storage {
   def load(): Map[String, Any]
 }
 
-case class FileStorage(file: String) extends Storage {
+case class FileStorage(file: File) extends Storage {
   override def save(json: JSONObject) {
-    Files.write(Paths.get(file), json.toString().getBytes("utf-8"))
+    Util.IO.writeFile(file, json.toString())
   }
 
   override def load(): Map[String, Any] = {
-    if (!new File(file).exists()) null
-    else {
-      val source = Source.fromFile(file, "utf-8")
-      try {
-        Util.parseJsonAsMap(source.mkString)
-      } finally {
-        source.close()
-      }
-    }
+    if (!file.exists()) return null
+    val json = Util.IO.readFile(file)
+    Util.parseJsonAsMap(json)
   }
 }
 
