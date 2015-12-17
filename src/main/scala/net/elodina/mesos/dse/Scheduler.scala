@@ -113,7 +113,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
 
   override def statusUpdate(driver: SchedulerDriver, status: TaskStatus) {
     logger.info("[statusUpdate] " + Str.taskStatus(status))
-    onTaskStatus(driver, status)
+    onTaskStatus(status)
   }
 
   override def frameworkMessage(driver: SchedulerDriver, executorId: ExecutorID, slaveId: SlaveID, data: Array[Byte]) {
@@ -183,11 +183,11 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     logger.info(s"Starting node ${node.id} with task ${node.runtime.taskId} for offer ${offer.getId.getValue}")
   }
 
-  private def onTaskStatus(driver: SchedulerDriver, status: TaskStatus) {
-    val node = Cluster.getNodes.find(_.id == Node.idFromTaskId(status.getTaskId.getValue))
+  private[dse] def onTaskStatus(status: TaskStatus) {
+    val node = Cluster.getNode(Node.idFromTaskId(status.getTaskId.getValue))
 
     status.getState match {
-      case TaskState.TASK_RUNNING => onTaskStarted(node, driver, status)
+      case TaskState.TASK_RUNNING => onTaskStarted(node, status)
       case TaskState.TASK_LOST | TaskState.TASK_FAILED | TaskState.TASK_ERROR => onTaskFailed(node, status)
       case TaskState.TASK_FINISHED | TaskState.TASK_KILLED => onTaskFinished(node, status)
       case TaskState.TASK_STAGING | TaskState.TASK_STARTING =>
@@ -197,34 +197,51 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     Cluster.save()
   }
 
-  private def onTaskStarted(nodeOpt: Option[Node], driver: SchedulerDriver, status: TaskStatus) {
-    nodeOpt match {
-      case Some(node) =>
-        node.state = Node.State.RUNNING
-        node.replaceAddress = null
-      case None =>
-        logger.info(s"Got ${status.getState} for unknown/stopped node, killing task ${status.getTaskId.getValue}")
-        driver.killTask(status.getTaskId)
+  private[dse] def onTaskStarted(node: Node, status: TaskStatus) {
+    val sameTask = node != null && node.runtime != null && node.runtime.taskId == status.getTaskId.getValue
+    val expectedState = node != null && List(Node.State.STARTING, Node.State.RUNNING, Node.State.RECONCILING).contains(node.state)
+
+    if (!sameTask || !expectedState) {
+      val id = if (node != null) s"${node.id}:${node.state}" else "<unknown>"
+      logger.info(s"Got ${status.getState} for node $id, killing task ${status.getTaskId.getValue}")
+      driver.killTask(status.getTaskId)
+      return
     }
+
+    if (node.state == Node.State.RECONCILING)
+      logger.info(s"Finished reconciling of node ${node.id}, task ${node.runtime.taskId}")
+
+    node.state = Node.State.RUNNING
+    node.replaceAddress = null
   }
 
-  private def onTaskFailed(nodeOpt: Option[Node], status: TaskStatus) {
-    nodeOpt match {
-      case Some(node) =>
-        node.state = Node.State.STARTING
-        node.runtime = null
-      case None => logger.info(s"Got ${status.getState} for unknown/stopped node with task id ${status.getTaskId.getValue}")
+  private[dse] def onTaskFailed(node: Node, status: TaskStatus) {
+    val sameTask = node != null && node.runtime != null && node.runtime.taskId == status.getTaskId.getValue
+    val expectedState = node != null && node.state != Node.State.IDLE
+
+    if (!sameTask || !expectedState) {
+      val id = if (node != null) s"${node.id}:${node.state}" else "<unknown>"
+      logger.info(s"Got ${status.getState} for node $id, ignoring it")
+      return
     }
+
+    val targetState = if (node.state == Node.State.STOPPING) Node.State.IDLE else Node.State.STARTING
+    node.state = targetState
+    node.runtime = null
   }
 
-  private def onTaskFinished(nodeOpt: Option[Node], status: TaskStatus) {
-    nodeOpt match {
-      case Some(node) =>
-        node.state = Node.State.IDLE
-        node.runtime = null
-        logger.info(s"Node ${node.id} has finished")
-      case None => logger.info(s"Got ${status.getState} for unknown/stopped node with task id ${status.getTaskId.getValue}")
+  private[dse] def onTaskFinished(node: Node, status: TaskStatus) {
+    val sameTask = node != null && node.runtime != null && node.runtime.taskId == status.getTaskId.getValue
+    val expectedState = node.state == Node.State.STOPPING
+
+    if (!sameTask || !expectedState) {
+      val id = if (node != null) s"${node.id}:${node.state}" else "<unknown>"
+      logger.info(s"Got ${status.getState} for node $id, ignoring it")
+      return
     }
+
+    node.state = Node.State.IDLE
+    node.runtime = null
   }
 
   def stopNode(id: String): Unit = {
