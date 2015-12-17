@@ -6,6 +6,8 @@ import java.io.File
 import Cli.{out, printLine, handleGenericOptions}
 
 object SchedulerCli {
+  def isEnabled: Boolean = System.getenv("DM_NO_SCHEDULER") == null
+
   def handle(args: Array[String], help: Boolean = false): Unit = {
     val parser = new OptionParser()
 

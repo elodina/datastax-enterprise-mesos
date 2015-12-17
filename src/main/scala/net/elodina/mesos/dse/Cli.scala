@@ -3,7 +3,6 @@ package net.elodina.mesos.dse
 import java.io.{IOException, PrintStream}
 import java.net.{URLEncoder, HttpURLConnection, URL}
 
-import net.elodina.mesos.dse._
 import scala.io.Source
 import joptsimple.{OptionException, OptionSet}
 
@@ -29,7 +28,9 @@ object Cli {
 
     cmd match {
       case "help" => handleHelp(args)
-      case "scheduler" => SchedulerCli.handle(args)
+      case "scheduler" =>
+        if (!SchedulerCli.isEnabled) throw new Error(s"unsupported command $cmd")
+        SchedulerCli.handle(args)
       case "node" => NodeCli.handle(args)
       case "ring" => RingCli.handle(args)
       case _ => throw new Error(s"unsupported command $cmd")
@@ -50,6 +51,7 @@ object Cli {
       case "help" =>
         printLine("Print general or command-specific help\nUsage: help [cmd [cmd]]")
       case "scheduler" =>
+        if (!SchedulerCli.isEnabled) throw new Error(s"unsupported command $cmd")
         SchedulerCli.handle(args_, help = true)
       case "node" =>
         NodeCli.handle(args_, help = true)
@@ -63,7 +65,7 @@ object Cli {
   private def printCmds(): Unit = {
     printLine("Commands:")
     printLine("help [cmd [cmd]] - print general or command-specific help", 1)
-    printLine("scheduler        - start scheduler", 1)
+    if (SchedulerCli.isEnabled) printLine("scheduler        - start scheduler", 1)
     printLine("node             - node management commands", 1)
     printLine("ring             - ring management commands", 1)
   }
