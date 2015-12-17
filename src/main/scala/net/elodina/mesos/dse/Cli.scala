@@ -25,7 +25,7 @@ object Cli {
 
     val cmd = args(0)
     args = args.slice(1, args.length)
-    args = handleGenericOptions(args)
+    if (cmd != "help") args = handleGenericOptions(args)
 
     cmd match {
       case "help" => handleHelp(args)
