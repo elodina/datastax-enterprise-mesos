@@ -31,13 +31,12 @@ import scala.concurrent.duration.Duration
 import scala.language.postfixOps
 
 import Util.Str
+import scala.collection.mutable.ListBuffer
+import java.util.{Collections, Date}
 
-object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with Reconciliation[Node] {
+object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
   private[dse] val logger = Logger.getLogger(this.getClass)
   private var driver: SchedulerDriver = null
-
-  override protected val reconcileDelay: Duration = Duration("20 seconds")
-  override protected val reconcileMaxTries: Int = 5
 
   def start() {
     initLogging()
@@ -86,7 +85,13 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     Cluster.save()
 
     this.driver = driver
-    implicitReconcile(driver)
+    Reconciler.reconcileTasksIfRequired(force = true)
+  }
+
+  override def reregistered(driver: SchedulerDriver, master: MasterInfo) {
+    logger.info("[reregistered] master:" + Str.master(master))
+    this.driver = driver
+    Reconciler.reconcileTasksIfRequired(force = true)
   }
 
   override def offerRescinded(driver: SchedulerDriver, id: OfferID) {
@@ -96,13 +101,6 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
   override def disconnected(driver: SchedulerDriver) {
     logger.info("[disconnected]")
     this.driver = null
-  }
-
-  override def reregistered(driver: SchedulerDriver, master: MasterInfo) {
-    logger.info("[reregistered] master:" + Str.master(master))
-
-    this.driver = driver
-    implicitReconcile(driver)
   }
 
   override def slaveLost(driver: SchedulerDriver, id: SlaveID) {
@@ -115,7 +113,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
 
   override def statusUpdate(driver: SchedulerDriver, status: TaskStatus) {
     logger.info("[statusUpdate] " + Str.taskStatus(status))
-    onTaskStatus(driver, status)
+    onTaskStatus(status)
   }
 
   override def frameworkMessage(driver: SchedulerDriver, executorId: ExecutorID, slaveId: SlaveID, data: Array[Byte]) {
@@ -124,7 +122,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
 
   override def resourceOffers(driver: SchedulerDriver, offers: util.List[Offer]) {
     logger.debug("[resourceOffers]\n" + Str.offers(offers))
-    onResourceOffers(offers.toList)
+    onOffers(offers.toList)
   }
 
   override def executorLost(driver: SchedulerDriver, executorId: ExecutorID, slaveId: SlaveID, status: Int) {
@@ -133,7 +131,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
 
   override def nodes: Traversable[Node] = Cluster.getNodes
 
-  private def onResourceOffers(offers: List[Offer]) {
+  private def onOffers(offers: List[Offer]) {
     for (offer <- offers) {
       val declineReason = acceptOffer(offer)
 
@@ -143,37 +141,33 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
       }
     }
 
-    explicitReconcile(driver)
+    Reconciler.reconcileTasksIfRequired()
     Cluster.save()
   }
 
-  private def acceptOffer(offer: Offer): String = {
-    Cluster.getNodes.filter(_.state == Node.State.Stopped).toList.sortBy(_.id.toInt) match {
-      case Nil => "all nodes are running"
-      case nodes =>
-        if (Cluster.getNodes.exists(node => node.state == Node.State.Staging || node.state == Node.State.Starting))
-          "should wait until other nodes are started"
-        else {
-          // Consider starting seeds first
-          val filteredNodes = nodes.filter(_.seed) match {
-            case Nil => nodes
-            case seeds =>
-              logger.info("There are seed nodes to be launched so will prefer them first.")
-              seeds
-          }
+  private[dse] def acceptOffer(offer: Offer): String = {
+    if (Reconciler.isReconciling) return "reconciling"
 
-          val reason = filteredNodes.flatMap { node =>
-            checkSeedConstraints(offer, node).orElse(checkConstraints(offer, node)).orElse(Option(node.matches(offer))) match {
-              case Some(declineReason) => Some(s"node ${node.id}: $declineReason")
-              case None =>
-                launchTask(node, offer)
-                ""
-            }
-          }.mkString(", ")
+    val nodes: List[Node] = Cluster.getNodes.filter(_.state == Node.State.STARTING)
+    if (nodes.isEmpty) return "no nodes to start"
 
-          if (reason.isEmpty) null else reason
-        }
+    val startingNode = nodes.find(_.runtime != null).getOrElse(null)
+    if (startingNode != null) return s"node ${startingNode.id} is starting"
+
+    val reasons = new ListBuffer[String]()
+    for (node <- nodes.sortBy(!_.seed)) {
+      var reason = node.matches(offer)
+      if (reason == null) reason = checkSeedConstraints(offer, node).getOrElse(null)
+      if (reason == null) reason = checkConstraints(offer, node).getOrElse(null)
+
+      if (reason != null) reasons += s"node ${node.id}: $reason"
+      else {
+        launchTask(node, offer)
+        return null
+      }
     }
+
+    reasons.mkString(", ")
   }
 
   private def checkSeedConstraints(offer: Offer, node: Node): Option[String] = {
@@ -183,86 +177,69 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
 
   private def launchTask(node: Node, offer: Offer) {
     node.runtime = new Node.Runtime(node, offer)
-    node.state = Node.State.Staging
-
     val task = node.newTask()
-    driver.launchTasks(util.Arrays.asList(offer.getId), util.Arrays.asList(task), Filters.newBuilder().setRefuseSeconds(1).build)
 
+    driver.launchTasks(util.Arrays.asList(offer.getId), util.Arrays.asList(task), Filters.newBuilder().setRefuseSeconds(1).build)
     logger.info(s"Starting node ${node.id} with task ${node.runtime.taskId} for offer ${offer.getId.getValue}")
   }
 
-  private def onTaskStatus(driver: SchedulerDriver, status: TaskStatus) {
-    val node = Cluster.getNodes.find(_.id == Node.idFromTaskId(status.getTaskId.getValue))
+  private[dse] def onTaskStatus(status: TaskStatus) {
+    val node = Cluster.getNode(Node.idFromTaskId(status.getTaskId.getValue))
 
     status.getState match {
-      case TaskState.TASK_RUNNING => onTaskStarted(node, driver, status)
-      case TaskState.TASK_LOST | TaskState.TASK_FAILED | TaskState.TASK_ERROR => onTaskFailed(node, status)
-      case TaskState.TASK_FINISHED | TaskState.TASK_KILLED => onTaskFinished(node, status)
       case TaskState.TASK_STAGING | TaskState.TASK_STARTING =>
+      case TaskState.TASK_RUNNING => onTaskStarted(node, status)
+      case TaskState.TASK_LOST | TaskState.TASK_FAILED | TaskState.TASK_ERROR |
+           TaskState.TASK_FINISHED | TaskState.TASK_KILLED => onTaskStopped(node, status)
       case _ => logger.warn("Got unexpected node state: " + status.getState)
     }
 
     Cluster.save()
   }
 
-  private def onTaskStarted(nodeOpt: Option[Node], driver: SchedulerDriver, status: TaskStatus) {
-    nodeOpt match {
-      case Some(node) =>
-        node.state = Node.State.Running
-        node.replaceAddress = null
-      case None =>
-        logger.info(s"Got ${status.getState} for unknown/stopped node, killing task ${status.getTaskId.getValue}")
-        driver.killTask(status.getTaskId)
+  private[dse] def onTaskStarted(node: Node, status: TaskStatus) {
+    val sameTask = node != null && node.runtime != null && node.runtime.taskId == status.getTaskId.getValue
+    val expectedState = node != null && List(Node.State.STARTING, Node.State.RUNNING, Node.State.RECONCILING).contains(node.state)
+
+    if (!sameTask || !expectedState) {
+      val id = if (node != null) s"${node.id}:${node.state}" else "<unknown>"
+      logger.info(s"Got ${status.getState} for node $id, killing task ${status.getTaskId.getValue}")
+      driver.killTask(status.getTaskId)
+      return
     }
+
+    if (node.state == Node.State.RECONCILING)
+      logger.info(s"Finished reconciling of node ${node.id}, task ${node.runtime.taskId}")
+
+    node.state = Node.State.RUNNING
+    node.replaceAddress = null
   }
 
-  private def onTaskFailed(nodeOpt: Option[Node], status: TaskStatus) {
-    nodeOpt match {
-      case Some(node) =>
-        node.state = Node.State.Stopped
-        node.runtime = null
-      case None => logger.info(s"Got ${status.getState} for unknown/stopped node with task id ${status.getTaskId.getValue}")
+  private[dse] def onTaskStopped(node: Node, status: TaskStatus) {
+    val sameTask = node != null && node.runtime != null && node.runtime.taskId == status.getTaskId.getValue
+    val expectedState = node != null && node.state != Node.State.IDLE
+
+    if (!sameTask || !expectedState) {
+      val id = if (node != null) s"${node.id}:${node.state}" else "<unknown>"
+      logger.info(s"Got ${status.getState} for node $id, ignoring it")
+      return
     }
+
+    if (node.state == Node.State.RECONCILING)
+      logger.info(s"Finished reconciling of node ${node.id}, task ${node.runtime.taskId}")
+
+    val targetState = if (node.state == Node.State.STOPPING) Node.State.IDLE else Node.State.STARTING
+    node.state = targetState
+    node.runtime = null
   }
 
-  private def onTaskFinished(nodeOpt: Option[Node], status: TaskStatus) {
-    nodeOpt match {
-      case Some(node) =>
-        node.state = Node.State.Inactive
-        node.runtime = null
-        logger.info(s"Node ${node.id} has finished")
-      case None => logger.info(s"Got ${status.getState} for unknown/stopped node with task id ${status.getTaskId.getValue}")
-    }
-  }
+  def stopNode(id: String): Unit = {
+    val node = Cluster.getNode(id)
+    if (node == null || node.runtime == null) return
 
-  def stopNode(id: String): Option[Node] = {
-    Cluster.getNodes.find(_.id == id) match {
-      case Some(node) =>
-        node.state match {
-          case Node.State.Staging | Node.State.Starting | Node.State.Running =>
-            driver.killTask(TaskID.newBuilder().setValue(node.runtime.taskId).build)
-          case _ =>
-        }
-
-        node.state = Node.State.Inactive
-        Some(node)
-      case None =>
-        logger.warn(s"Node $id was removed, ignoring its stop call")
-        None
-    }
-  }
-
-  def removeNode(id: String): Option[Node] = {
-    Cluster.getNodes.find(_.id == id) match {
-      case Some(node) =>
-        stopNode(id)
-
-        Cluster.removeNode(node)
-        Some(node)
-      case None =>
-        logger.warn(s"Node $id is already removed")
-        None
-    }
+    logger.info(s"Killing task ${node.runtime.taskId} of node ${node.id}")
+    driver.killTask(TaskID.newBuilder().setValue(node.runtime.taskId).build)
+    node.state = Node.State.STOPPING
   }
 
   private def checkMesosVersion(master: MasterInfo, driver: SchedulerDriver): Unit = {
@@ -351,5 +328,51 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] with 
     }
 
     result
+  }
+  
+  object Reconciler {
+    private[dse] val RECONCILE_DELAY = Duration("20s")
+    private[dse] val RECONCILE_MAX_TRIES = 3
+
+    private[dse] var reconciles: Int = 0
+    private[dse] var reconcileTime: Date = null
+
+    private[dse] def isReconciling: Boolean = Cluster.getNodes.exists(_.state == Node.State.RECONCILING)
+
+    private[dse] def reconcileTasksIfRequired(force: Boolean = false, now: Date = new Date()): Unit = {
+      if (reconcileTime != null && now.getTime - reconcileTime.getTime < RECONCILE_DELAY.toMillis)
+        return
+
+      if (!isReconciling) reconciles = 0
+      reconciles += 1
+      reconcileTime = now
+
+      if (reconciles > RECONCILE_MAX_TRIES) {
+        for (node <- Cluster.getNodes.filter(n => n.runtime != null && n.state == Node.State.RECONCILING)) {
+          logger.info(s"Reconciling exceeded $RECONCILE_MAX_TRIES tries for node ${node.id}, sending killTask for task ${node.runtime.taskId}")
+          driver.killTask(TaskID.newBuilder().setValue(node.runtime.taskId).build())
+          node.runtime = null
+        }
+
+        return
+      }
+
+      val statuses = new util.ArrayList[TaskStatus]
+
+      for (node <- Cluster.getNodes.filter(_.runtime != null))
+        if (force || node.state == Node.State.RECONCILING) {
+          node.state = Node.State.RECONCILING
+          logger.info(s"Reconciling $reconciles/$RECONCILE_MAX_TRIES state of node ${node.id}, task ${node.runtime.taskId}")
+
+          statuses.add(TaskStatus.newBuilder()
+            .setTaskId(TaskID.newBuilder().setValue(node.runtime.taskId))
+            .setState(TaskState.TASK_STAGING)
+            .build()
+          )
+        }
+
+      if (force || !statuses.isEmpty)
+        driver.reconcileTasks(if (force) Collections.emptyList() else statuses)
+    }
   }
 }

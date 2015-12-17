@@ -30,6 +30,7 @@ import org.junit.{Ignore, After, Before}
 import org.apache.log4j.BasicConfigurator
 import com.google.protobuf.ByteString
 import java.io.File
+import java.nio.file.Files
 
 @Ignore
 class MesosTestCase {
@@ -40,7 +41,11 @@ class MesosTestCase {
   def before {
     BasicConfigurator.configure()
 
+    val storageFile: File = Files.createTempFile(classOf[MesosTestCase].getSimpleName, null).toFile
+    storageFile.delete()
+    Cluster.storage = new FileStorage(storageFile)
     Cluster.reset()
+
     schedulerDriver = new TestSchedulerDriver()
     Scheduler.registered(schedulerDriver, frameworkId(), master())
 
@@ -61,6 +66,9 @@ class MesosTestCase {
     Config.dse = null
     Config.cassandra = null
     Config.jar = null
+
+    Cluster.storage.asInstanceOf[FileStorage].file.delete()
+    Cluster.storage = Cluster.newStorage(Config.storage)
   }
 
   val LOCALHOST_IP: Int = 2130706433

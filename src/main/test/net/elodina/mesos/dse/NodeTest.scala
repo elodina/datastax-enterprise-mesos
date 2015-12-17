@@ -86,7 +86,7 @@ class NodeTest extends MesosTestCase {
     test("internal=10..20,jmx=100..200", "ports:15..25,150..160", Map("internal" -> 15, "jmx" -> 150))
 
     // ring has active node
-    node.state = Node.State.Running
+    node.state = Node.State.RUNNING
     node.runtime = new Node.Runtime(reservation = new Reservation(ports = Map("internal" -> 100)))
 
     test("internal=10..20", "ports:0..1000", Map("internal" -> 100))
@@ -164,14 +164,14 @@ class NodeTest extends MesosTestCase {
       }.start()
     }
 
-    deferStateSwitch(Node.State.Running, 100)
-    assertTrue(node.waitFor(Node.State.Running, Duration("200ms")))
+    deferStateSwitch(Node.State.RUNNING, 100)
+    assertTrue(node.waitFor(Node.State.RUNNING, Duration("200ms")))
 
-    deferStateSwitch(Node.State.Inactive, 100)
-    assertTrue(node.waitFor(Node.State.Inactive, Duration("200ms")))
+    deferStateSwitch(Node.State.IDLE, 100)
+    assertTrue(node.waitFor(Node.State.IDLE, Duration("200ms")))
 
     // timeout
-    assertFalse(node.waitFor(Node.State.Running, Duration("50ms")))
+    assertFalse(node.waitFor(Node.State.RUNNING, Duration("50ms")))
   }
 
   @Test
@@ -180,7 +180,7 @@ class NodeTest extends MesosTestCase {
     var read = new Node(Util.parseJsonAsMap("" + node.toJson()))
     assertNodeEquals(node, read)
 
-    node.state = Node.State.Running
+    node.state = Node.State.RUNNING
     node.runtime = new Node.Runtime("task", "executor", "slave", "host", List("n0", "n1"), new Node.Reservation(), Map("a" -> "1"))
 
     node.cpu = 1

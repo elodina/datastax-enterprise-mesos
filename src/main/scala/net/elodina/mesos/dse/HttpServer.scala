@@ -188,7 +188,7 @@ object HttpServer {
         val node = Cluster.getNode(id)
         if (add && node != null) throw new HttpError(400, s"node $id exists")
         if (!add && node == null) throw new HttpError(400, s"node $id not exists")
-        if (!add && node.state != Node.State.Inactive) throw new HttpError(400, s"node should be inactive")
+        if (!add && node.state != Node.State.IDLE) throw new HttpError(400, s"node should be idle")
         nodes += (if (add) new Node(id) else node)
       }
 
@@ -244,7 +244,7 @@ object HttpServer {
       for (id <- ids) {
         val node: Node = Cluster.getNode(id)
         if (node == null) throw new HttpError(400, s"node $id not found")
-        if (node.state != Node.State.Inactive) throw new HttpError(400, s"node $id is active")
+        if (node.state != Node.State.IDLE) throw new HttpError(400, s"node $id should be idle")
         nodes += node
       }
 
@@ -271,21 +271,21 @@ object HttpServer {
       for (id <- ids) {
         val node = Cluster.getNode(id)
         if (node == null) throw new HttpError(400, s"node $id not found")
-        if (start && node.state != Node.State.Inactive) throw new HttpError(400, s"node $id is already started")
-        if (!start && node.state == Node.State.Inactive) throw new HttpError(400, s"node $id is already stopped")
+        if (start && node.state != Node.State.IDLE) throw new HttpError(400, s"node $id should be idle")
+        if (!start && node.state == Node.State.IDLE) throw new HttpError(400, s"node $id is idle")
         nodes += node
       }
 
       // start|stop nodes
       for (node <- nodes) {
-        if (start) node.state = Node.State.Stopped
+        if (start) node.state = Node.State.STARTING
         else Scheduler.stopNode(node.id)
       }
       Cluster.save()
 
       var success: Boolean = true
       if (timeout.toMillis > 0) {
-        val targetState: State.Value = if (start) Node.State.Running else Node.State.Inactive
+        val targetState: State.Value = if (start) Node.State.RUNNING else Node.State.IDLE
         success = nodes.forall(_.waitFor(targetState, timeout))
       }
 
