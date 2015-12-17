@@ -225,6 +225,9 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
       return
     }
 
+    if (node.state == Node.State.RECONCILING)
+      logger.info(s"Finished reconciling of node ${node.id}, task ${node.runtime.taskId}")
+
     val targetState = if (node.state == Node.State.STOPPING) Node.State.IDLE else Node.State.STARTING
     node.state = targetState
     node.runtime = null
