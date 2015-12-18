@@ -151,8 +151,8 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     val nodes: List[Node] = Cluster.getNodes.filter(_.state == Node.State.STARTING)
     if (nodes.isEmpty) return "no nodes to start"
 
-    val startingNode = nodes.find(_.runtime != null).getOrElse(null)
-    if (startingNode != null) return s"node ${startingNode.id} is starting"
+    val starting = nodes.find(_.runtime != null).getOrElse(null)
+    if (starting != null) return s"node ${starting.id} is starting"
 
     val reasons = new ListBuffer[String]()
     for (node <- nodes.sortBy(!_.seed)) {

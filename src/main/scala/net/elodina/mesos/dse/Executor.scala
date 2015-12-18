@@ -64,52 +64,52 @@ object Executor extends org.apache.mesos.Executor {
     logger.info("[disconnected]")
   }
 
-  def launchTask(driver: ExecutorDriver, taskInfo: TaskInfo) {
-    logger.info("[launchTask] " + Str.task(taskInfo))
-
-    val json: Map[String, Any] = Util.parseJsonAsMap(taskInfo.getData.toStringUtf8)
-    val node: Node = new Node(json, expanded = true)
-
-    driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_STARTING).build)
+  def launchTask(driver: ExecutorDriver, task: TaskInfo) {
+    logger.info("[launchTask] " + Str.task(task))
+    driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(task.getTaskId).setState(TaskState.TASK_STARTING).build)
 
     new Thread {
       override def run() {
-        setName("executor-processes")
+        setName("ProcessWatcher")
 
-        var env = Map[String, String]()
-        if (Executor.jreDir != null) env += "JAVA_HOME" -> Executor.jreDir.toString
+        try {
+          startCassandraAndWait(task, driver)
+        } catch {
+          case t: Throwable =>
+            t.printStackTrace()
 
-        cassandraProcess = CassandraProcess(node, driver, taskInfo, hostname, env)
-        cassandraProcess.start()
-
-        if (dseDir != null) {
-          agentProcess = AgentProcess(node, env)
-          agentProcess.start()
+            val buffer = new StringWriter()
+            t.printStackTrace(new PrintWriter(buffer, true))
+            driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(task.getTaskId).setState(TaskState.TASK_FAILED).setMessage("" + buffer).build)
         }
 
-        Future(blocking(cassandraProcess.awaitConsistentState())).map {
-          case true => driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_RUNNING).build)
-          case false => logger.info("Cassandra process stopped, abandon waiting for consistent state")
-        }
-
-        Future.firstCompletedOf(Seq(Future(cassandraProcess.await()))).onComplete { result =>
-          result match {
-            case Success(exitCode) =>
-              if ((exitCode == 0 || exitCode == 143) && cassandraProcess.stopped)
-                driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FINISHED).build)
-              else
-                driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(taskInfo.getTaskId).setState(TaskState.TASK_FAILED).setMessage(s"exitCode=$exitCode").build)
-
-              stopProcesses()
-            case Failure(ex) =>
-              stopProcesses()
-              sendTaskFailed(driver, taskInfo, ex)
-          }
-
-          driver.stop()
-        }
+        stopProcesses()
+        driver.stop()
       }
     }.start()
+  }
+  
+  private def startCassandraAndWait(task: TaskInfo, driver: ExecutorDriver) {
+    val json: Map[String, Any] = Util.parseJsonAsMap(task.getData.toStringUtf8)
+    val node: Node = new Node(json, expanded = true)
+
+    var env = Map[String, String]()
+    if (Executor.jreDir != null) env += "JAVA_HOME" -> Executor.jreDir.toString
+
+    cassandraProcess = CassandraProcess(node, task, hostname, env)
+    cassandraProcess.start()
+
+    if (dseDir != null) {
+      agentProcess = AgentProcess(node, env)
+      agentProcess.start()
+    }
+
+    cassandraProcess.awaitConsistentState()
+    driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(task.getTaskId).setState(TaskState.TASK_RUNNING).build)
+
+    val error = cassandraProcess.await()
+    if (error == null) driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(task.getTaskId).setState(TaskState.TASK_FINISHED).build)
+    else driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(task.getTaskId).setState(TaskState.TASK_FAILED).setMessage(error).build)
   }
 
   def killTask(driver: ExecutorDriver, id: TaskID) {
@@ -130,16 +130,8 @@ object Executor extends org.apache.mesos.Executor {
     logger.info("[error] " + message)
   }
 
-  private def sendTaskFailed(driver: ExecutorDriver, task: TaskInfo, t: Throwable) {
-    val stackTrace = new StringWriter()
-    t.printStackTrace(new PrintWriter(stackTrace, true))
-
-    driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(task.getTaskId).setState(TaskState.TASK_FAILED)
-      .setMessage("" + stackTrace).build)
-  }
-
   private def stopProcesses() {
-    cassandraProcess.stop()
+    if (cassandraProcess != null) cassandraProcess.stop()
     if (agentProcess != null) agentProcess.stop()
   }
 

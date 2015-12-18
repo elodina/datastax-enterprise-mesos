@@ -27,7 +27,6 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 import org.apache.cassandra.tools.NodeProbe
 import org.apache.log4j.Logger
-import org.apache.mesos.ExecutorDriver
 import org.apache.mesos.Protos.TaskInfo
 import org.yaml.snakeyaml.Yaml
 
@@ -36,7 +35,7 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.language.postfixOps
 
-case class CassandraProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
+case class CassandraProcess(node: Node, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
 
   private val started = new AtomicBoolean(false)
@@ -107,8 +106,10 @@ case class CassandraProcess(node: Node, driver: ExecutorDriver, taskInfo: TaskIn
     false
   }
 
-  def await(): Int = {
-    process.waitFor()
+  def await(): String = {
+    val code = process.waitFor()
+    if ((code == 0 || code == 143) && stopped) null
+    else s"exitCode=$code"
   }
 
   def stop() {
