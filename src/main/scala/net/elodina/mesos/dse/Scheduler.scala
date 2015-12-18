@@ -267,6 +267,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     root.setLevel(Level.INFO)
 
     Logger.getLogger("org.I0Itec.zkclient").setLevel(Level.WARN)
+    Logger.getLogger("org.apache.zookeeper").setLevel(Level.WARN)
 
     val logger = Logger.getLogger(Scheduler.getClass)
     logger.setLevel(if (Config.debug) Level.DEBUG else Level.INFO)
