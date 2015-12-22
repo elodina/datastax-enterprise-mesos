@@ -213,6 +213,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
 
     node.state = Node.State.RUNNING
     node.replaceAddress = null
+    node.registerStart(node.runtime.hostname)
   }
 
   private[dse] def onTaskStopped(node: Node, status: TaskStatus) {
@@ -231,6 +232,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     val targetState = if (node.state == Node.State.STOPPING) Node.State.IDLE else Node.State.STARTING
     node.state = targetState
     node.runtime = null
+    node.registerStop()
   }
 
   def stopNode(id: String): Unit = {

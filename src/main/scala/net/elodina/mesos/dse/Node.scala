@@ -77,7 +77,7 @@ class Node extends Constrained {
   def idle: Boolean = state == Node.State.IDLE
   def active: Boolean = !idle
 
-  def matches(offer: Offer): String = {
+  def matches(offer: Offer, now: Date = new Date()): String = {
     val reservation: Reservation = reserve(offer)
 
     if (reservation.cpus < cpu) return s"cpus < $cpu"
@@ -85,6 +85,9 @@ class Node extends Constrained {
 
     for (name <- Node.portNames)
       if (reservation.ports(name) == -1) return s"no suitable $name port"
+
+    if (!stickiness.allowsHostname(offer.getHostname, now))
+      return "hostname != stickiness hostname"
 
     null
   }
@@ -149,6 +152,14 @@ class Node extends Constrained {
     availPorts.insertAll(idx, r.split(port))
 
     port
+  }
+
+  def registerStart(hostname: String): Unit = {
+    stickiness.registerStart(hostname)
+  }
+
+  def registerStop(now: Date = new Date()): Unit = {
+    stickiness.registerStop(now)
   }
 
   private[dse] def newTask(): TaskInfo = {
@@ -465,7 +476,7 @@ object Node {
     }
   }
 
-  class Stickiness(_period: Period = new Period("10m")) {
+  class Stickiness(_period: Period = new Period("30m")) {
     var period: Period = _period
     @volatile var hostname: String = null
     @volatile var stopTime: Date = null

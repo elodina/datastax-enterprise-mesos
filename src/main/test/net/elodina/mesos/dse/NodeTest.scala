@@ -29,6 +29,24 @@ class NodeTest extends MesosTestCase {
   }
 
   @Test
+  def matches_stickiness {
+    val node = new Node("0")
+    val host0 = "host0"
+    val host1 = "host1"
+    val resources = s"cpus:${node.cpu};mem:${node.mem};ports:0..10"
+
+    assertEquals(null, node.matches(offer(hostname = host0, resources = resources), new Date(0)))
+    assertEquals(null, node.matches(offer(hostname = host1, resources = resources), new Date(0)))
+
+    node.registerStart(host0)
+    node.registerStop(new Date(0))
+
+    assertEquals(null, node.matches(offer(hostname = host0, resources = resources), new Date(0)))
+    assertEquals("hostname != stickiness hostname", node.matches(offer(hostname = host1, resources = resources), new Date(0)))
+    assertEquals(null, node.matches(offer(hostname = host1, resources = resources), new Date(node.stickiness.period.ms)))
+  }
+
+  @Test
   def reserve {
     val node = new Node("0")
     node.cpu = 0.5

@@ -34,7 +34,7 @@ object NodeCli {
       case "add" | "update" => handleAddUpdate(cmd, arg, args)
       case "remove" => handleRemove(arg)
       case "start" | "stop" => handleStartStop(cmd, arg, args)
-      case _ => throw new Error("unsupported ring command " + cmd)
+      case _ => throw new Error("unsupported node command " + cmd)
     }
   }
 
