@@ -90,6 +90,7 @@ object NodeCli {
     parser.accepts("cpu", "CPU amount (0.5, 1, 2).").withRequiredArg().ofType(classOf[java.lang.Double])
     parser.accepts("mem", "Mem amount in Mb.").withRequiredArg().ofType(classOf[java.lang.Long])
     parser.accepts("broadcast", "Network interface to broadcast for nodes.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("stickiness-period", "Stickiness period to preserve the same slave node (5m, 10m, 1h)").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("rack", "Node rack.").withRequiredArg().ofType(classOf[String])
     parser.accepts("dc", "Node dc.").withRequiredArg().ofType(classOf[String])
@@ -128,6 +129,7 @@ object NodeCli {
     val cpu = options.valueOf("cpu").asInstanceOf[java.lang.Double]
     val mem = options.valueOf("mem").asInstanceOf[java.lang.Long]
     val broadcast = options.valueOf("broadcast").asInstanceOf[String]
+    val stickinessPeriod = options.valueOf("stickiness-period").asInstanceOf[String]
 
     val rack = options.valueOf("rack").asInstanceOf[String]
     val dc = options.valueOf("dc").asInstanceOf[String]
@@ -150,6 +152,7 @@ object NodeCli {
     if (cpu != null) params("cpu") = "" + cpu
     if (mem != null) params("mem") = "" + mem
     if (broadcast != null) params("broadcast") = broadcast
+    if (stickinessPeriod != null) params("stickinessPeriod") = stickinessPeriod
 
     if (rack != null) params("rack") = rack
     if (dc != null) params("dc") = dc

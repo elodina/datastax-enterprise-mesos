@@ -97,6 +97,7 @@ node added:
   topology: ring: default, dc:default, rack:default
   resources: cpu:0.5, mem:512
   seed: false
+  stickiness: period:30m
 ```
     
 You now have a cluster with 1 Cassandra node that is not started.    
@@ -109,6 +110,7 @@ node:
   topology: ring: default, dc:default, rack:default
   resources: cpu:0.5, mem:512
   seed: false
+  stickiness: period:30m
 ```
 
 Now lets start the task. This call to CLI will block until the task is actually started but will wait no more than a configured timeout. Timeout can be passed via --timeout flag and defaults to 2 minutes. If a timeout of 0s is passed CLI won't wait for tasks to start at all and will reply with "Scheduled tasks ..." message.
@@ -121,6 +123,7 @@ node started:
   topology: ring: default, dc:default, rack:default
   resources: cpu:0.5, mem:512
   seed: true
+  stickiness: period:30m, hostname:slave0
   runtime:
     task id: node-0-1449579588537
     executor id: node-0-1449579588537
@@ -141,6 +144,7 @@ node stopped:
   topology: ring: default, dc:default, rack:default
   resources: cpu:0.5, mem:512
   seed: true
+  stickiness: period:30m, hostname:slave0, expires:2015-12-22 16:23:29+02
 ```
 
 And remove:

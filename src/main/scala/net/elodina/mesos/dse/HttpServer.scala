@@ -30,6 +30,7 @@ import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.Duration
 import net.elodina.mesos.dse.Node.State
+import net.elodina.mesos.dse.Util.Period
 
 object HttpServer {
   private val logger = Logger.getLogger(HttpServer.getClass)
@@ -158,6 +159,11 @@ object HttpServer {
 
       val broadcast: String = request.getParameter("broadcast")
 
+      var stickinessPeriod: Period = null
+      if (request.getParameter("stickinessPeriod") != null)
+        try { stickinessPeriod = new Period(request.getParameter("stickinessPeriod")) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid stickinessPeriod") }
+
       val rack: String = request.getParameter("rack")
       val dc: String = request.getParameter("dc")
 
@@ -199,6 +205,7 @@ object HttpServer {
         if (cpu != null) node.cpu = cpu
         if (mem != null) node.mem = mem
         if (broadcast != null) node.broadcast = if (broadcast != "") broadcast else null
+        if (stickinessPeriod != null) node.stickiness.period = stickinessPeriod
 
         if (rack != null) node.rack = if (rack != "") rack else "default"
         if (dc != null) node.dc = if (dc != "") dc else "default"
