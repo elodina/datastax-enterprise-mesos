@@ -271,6 +271,7 @@ object NodeCli {
     if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent)
     if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent)
 
+    printLine(s"stickiness: ${nodeStickiness(node)}", indent)
     if (node.runtime != null) printNodeRuntime(node.runtime, indent)
   }
 
@@ -297,6 +298,13 @@ object NodeCli {
     var s = ""
     s += s"cpu:${node.cpu}"
     s += s", mem:${node.mem}"
+    s
+  }
+
+  private def nodeStickiness(node: Node): String = {
+    var s = "period:" + node.stickiness.period
+    if (node.stickiness.hostname != null) s += ", hostname:" + node.stickiness.hostname
+    if (node.stickiness.stopTime != null) s += ", expires:" + Util.Str.dateTime(node.stickiness.expires)
     s
   }
 

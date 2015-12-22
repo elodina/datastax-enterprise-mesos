@@ -93,7 +93,6 @@ class NodeTest extends MesosTestCase {
     test("internal=10..20", "ports:0..1000", Map("internal" -> 100))
     test("", "ports:0..1000", Map("internal" -> 100))
     test("internal=10..20", "ports:0..99", Map("internal" -> -1))
-
   }
 
   @Test
@@ -182,6 +181,9 @@ class NodeTest extends MesosTestCase {
     assertNodeEquals(node, read)
 
     node.state = Node.State.RUNNING
+    node.ring = Cluster.addRing(new Ring("0"))
+    node.stickiness.hostname = "host"
+    node.stickiness.stopTime = new Date()
     node.runtime = new Runtime("task", "executor", "slave", "host", List("n0", "n1"), new Node.Reservation(), Map("a" -> "1"))
 
     node.cpu = 1
@@ -288,6 +290,8 @@ class NodeTest extends MesosTestCase {
 
     assertEquals(expected.id, actual.id)
     assertEquals(expected.state, actual.state)
+    assertEquals(expected.ring, actual.ring)
+    assertStickinessEquals(expected.stickiness, actual.stickiness)
     assertRuntimeEquals(expected.runtime, actual.runtime)
 
     assertEquals(expected.cpu, actual.cpu, 0.001)

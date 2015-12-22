@@ -37,6 +37,7 @@ class Node extends Constrained {
   var id: String = null
   var state: Node.State.Value = Node.State.IDLE
   var ring: Ring = Cluster.defaultRing
+  var stickiness: Node.Stickiness = new Node.Stickiness()
   var runtime: Node.Runtime = null
 
   var cpu: Double = 0.5
@@ -209,6 +210,7 @@ class Node extends Constrained {
     id = json("id").asInstanceOf[String]
     state = Node.State.withName(json("state").asInstanceOf[String])
     ring = if (expanded) new Ring(json("ring").asInstanceOf[Map[String, Any]]) else Cluster.getRing(json("ring").asInstanceOf[String])
+    stickiness = new Node.Stickiness(json("stickiness").asInstanceOf[Map[String, Any]])
     if (json.contains("runtime")) runtime = new Node.Runtime(json("runtime").asInstanceOf[Map[String, Any]])
 
     cpu = json("cpu").asInstanceOf[Number].doubleValue()
@@ -239,6 +241,7 @@ class Node extends Constrained {
     json("id") = id
     json("state") = "" + state
     json("ring") = if (expanded) ring.toJson else ring.id
+    json("stickiness") = stickiness.toJson
     if (runtime != null) json("runtime") = runtime.toJson
 
     json("cpu") = cpu
@@ -467,6 +470,11 @@ object Node {
     @volatile var hostname: String = null
     @volatile var stopTime: Date = null
 
+    def this(json: Map[String, Any]) {
+      this
+      fromJson(json)
+    }
+
     def expires: Date = if (stopTime != null) new Date(stopTime.getTime + period.ms) else null
 
     def registerStart(hostname: String): Unit = {
@@ -484,10 +492,10 @@ object Node {
       this.hostname == hostname
     }
 
-    def fromJson(node: Map[String, Any]): Unit = {
-      period = new Period(node("period").asInstanceOf[String])
-      if (node.contains("stopTime")) stopTime = dateTimeFormat.parse(node("stopTime").asInstanceOf[String])
-      if (node.contains("hostname")) hostname = node("hostname").asInstanceOf[String]
+    def fromJson(json: Map[String, Any]): Unit = {
+      period = new Period(json("period").asInstanceOf[String])
+      if (json.contains("stopTime")) stopTime = dateTimeFormat.parse(json("stopTime").asInstanceOf[String])
+      if (json.contains("hostname")) hostname = json("hostname").asInstanceOf[String]
     }
 
     def toJson: JSONObject = {
