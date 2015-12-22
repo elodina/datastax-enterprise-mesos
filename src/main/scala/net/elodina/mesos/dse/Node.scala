@@ -29,6 +29,9 @@ import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.collection.mutable.ListBuffer
 import net.elodina.mesos.dse.Util.Range
 import net.elodina.mesos.dse.Node.Reservation
+import java.util.{TimeZone, Date}
+import Util.Period
+import java.text.SimpleDateFormat
 
 class Node extends Constrained {
   var id: String = null
@@ -279,6 +282,12 @@ object Node {
     }
   }
 
+  private def dateTimeFormat: SimpleDateFormat = {
+    val format: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+    format.setTimeZone(TimeZone.getTimeZone("UTC-0"))
+    format
+  }
+
   object State extends Enumeration {
     val IDLE = Value("idle")
     val STARTING = Value("starting")
@@ -450,6 +459,45 @@ object Node {
       json("ports") = new JSONObject(ports.toMap)
 
       new JSONObject(json.toMap)
+    }
+  }
+
+  class Stickiness(_period: Period = new Period("10m")) {
+    var period: Period = _period
+    @volatile var hostname: String = null
+    @volatile var stopTime: Date = null
+
+    def expires: Date = if (stopTime != null) new Date(stopTime.getTime + period.ms) else null
+
+    def registerStart(hostname: String): Unit = {
+      this.hostname = hostname
+      stopTime = null
+    }
+
+    def registerStop(now: Date = new Date()): Unit = {
+      this.stopTime = now
+    }
+
+    def allowsHostname(hostname: String, now: Date = new Date()): Boolean = {
+      if (this.hostname == null) return true
+      if (stopTime == null || now.getTime - stopTime.getTime >= period.ms) return true
+      this.hostname == hostname
+    }
+
+    def fromJson(node: Map[String, Any]): Unit = {
+      period = new Period(node("period").asInstanceOf[String])
+      if (node.contains("stopTime")) stopTime = dateTimeFormat.parse(node("stopTime").asInstanceOf[String])
+      if (node.contains("hostname")) hostname = node("hostname").asInstanceOf[String]
+    }
+
+    def toJson: JSONObject = {
+      val obj = new collection.mutable.LinkedHashMap[String, Any]()
+
+      obj("period") = "" + period
+      if (stopTime != null) obj("stopTime") = dateTimeFormat.format(stopTime)
+      if (hostname != null) obj("hostname") = hostname
+
+      new JSONObject(obj.toMap)
     }
   }
 }
