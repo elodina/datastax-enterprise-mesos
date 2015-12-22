@@ -44,8 +44,8 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, hostname: String, en
   private var process: Process = null
 
   def start() {
-    if (started.getAndSet(true)) throw new IllegalStateException(s"Process ${node.id} already started")
-    logger.info(s"Starting cassandra process for node ${node.id}")
+    if (started.getAndSet(true)) throw new IllegalStateException(s"Process already started")
+    logger.info(s"Starting Cassandra process")
 
     makeDataDirs()
     redirectCassandraLogs()
@@ -59,10 +59,9 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, hostname: String, en
     if (Executor.dseDir != null) cmd = List("" + new File(Executor.dseDir, "bin/dse"), "cassandra", "-f")
     else cmd = List("" + new File(Executor.cassandraDir, "bin/cassandra"), "-f")
 
-    val out: File = new File("cassandra.log")
     val builder: ProcessBuilder = new ProcessBuilder(cmd)
-      .redirectOutput(out)
-      .redirectError(out)
+      .redirectOutput(new File(Executor.dir, "cassandra.out"))
+      .redirectError(new File(Executor.dir, "cassandra.err"))
 
     if (node.replaceAddress != null)
       builder.environment().put("JVM_OPTS", s"-Dcassandra.replace_address=${node.replaceAddress}")
@@ -115,7 +114,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, hostname: String, en
   def stop() {
     this.synchronized {
       if (!stopped) {
-        logger.info(s"Stopping process ${node.id}")
+        logger.info(s"Stopping Cassandra process")
 
         stopped = true
         process.destroy()

@@ -42,10 +42,9 @@ case class AgentProcess(node: Node, env: Map[String, String] = Map.empty) {
   private def startProcess(): Process = {
     val cmd = util.Arrays.asList("" + new File(Executor.dseDir, "datastax-agent/bin/datastax-agent"), "-f")
 
-    val out: File = new File("agent.log")
     val builder: ProcessBuilder = new ProcessBuilder(cmd)
-      .redirectOutput(out)
-      .redirectError(out)
+      .redirectOutput(new File(Executor.dir, "agent.out"))
+      .redirectError(new File(Executor.dir, "agent.err"))
 
     builder.environment().putAll(env)
     builder.start()
