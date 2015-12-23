@@ -8,7 +8,7 @@ class ExprTest extends MesosTestCase {
   @Test
   def expandNodes {
     for (i <- 0 until 5)
-    Cluster.addNode(new Node("" + i))
+    Nodes.addNode(new Node("" + i))
 
     try {
       assertEquals(util.Arrays.asList(), Expr.expandNodes(""))
@@ -35,10 +35,10 @@ class ExprTest extends MesosTestCase {
 
   @Test
   def expandNodes_attributes {
-    val n0 = Cluster.addNode(new Node("0"))
-    val n1 = Cluster.addNode(new Node("1"))
-    val n2 = Cluster.addNode(new Node("2"))
-    Cluster.addNode(new Node("3"))
+    val n0 = Nodes.addNode(new Node("0"))
+    val n1 = Nodes.addNode(new Node("1"))
+    val n2 = Nodes.addNode(new Node("2"))
+    Nodes.addNode(new Node("3"))
 
     n0.runtime = new Node.Runtime(hostname = "master", attributes = Util.parseMap("a=1"))
     n1.runtime = new Node.Runtime(hostname = "slave0", attributes = Util.parseMap("a=2,b=2"))
@@ -64,12 +64,12 @@ class ExprTest extends MesosTestCase {
 
   @Test
   def expandNodes_sortByAttrs {
-    val n0 = Cluster.addNode(new Node("0"))
-    val n1 = Cluster.addNode(new Node("1"))
-    val n2 = Cluster.addNode(new Node("2"))
-    val n3 = Cluster.addNode(new Node("3"))
-    val n4 = Cluster.addNode(new Node("4"))
-    val n5 = Cluster.addNode(new Node("5"))
+    val n0 = Nodes.addNode(new Node("0"))
+    val n1 = Nodes.addNode(new Node("1"))
+    val n2 = Nodes.addNode(new Node("2"))
+    val n3 = Nodes.addNode(new Node("3"))
+    val n4 = Nodes.addNode(new Node("4"))
+    val n5 = Nodes.addNode(new Node("5"))
 
     n0.runtime = new Node.Runtime(attributes = Util.parseMap("r=2,a=1"))
     n1.runtime = new Node.Runtime(attributes = Util.parseMap("r=0,a=1"))

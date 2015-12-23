@@ -129,7 +129,7 @@ object HttpServer {
     }
 
     def handleListNodes(request: HttpServletRequest, response: HttpServletResponse) {
-      val nodesJson = Cluster.getNodes.map(_.toJson(expanded = true))
+      val nodesJson = Nodes.getNodes.map(_.toJson(expanded = true))
       response.getWriter.println("" + new JSONArray(nodesJson.toList))
     }
 
@@ -143,7 +143,7 @@ object HttpServer {
 
       var ring: Ring = null
       if (request.getParameter("ring") != null) {
-        ring = Cluster.getRing(request.getParameter("ring"))
+        ring = Nodes.getRing(request.getParameter("ring"))
         if (ring == null) throw new HttpError(400, "ring not found")
       }
 
@@ -191,7 +191,7 @@ object HttpServer {
       // collect nodes and check existence & state
       val nodes = new ListBuffer[Node]()
       for (id <- ids) {
-        val node = Cluster.getNode(id)
+        val node = Nodes.getNode(id)
         if (add && node != null) throw new HttpError(400, s"node $id exists")
         if (!add && node == null) throw new HttpError(400, s"node $id not exists")
         if (!add && node.state != Node.State.IDLE) throw new HttpError(400, s"node should be idle")
@@ -230,9 +230,9 @@ object HttpServer {
 
       for (node <- nodes) {
         updateNode(node)
-        if (add) Cluster.addNode(node)
+        if (add) Nodes.addNode(node)
       }
-      Cluster.save()
+      Nodes.save()
 
       // return result
       val nodesJson = nodes.map(_.toJson(expanded = true))
@@ -249,14 +249,14 @@ object HttpServer {
 
       val nodes = new ListBuffer[Node]
       for (id <- ids) {
-        val node: Node = Cluster.getNode(id)
+        val node: Node = Nodes.getNode(id)
         if (node == null) throw new HttpError(400, s"node $id not found")
         if (node.state != Node.State.IDLE) throw new HttpError(400, s"node $id should be idle")
         nodes += node
       }
 
-      nodes.foreach(Cluster.removeNode)
-      Cluster.save()
+      nodes.foreach(Nodes.removeNode)
+      Nodes.save()
     }
 
     def handleStartStopNode(start: Boolean, request: HttpServletRequest, response: HttpServletResponse) {
@@ -276,7 +276,7 @@ object HttpServer {
       // check&collect nodes
       val nodes = new ListBuffer[Node]
       for (id <- ids) {
-        val node = Cluster.getNode(id)
+        val node = Nodes.getNode(id)
         if (node == null) throw new HttpError(400, s"node $id not found")
         if (start && node.state != Node.State.IDLE) throw new HttpError(400, s"node $id should be idle")
         if (!start && node.state == Node.State.IDLE) throw new HttpError(400, s"node $id is idle")
@@ -288,7 +288,7 @@ object HttpServer {
         if (start) node.state = Node.State.STARTING
         else Scheduler.stopNode(node.id)
       }
-      Cluster.save()
+      Nodes.save()
 
       var success: Boolean = true
       if (timeout.toMillis > 0) {
@@ -309,7 +309,7 @@ object HttpServer {
     }
 
     private def handleListRings(request: HttpServletRequest, response: HttpServletResponse) {
-      val ringsJson = Cluster.getRings.map(_.toJson)
+      val ringsJson = Nodes.getRings.map(_.toJson)
       response.getWriter.println("" + new JSONArray(ringsJson))
     }
     
@@ -340,13 +340,13 @@ object HttpServer {
         catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid thriftPort") }
 
 
-      var ring = Cluster.getRing(id)
+      var ring = Nodes.getRing(id)
       if (add && ring != null) throw new HttpError(400, "duplicate ring")
       if (!add && ring == null) throw new HttpError(400, "ring not found")
       if (!add && ring.active) throw new HttpError(400, "ring has active nodes")
 
       if (add)
-        ring = Cluster.addRing(new Ring(id))
+        ring = Nodes.addRing(new Ring(id))
 
       if (name != null) ring.name = if (name != "") name else null
 
@@ -355,7 +355,7 @@ object HttpServer {
       if (cqlPort != null) ring.ports("cql") = if (cqlPort != "") new Util.Range(cqlPort) else null
       if (thriftPort != null) ring.ports("thrift") = if (thriftPort != "") new Util.Range(thriftPort) else null
 
-      Cluster.save()
+      Nodes.save()
       response.getWriter.println(ring.toJson)
     }
 
@@ -363,12 +363,12 @@ object HttpServer {
       val id: String = request.getParameter("ring")
       if (id == null || id.isEmpty) throw new HttpError(400, "ring required")
 
-      val ring = Cluster.getRing(id)
+      val ring = Nodes.getRing(id)
       if (ring == null) throw new HttpError(400, "ring not found")
-      if (ring == Cluster.defaultRing) throw new HttpError(400, "can't remove default ring")
+      if (ring == Nodes.defaultRing) throw new HttpError(400, "can't remove default ring")
 
-      Cluster.removeRing(ring)
-      Cluster.save()
+      Nodes.removeRing(ring)
+      Nodes.save()
     }
 
     private def handleHealth(response: HttpServletResponse) {

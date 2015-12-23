@@ -67,7 +67,7 @@ class NodeTest extends MesosTestCase {
 
   @Test
   def reservePorts {
-    val node: Node = Cluster.addNode(new Node("0"))
+    val node: Node = Nodes.addNode(new Node("0"))
 
     def test(portsDef: String, resources: String, expected: Map[String, Int]) {
       // parses expr like: storage=0..4,jmx=5,cql=100..110
@@ -199,7 +199,7 @@ class NodeTest extends MesosTestCase {
     assertNodeEquals(node, read)
 
     node.state = Node.State.RUNNING
-    node.ring = Cluster.addRing(new Ring("0"))
+    node.ring = Nodes.addRing(new Ring("0"))
     node.stickiness.hostname = "host"
     node.stickiness.stopTime = new Date()
     node.runtime = new Runtime("task", "executor", "slave", "host", List("n0", "n1"), new Node.Reservation(), Map("a" -> "1"))

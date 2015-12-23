@@ -24,9 +24,9 @@ import scala.collection.mutable
 import scala.util.parsing.json.{JSONArray, JSONObject}
 import java.io.File
 
-object Cluster {
+object Nodes {
   private val logger = Logger.getLogger(this.getClass)
-  private[dse] var storage = Cluster.newStorage(Config.storage)
+  private[dse] var storage = Nodes.newStorage(Config.storage)
 
   var frameworkId: String = null
   private val rings: mutable.ListBuffer[Ring] = new mutable.ListBuffer[Ring]
@@ -116,7 +116,7 @@ object Cluster {
   def load() {
     val json = storage.load()
     if (json == null) {
-      logger.info("No cluster state available")
+      logger.info("No nodes state available")
       return
     }
 

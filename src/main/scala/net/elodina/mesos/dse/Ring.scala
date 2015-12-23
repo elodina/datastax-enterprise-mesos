@@ -20,13 +20,13 @@ class Ring {
     fromJson(json)
   }
 
-  def getNodes: List[Node] = Cluster.getNodes.filter(_.ring == this)
+  def getNodes: List[Node] = Nodes.getNodes.filter(_.ring == this)
 
   def active: Boolean = getNodes.exists(_.state != Node.State.IDLE)
   def idle: Boolean = !active
 
   def availSeeds: List[String] = {
-    val nodes: List[Node] = Cluster.getNodes
+    val nodes: List[Node] = Nodes.getNodes
       .filter(_.ring == this)
       .filter(_.seed)
       .filter(_.runtime != null)

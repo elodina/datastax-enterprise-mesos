@@ -24,7 +24,7 @@ object Expr {
       val part = _part.trim()
 
       if (part.equals("*"))
-        for (node <- Cluster.getNodes) ids.add(node.id)
+        for (node <- Nodes.getNodes) ids.add(node.id)
       else if (part.contains("..")) {
         val idx = part.indexOf("..")
 
@@ -87,7 +87,7 @@ object Expr {
       val iterator = ids.iterator()
       while (iterator.hasNext) {
         val id = iterator.next()
-        val node = Cluster.getNode(id)
+        val node = Nodes.getNode(id)
 
         if (!nodeMatches(node))
           iterator.remove()
@@ -116,7 +116,7 @@ object Expr {
 
       val values = new util.HashMap[Value, util.List[String]]()
       for (id <- ids) {
-        val node: Node = Cluster.getNode(id)
+        val node: Node = Nodes.getNode(id)
 
         if (node != null) {
           val value = new Value(node)
