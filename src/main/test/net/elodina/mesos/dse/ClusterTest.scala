@@ -51,7 +51,6 @@ class ClusterTest extends MesosTestCase {
     var read = new Cluster(Util.parseJsonAsMap("" + cluster.toJson))
     assertClusterEquals(cluster, read)
 
-    cluster.name = "name"
     cluster.ports ++= Map("internal" -> new Range("100..110"), "jmx" -> new Range("200..210"))
     read = new Cluster(Util.parseJsonAsMap("" + cluster.toJson))
     assertClusterEquals(cluster, read)
@@ -60,7 +59,6 @@ class ClusterTest extends MesosTestCase {
   private def assertClusterEquals(expected: Cluster, actual: Cluster) {
     if (checkNulls(expected, actual)) return
     assertEquals(expected.id, actual.id)
-    assertEquals(expected.name, actual.name)
     assertEquals(expected.ports, actual.ports)
   }
 

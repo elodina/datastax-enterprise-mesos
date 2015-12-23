@@ -77,8 +77,6 @@ object ClusterCli {
 
   def handleAddUpdate(cmd: String, id: String, args: Array[String], help: Boolean = false): Unit = {
     val parser = new OptionParser()
-    parser.accepts("name", "Cluster name.").withRequiredArg().ofType(classOf[String])
-
     parser.accepts("internal-port", "Inter-node port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("jmx-port", "JMX monitoring port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("cql-port", "CQL port.").withRequiredArg().ofType(classOf[String])
@@ -102,15 +100,12 @@ object ClusterCli {
         throw new Cli.Error(e.getMessage)
     }
 
-    val name = options.valueOf("name").asInstanceOf[String]
-
     val internalPort = options.valueOf("internal-port").asInstanceOf[String]
     val jmxPort = options.valueOf("jmx-port").asInstanceOf[String]
     val cqlPort = options.valueOf("cql-port").asInstanceOf[String]
     val thriftPort = options.valueOf("thrift-port").asInstanceOf[String]
 
     val params = mutable.HashMap("cluster" -> id)
-    if (name != null) params("name") = name
 
     if (internalPort != null) params("internalPort") = internalPort
     if (jmxPort != null) params("jmxPort") = jmxPort
@@ -153,7 +148,6 @@ object ClusterCli {
 
   private def printCluster(cluster: Cluster, indent: Int): Unit = {
     printLine("id: " + cluster.id, indent)
-    if (cluster.name != null) printLine("name: " + cluster.name, indent)
     printLine(s"ports: ${clusterPorts(cluster)}", indent)
   }
 

@@ -317,8 +317,6 @@ object HttpServer {
       val id: String = request.getParameter("cluster")
       if (id == null || id.isEmpty) throw new HttpError(400, "cluster required")
 
-      val name: String = request.getParameter("name")
-
       val internalPort: String = request.getParameter("internalPort")
       if (internalPort != null && !internalPort.isEmpty)
         try { new Util.Range(internalPort) }
@@ -347,8 +345,6 @@ object HttpServer {
 
       if (add)
         cluster = Nodes.addCluster(new Cluster(id))
-
-      if (name != null) cluster.name = if (name != "") name else null
 
       if (internalPort != null) cluster.ports("internal") = if (internalPort != "") new Util.Range(internalPort) else null
       if (jmxPort != null) cluster.ports("jmx") = if (jmxPort != "") new Util.Range(jmxPort) else null

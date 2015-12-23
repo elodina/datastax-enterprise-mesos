@@ -41,7 +41,6 @@ class Cluster {
 
   def fromJson(json: Map[String, Any]): Unit = {
     id = json("id").asInstanceOf[String]
-    if (json.contains("name")) name = json("name").asInstanceOf[String]
 
     resetPorts
     for ((name, range) <- json("ports").asInstanceOf[Map[String, String]])
@@ -50,9 +49,7 @@ class Cluster {
 
   def toJson: JSONObject = {
     val json = new mutable.LinkedHashMap[String, Any]()
-
     json("id") = id
-    if (name != null) json("name") = name
 
     val portsJson = new mutable.HashMap[String, Any]()
     for ((name, range) <- ports)

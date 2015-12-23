@@ -158,7 +158,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, hostname: String, en
     val yaml = new Yaml()
     val cassandraYaml = mutable.Map(yaml.load(Source.fromFile(file).reader()).asInstanceOf[util.Map[String, AnyRef]].toSeq: _*)
 
-    cassandraYaml.put("cluster_name", if (node.cluster.name != null) node.cluster.name else node.cluster.id)
+    cassandraYaml.put("cluster_name", node.cluster.id)
     cassandraYaml.put("data_file_directories", node.dataFileDirs.split(","))
     cassandraYaml.put("commitlog_directory", Array(node.commitLogDir))
     cassandraYaml.put("saved_caches_directory", Array(node.savedCachesDir))
