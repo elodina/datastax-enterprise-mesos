@@ -16,7 +16,7 @@ class ClusterTest extends MesosTestCase {
     val n0 = Nodes.addNode(new Node("0"))
     val n1 = Nodes.addNode(new Node("1"))
 
-    val c0 = Nodes.addCluster(new Cluster("r0"))
+    val c0 = Nodes.addCluster(new Cluster("c0"))
     val n2 = Nodes.addNode(new Node("2"))
     val n3 = Nodes.addNode(new Node("3"))
 

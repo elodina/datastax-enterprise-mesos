@@ -162,7 +162,7 @@ object HttpServer {
       var stickinessPeriod: Period = null
       if (request.getParameter("stickinessPeriod") != null)
         try { stickinessPeriod = new Period(request.getParameter("stickinessPeriod")) }
-        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid stickinessPeriod") }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid stickinessPeriod") }
 
       val rack: String = request.getParameter("rack")
       val dc: String = request.getParameter("dc")
@@ -320,22 +320,22 @@ object HttpServer {
       val internalPort: String = request.getParameter("internalPort")
       if (internalPort != null && !internalPort.isEmpty)
         try { new Util.Range(internalPort) }
-        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid internalPort") }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid internalPort") }
 
       val jmxPort: String = request.getParameter("jmxPort")
       if (jmxPort != null && !jmxPort.isEmpty)
         try { new Util.Range(jmxPort) }
-        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid jmxPort") }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid jmxPort") }
 
       val cqlPort: String = request.getParameter("cqlPort")
       if (cqlPort != null && !cqlPort.isEmpty)
         try { new Util.Range(cqlPort) }
-        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid cqlPort") }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid cqlPort") }
 
       val thriftPort: String = request.getParameter("thriftPort")
       if (thriftPort != null && !thriftPort.isEmpty)
         try { new Util.Range(thriftPort) }
-        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid thriftPort") }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid thriftPort") }
 
 
       var cluster = Nodes.getCluster(id)
@@ -362,6 +362,7 @@ object HttpServer {
       val cluster = Nodes.getCluster(id)
       if (cluster == null) throw new HttpError(400, "cluster not found")
       if (cluster == Nodes.defaultCluster) throw new HttpError(400, "can't remove default cluster")
+      if (cluster.active) throw new HttpError(400, "can't remove cluster with active nodes")
 
       Nodes.removeCluster(cluster)
       Nodes.save()

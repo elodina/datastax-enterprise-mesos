@@ -50,6 +50,7 @@ object Nodes {
 
   def removeCluster(cluster: Cluster): Unit = {
     if (cluster == defaultCluster) throw new IllegalArgumentException("can't remove default cluster")
+    cluster.getNodes.foreach(_.cluster = defaultCluster)
     clusters -= cluster
   }
 

@@ -12,24 +12,24 @@ class NodesTest {
 
   @Test
   def getClusters {
-    val rd = Nodes.defaultCluster
-    val r0 = Nodes.addCluster(new Cluster("0"))
-    val r1 = Nodes.addCluster(new Cluster("1"))
-    assertEquals(List(rd, r0, r1), Nodes.getClusters)
+    val cd = Nodes.defaultCluster
+    val c0 = Nodes.addCluster(new Cluster("0"))
+    val c1 = Nodes.addCluster(new Cluster("1"))
+    assertEquals(List(cd, c0, c1), Nodes.getClusters)
   }
 
   @Test
   def getCluster {
     assertNull(Nodes.getCluster("0"))
-    val r0 = Nodes.addCluster(new Cluster("0"))
-    assertSame(r0, Nodes.getCluster("0"))
+    val c0 = Nodes.addCluster(new Cluster("0"))
+    assertSame(c0, Nodes.getCluster("0"))
   }
 
   @Test
   def addCluster {
-    val rd = Nodes.defaultCluster
-    val r0 = Nodes.addCluster(new Cluster("0"))
-    assertEquals(List(rd, r0), Nodes.getClusters)
+    val cd = Nodes.defaultCluster
+    val c0 = Nodes.addCluster(new Cluster("0"))
+    assertEquals(List(cd, c0), Nodes.getClusters)
 
     try { Nodes.addCluster(new Cluster("0")); fail() }
     catch { case e: IllegalArgumentException => assertTrue(e.getMessage, e.getMessage.contains("duplicate")) }
@@ -37,13 +37,16 @@ class NodesTest {
 
   @Test
   def removeCluster {
-    val rd = Nodes.defaultCluster
-    val r0 = Nodes.addCluster(new Cluster("0"))
-    val r1 = Nodes.addCluster(new Cluster("1"))
-    assertEquals(List(rd, r0, r1), Nodes.getClusters)
+    val cd = Nodes.defaultCluster
+    val c0 = Nodes.addCluster(new Cluster("0"))
+    val c1 = Nodes.addCluster(new Cluster("1"))
+    assertEquals(List(cd, c0, c1), Nodes.getClusters)
 
-    Nodes.removeCluster(r0)
-    assertEquals(List(rd, r1), Nodes.getClusters)
+    val n0: Node = Nodes.addNode(new Node("0"))
+    n0.cluster = c0
+    Nodes.removeCluster(c0)
+    assertEquals(List(cd, c1), Nodes.getClusters)
+    assertEquals(cd, n0.cluster)
 
     try { Nodes.removeCluster(Nodes.defaultCluster); fail() }
     catch { case e: IllegalArgumentException => assertTrue(e.getMessage, e.getMessage.contains("can't remove default")) }
