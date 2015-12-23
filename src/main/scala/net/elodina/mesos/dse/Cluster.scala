@@ -3,7 +3,7 @@ package net.elodina.mesos.dse
 import scala.util.parsing.json.JSONObject
 import scala.collection.mutable
 
-class Ring {
+class Cluster {
   var id: String = null
   var name: String = null
   var ports: mutable.HashMap[String, Util.Range] = new mutable.HashMap[String, Util.Range]()
@@ -20,14 +20,14 @@ class Ring {
     fromJson(json)
   }
 
-  def getNodes: List[Node] = Nodes.getNodes.filter(_.ring == this)
+  def getNodes: List[Node] = Nodes.getNodes.filter(_.cluster == this)
 
   def active: Boolean = getNodes.exists(_.state != Node.State.IDLE)
   def idle: Boolean = !active
 
   def availSeeds: List[String] = {
     val nodes: List[Node] = Nodes.getNodes
-      .filter(_.ring == this)
+      .filter(_.cluster == this)
       .filter(_.seed)
       .filter(_.runtime != null)
 
@@ -65,8 +65,8 @@ class Ring {
   override def hashCode(): Int = id.hashCode
 
   override def equals(obj: scala.Any): Boolean = {
-    if (!obj.isInstanceOf[Ring]) false
-    id == obj.asInstanceOf[Ring].id
+    if (!obj.isInstanceOf[Cluster]) false
+    id == obj.asInstanceOf[Cluster].id
   }
 
   override def toString: String = id

@@ -85,7 +85,7 @@ object NodeCli {
   def handleAddUpdate(cmd: String, expr: String, args: Array[String], help: Boolean = false): Unit = {
     val parser = new OptionParser()
 
-    parser.accepts("ring", "Ring to which node belongs to.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("cluster", "Cluster to which node belongs to.").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("cpu", "CPU amount (0.5, 1, 2).").withRequiredArg().ofType(classOf[java.lang.Double])
     parser.accepts("mem", "Mem amount in Mb.").withRequiredArg().ofType(classOf[java.lang.Long])
@@ -124,7 +124,7 @@ object NodeCli {
         throw new Cli.Error(e.getMessage)
     }
 
-    val ring = options.valueOf("ring").asInstanceOf[String]
+    val cluster = options.valueOf("cluster").asInstanceOf[String]
 
     val cpu = options.valueOf("cpu").asInstanceOf[java.lang.Double]
     val mem = options.valueOf("mem").asInstanceOf[java.lang.Long]
@@ -147,7 +147,7 @@ object NodeCli {
 
     val params = new mutable.HashMap[String, String]()
     params("node") = expr
-    if (ring != null) params("ring") = ring
+    if (cluster != null) params("cluster") = cluster
 
     if (cpu != null) params("cpu") = "" + cpu
     if (mem != null) params("mem") = "" + mem
@@ -291,7 +291,7 @@ object NodeCli {
 
   private def nodeTopology(node: Node): String = {
     var s = ""
-    s += s"ring:${node.ring.id}"
+    s += s"cluster:${node.cluster.id}"
     s += s", dc:${node.dc}"
     s += s", rack:${node.rack}"
     s

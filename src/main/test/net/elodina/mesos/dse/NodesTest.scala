@@ -11,41 +11,41 @@ class NodesTest {
   }
 
   @Test
-  def getRings {
-    val rd = Nodes.defaultRing
-    val r0 = Nodes.addRing(new Ring("0"))
-    val r1 = Nodes.addRing(new Ring("1"))
-    assertEquals(List(rd, r0, r1), Nodes.getRings)
+  def getClusters {
+    val rd = Nodes.defaultCluster
+    val r0 = Nodes.addCluster(new Cluster("0"))
+    val r1 = Nodes.addCluster(new Cluster("1"))
+    assertEquals(List(rd, r0, r1), Nodes.getClusters)
   }
 
   @Test
-  def getRing {
-    assertNull(Nodes.getRing("0"))
-    val r0 = Nodes.addRing(new Ring("0"))
-    assertSame(r0, Nodes.getRing("0"))
+  def getCluster {
+    assertNull(Nodes.getCluster("0"))
+    val r0 = Nodes.addCluster(new Cluster("0"))
+    assertSame(r0, Nodes.getCluster("0"))
   }
 
   @Test
-  def addRing {
-    val rd = Nodes.defaultRing
-    val r0 = Nodes.addRing(new Ring("0"))
-    assertEquals(List(rd, r0), Nodes.getRings)
+  def addCluster {
+    val rd = Nodes.defaultCluster
+    val r0 = Nodes.addCluster(new Cluster("0"))
+    assertEquals(List(rd, r0), Nodes.getClusters)
 
-    try { Nodes.addRing(new Ring("0")); fail() }
+    try { Nodes.addCluster(new Cluster("0")); fail() }
     catch { case e: IllegalArgumentException => assertTrue(e.getMessage, e.getMessage.contains("duplicate")) }
   }
 
   @Test
-  def removeRing {
-    val rd = Nodes.defaultRing
-    val r0 = Nodes.addRing(new Ring("0"))
-    val r1 = Nodes.addRing(new Ring("1"))
-    assertEquals(List(rd, r0, r1), Nodes.getRings)
+  def removeCluster {
+    val rd = Nodes.defaultCluster
+    val r0 = Nodes.addCluster(new Cluster("0"))
+    val r1 = Nodes.addCluster(new Cluster("1"))
+    assertEquals(List(rd, r0, r1), Nodes.getClusters)
 
-    Nodes.removeRing(r0)
-    assertEquals(List(rd, r1), Nodes.getRings)
+    Nodes.removeCluster(r0)
+    assertEquals(List(rd, r1), Nodes.getClusters)
 
-    try { Nodes.removeRing(Nodes.defaultRing); fail() }
+    try { Nodes.removeCluster(Nodes.defaultCluster); fail() }
     catch { case e: IllegalArgumentException => assertTrue(e.getMessage, e.getMessage.contains("can't remove default")) }
   }
 
@@ -88,16 +88,16 @@ class NodesTest {
   def reset {
     assertNull(Nodes.frameworkId)
     assertTrue(Nodes.getNodes.isEmpty)
-    assertEquals(List(Nodes.defaultRing), Nodes.getRings)
+    assertEquals(List(Nodes.defaultCluster), Nodes.getClusters)
 
     Nodes.frameworkId = "id"
     Nodes.addNode(new Node("0"))
-    Nodes.addRing(new Ring("1"))
+    Nodes.addCluster(new Cluster("1"))
 
     Nodes.reset()
     assertNull(Nodes.frameworkId)
     assertTrue(Nodes.getNodes.isEmpty)
-    assertEquals(List(Nodes.defaultRing), Nodes.getRings)
+    assertEquals(List(Nodes.defaultCluster), Nodes.getClusters)
   }
 
   @Test
@@ -105,14 +105,14 @@ class NodesTest {
     Nodes.addNode(new Node("1"))
     Nodes.addNode(new Node("2"))
 
-    Nodes.addRing(new Ring("1"))
-    Nodes.addRing(new Ring("2"))
+    Nodes.addCluster(new Cluster("1"))
+    Nodes.addCluster(new Cluster("2"))
 
     val json: JSONObject = Nodes.toJson
     Nodes.reset()
     Nodes.fromJson(Util.parseJsonAsMap("" + json))
 
     assertEquals(2, Nodes.getNodes.size)
-    assertEquals(3, Nodes.getRings.size)
+    assertEquals(3, Nodes.getClusters.size)
   }
 }

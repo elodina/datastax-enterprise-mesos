@@ -4,7 +4,7 @@ import org.junit.{Before, Test}
 import org.junit.Assert._
 import Util.Range
 
-class RingTest extends MesosTestCase {
+class ClusterTest extends MesosTestCase {
   @Before
   override def before {
     super.before
@@ -16,48 +16,48 @@ class RingTest extends MesosTestCase {
     val n0 = Nodes.addNode(new Node("0"))
     val n1 = Nodes.addNode(new Node("1"))
 
-    val r0 = Nodes.addRing(new Ring("r0"))
+    val c0 = Nodes.addCluster(new Cluster("r0"))
     val n2 = Nodes.addNode(new Node("2"))
     val n3 = Nodes.addNode(new Node("3"))
 
-    n2.ring = r0
-    n3.ring = r0
+    n2.cluster = c0
+    n3.cluster = c0
 
-    assertEquals(List(n0, n1), Nodes.defaultRing.getNodes)
-    assertEquals(List(n2, n3), r0.getNodes)
+    assertEquals(List(n0, n1), Nodes.defaultCluster.getNodes)
+    assertEquals(List(n2, n3), c0.getNodes)
   }
 
   @Test
   def availSeeds {
-    val ring: Ring = Nodes.defaultRing
+    val cluster: Cluster = Nodes.defaultCluster
     val n0: Node = Nodes.addNode(new Node("0"))
     Nodes.addNode(new Node("1"))
     val n2: Node = Nodes.addNode(new Node("2"))
 
-    assertEquals(List(), ring.availSeeds)
+    assertEquals(List(), cluster.availSeeds)
 
     n0.seed = true
     n0.runtime = new Node.Runtime(hostname = "n0")
-    assertEquals(List("n0"), ring.availSeeds)
+    assertEquals(List("n0"), cluster.availSeeds)
 
     n2.seed = true
     n2.runtime = new Node.Runtime(hostname = "n2")
-    assertEquals(List("n0", "n2"), ring.availSeeds)
+    assertEquals(List("n0", "n2"), cluster.availSeeds)
   }
 
   @Test
   def toJSON_fromJSON {
-    val ring: Ring = new Ring("1")
-    var read = new Ring(Util.parseJsonAsMap("" + ring.toJson))
-    assertRingEquals(ring, read)
+    val cluster: Cluster = new Cluster("1")
+    var read = new Cluster(Util.parseJsonAsMap("" + cluster.toJson))
+    assertClusterEquals(cluster, read)
 
-    ring.name = "name"
-    ring.ports ++= Map("internal" -> new Range("100..110"), "jmx" -> new Range("200..210"))
-    read = new Ring(Util.parseJsonAsMap("" + ring.toJson))
-    assertRingEquals(ring, read)
+    cluster.name = "name"
+    cluster.ports ++= Map("internal" -> new Range("100..110"), "jmx" -> new Range("200..210"))
+    read = new Cluster(Util.parseJsonAsMap("" + cluster.toJson))
+    assertClusterEquals(cluster, read)
   }
 
-  private def assertRingEquals(expected: Ring, actual: Ring) {
+  private def assertClusterEquals(expected: Cluster, actual: Cluster) {
     if (checkNulls(expected, actual)) return
     assertEquals(expected.id, actual.id)
     assertEquals(expected.name, actual.name)

@@ -29,28 +29,28 @@ object Nodes {
   private[dse] var storage = Nodes.newStorage(Config.storage)
 
   var frameworkId: String = null
-  private val rings: mutable.ListBuffer[Ring] = new mutable.ListBuffer[Ring]
+  private val clusters: mutable.ListBuffer[Cluster] = new mutable.ListBuffer[Cluster]
   private val nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]
 
   reset()
 
-  def getRings: List[Ring] = rings.toList
+  def getClusters: List[Cluster] = clusters.toList
 
-  def getRing(id: String): Ring = rings.filter(id == _.id).headOption.getOrElse(null)
+  def getCluster(id: String): Cluster = clusters.filter(id == _.id).headOption.getOrElse(null)
 
-  def defaultRing: Ring = getRing("default")
+  def defaultCluster: Cluster = getCluster("default")
 
-  def addRing(ring: Ring): Ring = {
-    if (getRing(ring.id) != null)
-      throw new IllegalArgumentException(s"duplicate ring ${ring.id}")
+  def addCluster(cluster: Cluster): Cluster = {
+    if (getCluster(cluster.id) != null)
+      throw new IllegalArgumentException(s"duplicate cluster ${cluster.id}")
 
-    rings += ring
-    ring
+    clusters += cluster
+    cluster
   }
 
-  def removeRing(ring: Ring): Unit = {
-    if (ring == defaultRing) throw new IllegalArgumentException("can't remove default ring")
-    rings -= ring
+  def removeCluster(cluster: Cluster): Unit = {
+    if (cluster == defaultCluster) throw new IllegalArgumentException("can't remove default cluster")
+    clusters -= cluster
   }
 
 
@@ -70,18 +70,18 @@ object Nodes {
   def reset(): Unit = {
     frameworkId = null
 
-    rings.clear()
-    val defaultRing = new Ring("default")
-    addRing(defaultRing)
+    clusters.clear()
+    val defaultCluster = new Cluster("default")
+    addCluster(defaultCluster)
 
     nodes.clear()
   }
 
   def fromJson(json: Map[String, Any]): Unit = {
-    if (json.contains("rings")) {
-      rings.clear()
-      for (ringObj <- json("rings").asInstanceOf[List[Map[String, Object]]])
-        addRing(new Ring(ringObj))
+    if (json.contains("clusters")) {
+      clusters.clear()
+      for (clusterObj <- json("clusters").asInstanceOf[List[Map[String, Object]]])
+        addCluster(new Cluster(clusterObj))
     }
 
     if (json.contains("nodes")) {
@@ -98,9 +98,9 @@ object Nodes {
     val json = new mutable.LinkedHashMap[String, Object]()
     if (frameworkId != null) json("frameworkId") = frameworkId
 
-    if (!rings.isEmpty) {
-      val ringsJson = rings.map(_.toJson)
-      json("rings") = new JSONArray(ringsJson.toList)
+    if (!clusters.isEmpty) {
+      val clustersJson = clusters.map(_.toJson)
+      json("clusters") = new JSONArray(clustersJson.toList)
     }
 
     if (!nodes.isEmpty) {

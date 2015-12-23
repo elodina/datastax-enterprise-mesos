@@ -17,7 +17,7 @@ class NodeTest extends MesosTestCase {
     val node = new Node("0")
     node.cpu = 0.5
     node.mem = 500
-    node.ring.resetPorts
+    node.cluster.resetPorts
 
     assertEquals(s"cpus < 0.5", node.matches(offer(resources = "cpus:0.1")))
     assertEquals(s"mem < 500", node.matches(offer(resources = "cpus:0.5; mem:400")))
@@ -81,8 +81,8 @@ class NodeTest extends MesosTestCase {
         ports.toMap
       }
 
-      node.ring.ports.clear()
-      node.ring.ports ++= parsePortsDef(portsDef)
+      node.cluster.ports.clear()
+      node.cluster.ports ++= parsePortsDef(portsDef)
       val ports: Map[String, Int] = node.reservePorts(offer(resources = resources))
 
       for ((name, port) <- expected)
@@ -104,7 +104,7 @@ class NodeTest extends MesosTestCase {
     test("internal=10..20", "ports:15..25", Map("internal" -> 15))
     test("internal=10..20,jmx=100..200", "ports:15..25,150..160", Map("internal" -> 15, "jmx" -> 150))
 
-    // ring has active node
+    // cluster has active node
     node.state = Node.State.RUNNING
     node.runtime = new Runtime(reservation = new Reservation(ports = Map("internal" -> 100)))
 
@@ -199,7 +199,7 @@ class NodeTest extends MesosTestCase {
     assertNodeEquals(node, read)
 
     node.state = Node.State.RUNNING
-    node.ring = Nodes.addRing(new Ring("0"))
+    node.cluster = Nodes.addCluster(new Cluster("0"))
     node.stickiness.hostname = "host"
     node.stickiness.stopTime = new Date()
     node.runtime = new Runtime("task", "executor", "slave", "host", List("n0", "n1"), new Node.Reservation(), Map("a" -> "1"))
@@ -308,7 +308,7 @@ class NodeTest extends MesosTestCase {
 
     assertEquals(expected.id, actual.id)
     assertEquals(expected.state, actual.state)
-    assertEquals(expected.ring, actual.ring)
+    assertEquals(expected.cluster, actual.cluster)
     assertStickinessEquals(expected.stickiness, actual.stickiness)
     assertRuntimeEquals(expected.runtime, actual.runtime)
 

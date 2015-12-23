@@ -32,7 +32,7 @@ object Cli {
         if (!SchedulerCli.isEnabled) throw new Error(s"unsupported command $cmd")
         SchedulerCli.handle(args)
       case "node" => NodeCli.handle(args)
-      case "ring" => RingCli.handle(args)
+      case "cluster" => ClusterCli.handle(args)
       case _ => throw new Error(s"unsupported command $cmd")
     }
   }
@@ -55,8 +55,8 @@ object Cli {
         SchedulerCli.handle(args_, help = true)
       case "node" =>
         NodeCli.handle(args_, help = true)
-      case "ring" =>
-        RingCli.handle(args_, help = true)
+      case "cluster" =>
+        ClusterCli.handle(args_, help = true)
       case _ =>
         throw new Error(s"unsupported command $cmd")
     }
@@ -67,7 +67,7 @@ object Cli {
     printLine("help [cmd [cmd]] - print general or command-specific help", 1)
     if (SchedulerCli.isEnabled) printLine("scheduler        - start scheduler", 1)
     printLine("node             - node management commands", 1)
-    printLine("ring             - ring management commands", 1)
+    printLine("cluster          - cluster management commands", 1)
   }
 
   private[dse] def sendRequest(uri: String, params: Map[String, String]): Any = {

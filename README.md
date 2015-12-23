@@ -94,7 +94,7 @@ First lets start 1 Cassandra node with the default settings. Further you will se
 node added:
   id: 0
   state: idle
-  topology: ring: default, dc:default, rack:default
+  topology: cluster:default, dc:default, rack:default
   resources: cpu:0.5, mem:512
   seed: false
   stickiness: period:30m
@@ -107,7 +107,7 @@ You now have a cluster with 1 Cassandra node that is not started.
 node:
   id: 0
   state: idle
-  topology: ring: default, dc:default, rack:default
+  topology: cluster:default, dc:default, rack:default
   resources: cpu:0.5, mem:512
   seed: false
   stickiness: period:30m
@@ -120,7 +120,7 @@ Now lets start the task. This call to CLI will block until the task is actually 
 node started:
   id: 0
   state: running
-  topology: ring: default, dc:default, rack:default
+  topology: cluster:default, dc:default, rack:default
   resources: cpu:0.5, mem:512
   seed: true
   stickiness: period:30m, hostname:slave0
@@ -141,7 +141,7 @@ Here's how you stop it:
 node stopped:
   id: 0
   state: idle
-  topology: ring: default, dc:default, rack:default
+  topology: cluster:default, dc:default, rack:default
   resources: cpu:0.5, mem:512
   seed: true
   stickiness: period:30m, hostname:slave0, expires:2015-12-22 16:23:29+02
@@ -180,7 +180,7 @@ Commands:
   help [cmd [cmd]] - print general or command-specific help
   scheduler        - start scheduler
   node             - node management commands
-  ring             - ring management commands
+  cluster          - cluster management commands
 
 Run `help <cmd>` to see details of specific command
 ```
