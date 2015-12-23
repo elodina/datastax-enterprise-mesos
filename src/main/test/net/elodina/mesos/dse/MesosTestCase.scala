@@ -43,8 +43,8 @@ class MesosTestCase {
 
     val storageFile: File = Files.createTempFile(classOf[MesosTestCase].getSimpleName, null).toFile
     storageFile.delete()
-    Cluster.storage = new FileStorage(storageFile)
-    Cluster.reset()
+    Nodes.storage = new FileStorage(storageFile)
+    Nodes.reset()
 
     schedulerDriver = new TestSchedulerDriver()
     Scheduler.registered(schedulerDriver, frameworkId(), master())
@@ -67,8 +67,8 @@ class MesosTestCase {
     Config.cassandra = null
     Config.jar = null
 
-    Cluster.storage.asInstanceOf[FileStorage].file.delete()
-    Cluster.storage = Cluster.newStorage(Config.storage)
+    Nodes.storage.asInstanceOf[FileStorage].file.delete()
+    Nodes.storage = Nodes.newStorage(Config.storage)
   }
 
   val LOCALHOST_IP: Int = 2130706433

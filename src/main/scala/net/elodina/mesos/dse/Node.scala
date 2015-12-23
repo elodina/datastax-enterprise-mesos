@@ -29,11 +29,15 @@ import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.collection.mutable.ListBuffer
 import net.elodina.mesos.dse.Util.Range
 import net.elodina.mesos.dse.Node.Reservation
+import java.util.{TimeZone, Date}
+import Util.Period
+import java.text.SimpleDateFormat
 
 class Node extends Constrained {
   var id: String = null
   var state: Node.State.Value = Node.State.IDLE
-  var ring: Ring = Cluster.defaultRing
+  var cluster: Cluster = Nodes.defaultCluster
+  var stickiness: Node.Stickiness = new Node.Stickiness()
   var runtime: Node.Runtime = null
 
   var cpu: Double = 0.5
@@ -73,7 +77,7 @@ class Node extends Constrained {
   def idle: Boolean = state == Node.State.IDLE
   def active: Boolean = !idle
 
-  def matches(offer: Offer): String = {
+  def matches(offer: Offer, now: Date = new Date()): String = {
     val reservation: Reservation = reserve(offer)
 
     if (reservation.cpus < cpu) return s"cpus < $cpu"
@@ -81,6 +85,9 @@ class Node extends Constrained {
 
     for (name <- Node.portNames)
       if (reservation.ports(name) == -1) return s"no suitable $name port"
+
+    if (!stickiness.allowsHostname(offer.getHostname, now))
+      return "hostname != stickiness hostname"
 
     null
   }
@@ -115,10 +122,10 @@ class Node extends Constrained {
     availPorts ++= resource.getRanges.getRangeList.map(r => new Util.Range(r.getBegin.toInt, r.getEnd.toInt)).sortBy(_.start)
 
     for (name <- Node.portNames) {
-      var range: Range = ring.ports(name)
+      var range: Range = cluster.ports(name)
 
-      // use same internal port for the whole ring
-      val activeNode = ring.getNodes.find(_.runtime != null).getOrElse(null)
+      // use same internal port for the whole cluster
+      val activeNode = cluster.getNodes.find(_.runtime != null).getOrElse(null)
       if (name == "internal" && activeNode != null) {
         val port = activeNode.runtime.reservation.ports("internal")
         range = new Range(port, port)
@@ -145,6 +152,14 @@ class Node extends Constrained {
     availPorts.insertAll(idx, r.split(port))
 
     port
+  }
+
+  def registerStart(hostname: String): Unit = {
+    stickiness.registerStart(hostname)
+  }
+
+  def registerStop(now: Date = new Date()): Unit = {
+    stickiness.registerStop(now)
   }
 
   private[dse] def newTask(): TaskInfo = {
@@ -205,7 +220,8 @@ class Node extends Constrained {
   def fromJson(json: Map[String, Any], expanded: Boolean = false): Unit = {
     id = json("id").asInstanceOf[String]
     state = Node.State.withName(json("state").asInstanceOf[String])
-    ring = if (expanded) new Ring(json("ring").asInstanceOf[Map[String, Any]]) else Cluster.getRing(json("ring").asInstanceOf[String])
+    cluster = if (expanded) new Cluster(json("cluster").asInstanceOf[Map[String, Any]]) else Nodes.getCluster(json("cluster").asInstanceOf[String])
+    stickiness = new Node.Stickiness(json("stickiness").asInstanceOf[Map[String, Any]])
     if (json.contains("runtime")) runtime = new Node.Runtime(json("runtime").asInstanceOf[Map[String, Any]])
 
     cpu = json("cpu").asInstanceOf[Number].doubleValue()
@@ -235,7 +251,8 @@ class Node extends Constrained {
 
     json("id") = id
     json("state") = "" + state
-    json("ring") = if (expanded) ring.toJson else ring.id
+    json("cluster") = if (expanded) cluster.toJson else cluster.id
+    json("stickiness") = stickiness.toJson
     if (runtime != null) json("runtime") = runtime.toJson
 
     json("cpu") = cpu
@@ -277,6 +294,12 @@ object Node {
       case Array(_, value, _) => value
       case _ => throw new IllegalArgumentException(taskId)
     }
+  }
+
+  private def dateTimeFormat: SimpleDateFormat = {
+    val format: SimpleDateFormat = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS")
+    format.setTimeZone(TimeZone.getTimeZone("UTC-0"))
+    format
   }
 
   object State extends Enumeration {
@@ -322,9 +345,9 @@ object Node {
     def this(node: Node, offer: Offer) = {
       this(null, null, null, null, offer)
 
-      seeds = node.ring.availSeeds
+      seeds = node.cluster.availSeeds
       if (seeds.isEmpty) {
-        Scheduler.logger.info(s"No seed nodes available in ring ${node.ring.id}. Forcing seed==true for node ${node.id}")
+        Scheduler.logger.info(s"No seed nodes available in cluster ${node.cluster.id}. Forcing seed==true for node ${node.id}")
         node.seed = true
         seeds = List(offer.getHostname)
       }
@@ -450,6 +473,50 @@ object Node {
       json("ports") = new JSONObject(ports.toMap)
 
       new JSONObject(json.toMap)
+    }
+  }
+
+  class Stickiness(_period: Period = new Period("30m")) {
+    var period: Period = _period
+    @volatile var hostname: String = null
+    @volatile var stopTime: Date = null
+
+    def this(json: Map[String, Any]) {
+      this
+      fromJson(json)
+    }
+
+    def expires: Date = if (stopTime != null) new Date(stopTime.getTime + period.ms) else null
+
+    def registerStart(hostname: String): Unit = {
+      this.hostname = hostname
+      stopTime = null
+    }
+
+    def registerStop(now: Date = new Date()): Unit = {
+      this.stopTime = now
+    }
+
+    def allowsHostname(hostname: String, now: Date = new Date()): Boolean = {
+      if (this.hostname == null) return true
+      if (stopTime == null || now.getTime - stopTime.getTime >= period.ms) return true
+      this.hostname == hostname
+    }
+
+    def fromJson(json: Map[String, Any]): Unit = {
+      period = new Period(json("period").asInstanceOf[String])
+      if (json.contains("stopTime")) stopTime = dateTimeFormat.parse(json("stopTime").asInstanceOf[String])
+      if (json.contains("hostname")) hostname = json("hostname").asInstanceOf[String]
+    }
+
+    def toJson: JSONObject = {
+      val obj = new collection.mutable.LinkedHashMap[String, Any]()
+
+      obj("period") = "" + period
+      if (stopTime != null) obj("stopTime") = dateTimeFormat.format(stopTime)
+      if (hostname != null) obj("hostname") = hostname
+
+      new JSONObject(obj.toMap)
     }
   }
 }

@@ -43,12 +43,12 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     logger.info(s"Starting scheduler:\n$Config")
 
     Config.resolveDeps()
-    Cluster.load()
+    Nodes.load()
     HttpServer.start()
 
     val frameworkBuilder = FrameworkInfo.newBuilder()
     frameworkBuilder.setUser(if (Config.user != null) Config.user else "")
-    if (Cluster.frameworkId != null) frameworkBuilder.setId(FrameworkID.newBuilder().setValue(Cluster.frameworkId))
+    if (Nodes.frameworkId != null) frameworkBuilder.setId(FrameworkID.newBuilder().setValue(Nodes.frameworkId))
     frameworkBuilder.setRole(Config.frameworkRole)
 
     frameworkBuilder.setName(Config.frameworkName)
@@ -81,8 +81,8 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     logger.info("[registered] framework:" + Str.id(id.getValue) + " master:" + Str.master(master))
     checkMesosVersion(master, driver)
 
-    Cluster.frameworkId = id.getValue
-    Cluster.save()
+    Nodes.frameworkId = id.getValue
+    Nodes.save()
 
     this.driver = driver
     Reconciler.reconcileTasksIfRequired(force = true)
@@ -129,7 +129,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     logger.info("[executorLost] executor:" + Str.id(executorId.getValue) + " slave:" + Str.id(slaveId.getValue) + " status:" + status)
   }
 
-  override def nodes: Traversable[Node] = Cluster.getNodes
+  override def nodes: Traversable[Node] = Nodes.getNodes
 
   private def onOffers(offers: List[Offer]) {
     for (offer <- offers) {
@@ -142,13 +142,13 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     }
 
     Reconciler.reconcileTasksIfRequired()
-    Cluster.save()
+    Nodes.save()
   }
 
   private[dse] def acceptOffer(offer: Offer): String = {
     if (Reconciler.isReconciling) return "reconciling"
 
-    val nodes: List[Node] = Cluster.getNodes.filter(_.state == Node.State.STARTING)
+    val nodes: List[Node] = Nodes.getNodes.filter(_.state == Node.State.STARTING)
     if (nodes.isEmpty) return "no nodes to start"
 
     val starting = nodes.find(_.runtime != null).getOrElse(null)
@@ -184,7 +184,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
   }
 
   private[dse] def onTaskStatus(status: TaskStatus) {
-    val node = Cluster.getNode(Node.idFromTaskId(status.getTaskId.getValue))
+    val node = Nodes.getNode(Node.idFromTaskId(status.getTaskId.getValue))
 
     status.getState match {
       case TaskState.TASK_STAGING | TaskState.TASK_STARTING =>
@@ -194,7 +194,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
       case _ => logger.warn("Got unexpected node state: " + status.getState)
     }
 
-    Cluster.save()
+    Nodes.save()
   }
 
   private[dse] def onTaskStarted(node: Node, status: TaskStatus) {
@@ -213,6 +213,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
 
     node.state = Node.State.RUNNING
     node.replaceAddress = null
+    node.registerStart(node.runtime.hostname)
   }
 
   private[dse] def onTaskStopped(node: Node, status: TaskStatus) {
@@ -231,10 +232,11 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     val targetState = if (node.state == Node.State.STOPPING) Node.State.IDLE else Node.State.STARTING
     node.state = targetState
     node.runtime = null
+    node.registerStop()
   }
 
   def stopNode(id: String): Unit = {
-    val node = Cluster.getNode(id)
+    val node = Nodes.getNode(id)
     if (node == null || node.runtime == null) return
 
     logger.info(s"Killing task ${node.runtime.taskId} of node ${node.id}")
@@ -338,7 +340,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     private[dse] var reconciles: Int = 0
     private[dse] var reconcileTime: Date = null
 
-    private[dse] def isReconciling: Boolean = Cluster.getNodes.exists(_.state == Node.State.RECONCILING)
+    private[dse] def isReconciling: Boolean = Nodes.getNodes.exists(_.state == Node.State.RECONCILING)
 
     private[dse] def reconcileTasksIfRequired(force: Boolean = false, now: Date = new Date()): Unit = {
       if (reconcileTime != null && now.getTime - reconcileTime.getTime < RECONCILE_DELAY.toMillis)
@@ -349,7 +351,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
       reconcileTime = now
 
       if (reconciles > RECONCILE_MAX_TRIES) {
-        for (node <- Cluster.getNodes.filter(n => n.runtime != null && n.state == Node.State.RECONCILING)) {
+        for (node <- Nodes.getNodes.filter(n => n.runtime != null && n.state == Node.State.RECONCILING)) {
           logger.info(s"Reconciling exceeded $RECONCILE_MAX_TRIES tries for node ${node.id}, sending killTask for task ${node.runtime.taskId}")
           driver.killTask(TaskID.newBuilder().setValue(node.runtime.taskId).build())
           node.runtime = null
@@ -360,7 +362,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
 
       val statuses = new util.ArrayList[TaskStatus]
 
-      for (node <- Cluster.getNodes.filter(_.runtime != null))
+      for (node <- Nodes.getNodes.filter(_.runtime != null))
         if (force || node.state == Node.State.RECONCILING) {
           node.state = Node.State.RECONCILING
           logger.info(s"Reconciling $reconciles/$RECONCILE_MAX_TRIES state of node ${node.id}, task ${node.runtime.taskId}")

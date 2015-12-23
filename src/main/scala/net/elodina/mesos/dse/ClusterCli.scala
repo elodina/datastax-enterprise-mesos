@@ -5,7 +5,7 @@ import joptsimple.{OptionException, OptionSet, OptionParser}
 import scala.collection.mutable
 import Cli.{out, printLine, handleGenericOptions, Error}
 
-object RingCli {
+object ClusterCli {
   def handle(_args: Array[String], help: Boolean = false): Unit = {
     var args = _args
 
@@ -33,7 +33,7 @@ object RingCli {
       case "list" => handleList()
       case "add" | "update" => handleAddUpdate(cmd, arg, args)
       case "remove" => handleRemove(arg)
-      case _ => throw new Error("unsupported ring command " + cmd)
+      case _ => throw new Error("unsupported cluster command " + cmd)
     }
   }
 
@@ -42,50 +42,48 @@ object RingCli {
 
     cmd match {
       case null =>
-        printLine("Ring management commands\nUsage: ring <cmd>\n")
+        printLine("Cluster management commands\nUsage: cluster <cmd>\n")
         printCmds()
 
         printLine()
-        printLine("Run `help ring <cmd>` to see details of specific command")
+        printLine("Run `help cluster <cmd>` to see details of specific command")
       case "list" => handleList(help = true)
       case "add" | "update" => handleAddUpdate(cmd, null, null, help = true)
       case "remove" => handleRemove(null, help = true)
-      case _ => throw new Error(s"unsupported ring command $cmd")
+      case _ => throw new Error(s"unsupported cluster command $cmd")
     }
   }
 
   def handleList(help: Boolean = false): Unit = {
     if (help) {
-      printLine("List rings\nUsage: ring list\n")
+      printLine("List clusters\nUsage: cluster list\n")
       handleGenericOptions(null, help = true)
       return
     }
 
     var json: List[Any] = null
-    try { json = Cli.sendRequest("/ring/list", Map()).asInstanceOf[List[Any]] }
+    try { json = Cli.sendRequest("/cluster/list", Map()).asInstanceOf[List[Any]] }
     catch { case e: IOException => throw new Error("" + e) }
-    val rings = json.map(j => new Ring(j.asInstanceOf[Map[String, Any]]))
+    val clusters = json.map(j => new Cluster(j.asInstanceOf[Map[String, Any]]))
 
-    val title: String = if (rings.isEmpty) "no rings" else "ring" + (if (rings.size > 1) "s" else "") + ":"
+    val title: String = if (clusters.isEmpty) "no clusters" else "cluster" + (if (clusters.size > 1) "s" else "") + ":"
     printLine(title)
 
-    for (ring <- rings) {
-      printRing(ring, 1)
+    for (cluster <- clusters) {
+      printCluster(cluster, 1)
       printLine()
     }
   }
 
   def handleAddUpdate(cmd: String, id: String, args: Array[String], help: Boolean = false): Unit = {
     val parser = new OptionParser()
-    parser.accepts("name", "Ring name.").withRequiredArg().ofType(classOf[String])
-
     parser.accepts("internal-port", "Inter-node port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("jmx-port", "JMX monitoring port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("cql-port", "CQL port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("thrift-port", "Thrift port.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
-      printLine(s"${cmd.capitalize} ring \nUsage: ring $cmd <id> [options]\n")
+      printLine(s"${cmd.capitalize} cluster \nUsage: cluster $cmd <id> [options]\n")
       parser.printHelpOn(out)
 
       printLine()
@@ -102,15 +100,12 @@ object RingCli {
         throw new Cli.Error(e.getMessage)
     }
 
-    val name = options.valueOf("name").asInstanceOf[String]
-
     val internalPort = options.valueOf("internal-port").asInstanceOf[String]
     val jmxPort = options.valueOf("jmx-port").asInstanceOf[String]
     val cqlPort = options.valueOf("cql-port").asInstanceOf[String]
     val thriftPort = options.valueOf("thrift-port").asInstanceOf[String]
 
-    val params = mutable.HashMap("ring" -> id)
-    if (name != null) params("name") = name
+    val params = mutable.HashMap("cluster" -> id)
 
     if (internalPort != null) params("internalPort") = internalPort
     if (jmxPort != null) params("jmxPort") = jmxPort
@@ -118,51 +113,50 @@ object RingCli {
     if (thriftPort != null) params("thriftPort") = thriftPort
 
     var json: Map[String, Any] = null
-    try { json = Cli.sendRequest(s"/ring/$cmd", params.toMap).asInstanceOf[Map[String, Any]] }
+    try { json = Cli.sendRequest(s"/cluster/$cmd", params.toMap).asInstanceOf[Map[String, Any]] }
     catch { case e: IOException => throw new Error("" + e) }
-    val ring: Ring = new Ring(json)
+    val cluster: Cluster = new Cluster(json)
 
-    var title = "ring"
+    var title = "cluster"
     title += " " + (if (cmd == "add") "added" else "updated") + ":"
     printLine(title)
 
-    printRing(ring, 1)
+    printCluster(cluster, 1)
     printLine()
   }
 
   def handleRemove(id: String, help: Boolean = false): Unit = {
     if (help) {
-      printLine(s"Remove ring \nUsage: ring remove <id>\n")
+      printLine(s"Remove cluster \nUsage: cluster remove <id>\n")
       handleGenericOptions(null, help = true)
       return
     }
 
-    try { Cli.sendRequest(s"/ring/remove", Map("ring" -> id)) }
+    try { Cli.sendRequest(s"/cluster/remove", Map("cluster" -> id)) }
     catch { case e: IOException => throw new Error("" + e) }
 
-    println("ring removed")
+    println("cluster removed")
   }
 
   def printCmds(): Unit = {
     printLine("Commands:")
-    printLine("list       - list rings", 1)
-    printLine("add        - add ring", 1)
-    printLine("update     - update ring", 1)
-    printLine("remove     - remove ring", 1)
+    printLine("list       - list clusters", 1)
+    printLine("add        - add cluster", 1)
+    printLine("update     - update cluster", 1)
+    printLine("remove     - remove cluster", 1)
   }
 
-  private def printRing(ring: Ring, indent: Int): Unit = {
-    printLine("id: " + ring.id, indent)
-    if (ring.name != null) printLine("name: " + ring.name, indent)
-    printLine(s"ports: ${ringPorts(ring)}", indent)
+  private def printCluster(cluster: Cluster, indent: Int): Unit = {
+    printLine("id: " + cluster.id, indent)
+    printLine(s"ports: ${clusterPorts(cluster)}", indent)
   }
 
-  private def ringPorts(ring: Ring): String = {
+  private def clusterPorts(cluster: Cluster): String = {
     var s = ""
 
     for (name <- Node.portNames) {
       if (!s.isEmpty) s += ", "
-      val range = ring.ports(name)
+      val range = cluster.ports(name)
       s += name + ":" + (if (range != null) range else "<auto>")
     }
 

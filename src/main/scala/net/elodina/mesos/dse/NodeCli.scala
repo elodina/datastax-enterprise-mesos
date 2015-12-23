@@ -34,7 +34,7 @@ object NodeCli {
       case "add" | "update" => handleAddUpdate(cmd, arg, args)
       case "remove" => handleRemove(arg)
       case "start" | "stop" => handleStartStop(cmd, arg, args)
-      case _ => throw new Error("unsupported ring command " + cmd)
+      case _ => throw new Error("unsupported node command " + cmd)
     }
   }
 
@@ -85,11 +85,12 @@ object NodeCli {
   def handleAddUpdate(cmd: String, expr: String, args: Array[String], help: Boolean = false): Unit = {
     val parser = new OptionParser()
 
-    parser.accepts("ring", "Ring to which node belongs to.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("cluster", "Cluster to which node belongs to.").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("cpu", "CPU amount (0.5, 1, 2).").withRequiredArg().ofType(classOf[java.lang.Double])
     parser.accepts("mem", "Mem amount in Mb.").withRequiredArg().ofType(classOf[java.lang.Long])
     parser.accepts("broadcast", "Network interface to broadcast for nodes.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("stickiness-period", "Stickiness period to preserve the same slave node (5m, 10m, 1h)").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("rack", "Node rack.").withRequiredArg().ofType(classOf[String])
     parser.accepts("dc", "Node dc.").withRequiredArg().ofType(classOf[String])
@@ -123,11 +124,12 @@ object NodeCli {
         throw new Cli.Error(e.getMessage)
     }
 
-    val ring = options.valueOf("ring").asInstanceOf[String]
+    val cluster = options.valueOf("cluster").asInstanceOf[String]
 
     val cpu = options.valueOf("cpu").asInstanceOf[java.lang.Double]
     val mem = options.valueOf("mem").asInstanceOf[java.lang.Long]
     val broadcast = options.valueOf("broadcast").asInstanceOf[String]
+    val stickinessPeriod = options.valueOf("stickiness-period").asInstanceOf[String]
 
     val rack = options.valueOf("rack").asInstanceOf[String]
     val dc = options.valueOf("dc").asInstanceOf[String]
@@ -145,11 +147,12 @@ object NodeCli {
 
     val params = new mutable.HashMap[String, String]()
     params("node") = expr
-    if (ring != null) params("ring") = ring
+    if (cluster != null) params("cluster") = cluster
 
     if (cpu != null) params("cpu") = "" + cpu
     if (mem != null) params("mem") = "" + mem
     if (broadcast != null) params("broadcast") = broadcast
+    if (stickinessPeriod != null) params("stickinessPeriod") = stickinessPeriod
 
     if (rack != null) params("rack") = rack
     if (dc != null) params("dc") = dc
@@ -271,6 +274,7 @@ object NodeCli {
     if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent)
     if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent)
 
+    printLine(s"stickiness: ${nodeStickiness(node)}", indent)
     if (node.runtime != null) printNodeRuntime(node.runtime, indent)
   }
 
@@ -287,7 +291,7 @@ object NodeCli {
 
   private def nodeTopology(node: Node): String = {
     var s = ""
-    s += s"ring:${node.ring.id}"
+    s += s"cluster:${node.cluster.id}"
     s += s", dc:${node.dc}"
     s += s", rack:${node.rack}"
     s
@@ -297,6 +301,13 @@ object NodeCli {
     var s = ""
     s += s"cpu:${node.cpu}"
     s += s", mem:${node.mem}"
+    s
+  }
+
+  private def nodeStickiness(node: Node): String = {
+    var s = "period:" + node.stickiness.period
+    if (node.stickiness.hostname != null) s += ", hostname:" + node.stickiness.hostname
+    if (node.stickiness.stopTime != null) s += ", expires:" + Util.Str.dateTime(node.stickiness.expires)
     s
   }
 

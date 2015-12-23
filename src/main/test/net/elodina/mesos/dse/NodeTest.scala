@@ -4,11 +4,12 @@ import org.junit.Test
 import org.junit.Assert._
 import org.apache.mesos.Protos.{TaskInfo, CommandInfo, ExecutorInfo}
 import scala.concurrent.duration.Duration
-import net.elodina.mesos.dse.Node.Reservation
+import net.elodina.mesos.dse.Node.{Reservation, Runtime, Stickiness}
 import scala.collection.mutable
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
 import Util.Range
+import java.util.Date
 
 class NodeTest extends MesosTestCase {
   @Test
@@ -16,7 +17,7 @@ class NodeTest extends MesosTestCase {
     val node = new Node("0")
     node.cpu = 0.5
     node.mem = 500
-    node.ring.resetPorts
+    node.cluster.resetPorts
 
     assertEquals(s"cpus < 0.5", node.matches(offer(resources = "cpus:0.1")))
     assertEquals(s"mem < 500", node.matches(offer(resources = "cpus:0.5; mem:400")))
@@ -25,6 +26,24 @@ class NodeTest extends MesosTestCase {
     assertEquals("no suitable thrift port", node.matches(offer(resources = "cpus:0.5; mem:500; ports:5..7")))
 
     assertNull(node.matches(offer(resources = "cpus:0.5; mem:500; ports:0..4")))
+  }
+
+  @Test
+  def matches_stickiness {
+    val node = new Node("0")
+    val host0 = "host0"
+    val host1 = "host1"
+    val resources = s"cpus:${node.cpu};mem:${node.mem};ports:0..10"
+
+    assertEquals(null, node.matches(offer(hostname = host0, resources = resources), new Date(0)))
+    assertEquals(null, node.matches(offer(hostname = host1, resources = resources), new Date(0)))
+
+    node.registerStart(host0)
+    node.registerStop(new Date(0))
+
+    assertEquals(null, node.matches(offer(hostname = host0, resources = resources), new Date(0)))
+    assertEquals("hostname != stickiness hostname", node.matches(offer(hostname = host1, resources = resources), new Date(0)))
+    assertEquals(null, node.matches(offer(hostname = host1, resources = resources), new Date(node.stickiness.period.ms)))
   }
 
   @Test
@@ -48,7 +67,7 @@ class NodeTest extends MesosTestCase {
 
   @Test
   def reservePorts {
-    val node: Node = Cluster.addNode(new Node("0"))
+    val node: Node = Nodes.addNode(new Node("0"))
 
     def test(portsDef: String, resources: String, expected: Map[String, Int]) {
       // parses expr like: storage=0..4,jmx=5,cql=100..110
@@ -62,8 +81,8 @@ class NodeTest extends MesosTestCase {
         ports.toMap
       }
 
-      node.ring.ports.clear()
-      node.ring.ports ++= parsePortsDef(portsDef)
+      node.cluster.ports.clear()
+      node.cluster.ports ++= parsePortsDef(portsDef)
       val ports: Map[String, Int] = node.reservePorts(offer(resources = resources))
 
       for ((name, port) <- expected)
@@ -85,14 +104,13 @@ class NodeTest extends MesosTestCase {
     test("internal=10..20", "ports:15..25", Map("internal" -> 15))
     test("internal=10..20,jmx=100..200", "ports:15..25,150..160", Map("internal" -> 15, "jmx" -> 150))
 
-    // ring has active node
+    // cluster has active node
     node.state = Node.State.RUNNING
-    node.runtime = new Node.Runtime(reservation = new Reservation(ports = Map("internal" -> 100)))
+    node.runtime = new Runtime(reservation = new Reservation(ports = Map("internal" -> 100)))
 
     test("internal=10..20", "ports:0..1000", Map("internal" -> 100))
     test("", "ports:0..1000", Map("internal" -> 100))
     test("internal=10..20", "ports:0..99", Map("internal" -> -1))
-
   }
 
   @Test
@@ -119,7 +137,7 @@ class NodeTest extends MesosTestCase {
     val node = new Node("0")
     node.cpu = 0.1
     node.mem = 500
-    node.runtime = new Node.Runtime(node, offer(resources = "cpus:1;mem:1000;ports:0..10"))
+    node.runtime = new Runtime(node, offer(resources = "cpus:1;mem:1000;ports:0..10"))
 
     val task: TaskInfo = node.newTask()
     assertEquals(node.runtime.taskId, task.getTaskId.getValue)
@@ -136,7 +154,7 @@ class NodeTest extends MesosTestCase {
   @Test
   def newExecutor {
     val node = new Node("0")
-    node.runtime = new Node.Runtime(node, offer())
+    node.runtime = new Runtime(node, offer())
 
     val executor: ExecutorInfo = node.newExecutor()
     assertEquals(node.runtime.executorId, executor.getExecutorId.getValue)
@@ -181,7 +199,10 @@ class NodeTest extends MesosTestCase {
     assertNodeEquals(node, read)
 
     node.state = Node.State.RUNNING
-    node.runtime = new Node.Runtime("task", "executor", "slave", "host", List("n0", "n1"), new Node.Reservation(), Map("a" -> "1"))
+    node.cluster = Nodes.addCluster(new Cluster("0"))
+    node.stickiness.hostname = "host"
+    node.stickiness.stopTime = new Date()
+    node.runtime = new Runtime("task", "executor", "slave", "host", List("n0", "n1"), new Node.Reservation(), Map("a" -> "1"))
 
     node.cpu = 1
     node.mem = 1024
@@ -216,10 +237,11 @@ class NodeTest extends MesosTestCase {
     catch { case e: IllegalArgumentException => }
   }
 
+  // Runtime
   @Test
   def Runtime_toJson_fromJson {
-    val runtime = new Node.Runtime("task", "executor", "slave", "host", List("n0", "n1"), new Node.Reservation(), Map("a" -> "1"))
-    val read = new Node.Runtime(Util.parseJsonAsMap(runtime.toJson.toString()))
+    val runtime = new Runtime("task", "executor", "slave", "host", List("n0", "n1"), new Node.Reservation(), Map("a" -> "1"))
+    val read = new Runtime(Util.parseJsonAsMap(runtime.toJson.toString()))
     assertRuntimeEquals(runtime, read)
   }
 
@@ -236,11 +258,58 @@ class NodeTest extends MesosTestCase {
     assertEquals(resources("cpus:0.5;mem:500;ports:1000..1000;ports:2000").toList, new Reservation(0.5, 500, Map("internal" -> 1000, "jmx" -> 2000)).toResources)
   }
 
+  // Stickiness
+  @Test
+  def Stickiness_allowsHostname {
+    val stickiness = new Stickiness()
+    assertTrue(stickiness.allowsHostname("host0", new Date(0)))
+    assertTrue(stickiness.allowsHostname("host1", new Date(0)))
+
+    stickiness.registerStart("host0")
+    stickiness.registerStop(new Date(0))
+    assertTrue(stickiness.allowsHostname("host0", new Date(0)))
+    assertFalse(stickiness.allowsHostname("host1", new Date(0)))
+    assertTrue(stickiness.allowsHostname("host1", new Date(stickiness.period.ms)))
+  }
+
+  @Test
+  def Stickiness_registerStart_registerStop {
+    val stickiness = new Stickiness()
+    assertNull(stickiness.hostname)
+    assertNull(stickiness.stopTime)
+
+    stickiness.registerStart("host")
+    assertEquals("host", stickiness.hostname)
+    assertNull(stickiness.stopTime)
+
+    stickiness.registerStop(new Date(0))
+    assertEquals("host", stickiness.hostname)
+    assertEquals(new Date(0), stickiness.stopTime)
+
+    stickiness.registerStart("host1")
+    assertEquals("host1", stickiness.hostname)
+    assertNull(stickiness.stopTime)
+  }
+
+  @Test
+  def Stickiness_toJson_fromJson {
+    val stickiness = new Stickiness()
+    stickiness.registerStart("localhost")
+    stickiness.registerStop(new Date(0))
+
+    val read: Stickiness = new Stickiness()
+    read.fromJson(Util.parseJsonAsMap("" + stickiness.toJson))
+
+    assertStickinessEquals(stickiness, read)
+  }
+
   def assertNodeEquals(expected: Node, actual: Node) {
     if (checkNulls(expected, actual)) return
 
     assertEquals(expected.id, actual.id)
     assertEquals(expected.state, actual.state)
+    assertEquals(expected.cluster, actual.cluster)
+    assertStickinessEquals(expected.stickiness, actual.stickiness)
     assertRuntimeEquals(expected.runtime, actual.runtime)
 
     assertEquals(expected.cpu, actual.cpu, 0.001)
@@ -262,7 +331,7 @@ class NodeTest extends MesosTestCase {
     assertEquals(expected.savedCachesDir, actual.savedCachesDir)
   }
 
-  def assertRuntimeEquals(expected: Node.Runtime, actual: Node.Runtime) {
+  def assertRuntimeEquals(expected: Runtime, actual: Runtime) {
     if (checkNulls(expected, actual)) return
 
     assertEquals(expected.taskId, actual.taskId)
@@ -282,6 +351,14 @@ class NodeTest extends MesosTestCase {
     assertEquals(expected.cpus, actual.cpus, 0.001)
     assertEquals(expected.mem, actual.mem)
     assertEquals(expected.ports, actual.ports)
+  }
+
+  def assertStickinessEquals(expected: Stickiness, actual: Stickiness) {
+    if (checkNulls(expected, actual)) return
+
+    assertEquals(expected.period, actual.period)
+    assertEquals(expected.hostname, actual.hostname)
+    assertEquals(expected.stopTime, actual.stopTime)
   }
 
   private def checkNulls(expected: Object, actual: Object): Boolean = {

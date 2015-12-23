@@ -30,6 +30,7 @@ import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.Duration
 import net.elodina.mesos.dse.Node.State
+import net.elodina.mesos.dse.Util.Period
 
 object HttpServer {
   private val logger = Logger.getLogger(HttpServer.getClass)
@@ -93,7 +94,7 @@ object HttpServer {
       else if (uri.startsWith("/cassandra/")) downloadFile(Config.cassandra, response)
       else if (Config.jre != null && uri.startsWith("/jre/")) downloadFile(Config.jre, response)
       else if (uri.startsWith("/api/node")) handleNodeApi(request, response)
-      else if (uri.startsWith("/api/ring")) handleRingApi(request, response)
+      else if (uri.startsWith("/api/cluster")) handleClusterApi(request, response)
       else response.sendError(404)
     }
 
@@ -116,19 +117,19 @@ object HttpServer {
       else response.sendError(404)
     }
     
-    def handleRingApi(request: HttpServletRequest, response: HttpServletResponse) {
+    def handleClusterApi(request: HttpServletRequest, response: HttpServletResponse) {
       response.setContentType("application/json; charset=utf-8")
-      var uri: String = request.getRequestURI.substring("/api/ring".length)
+      var uri: String = request.getRequestURI.substring("/api/cluster".length)
       if (uri.startsWith("/")) uri = uri.substring(1)
 
-      if (uri == "list") handleListRings(request, response)
-      else if (uri == "add" || uri == "update") handleAddUpdateRing(uri == "add", request, response)
-      else if (uri == "remove") handleRemoveRing(request, response)
+      if (uri == "list") handleListClusters(request, response)
+      else if (uri == "add" || uri == "update") handleAddUpdateCluster(uri == "add", request, response)
+      else if (uri == "remove") handleRemoveCluster(request, response)
       else response.sendError(404)
     }
 
     def handleListNodes(request: HttpServletRequest, response: HttpServletResponse) {
-      val nodesJson = Cluster.getNodes.map(_.toJson(expanded = true))
+      val nodesJson = Nodes.getNodes.map(_.toJson(expanded = true))
       response.getWriter.println("" + new JSONArray(nodesJson.toList))
     }
 
@@ -140,10 +141,10 @@ object HttpServer {
       try { ids = Expr.expandNodes(expr) }
       catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
 
-      var ring: Ring = null
-      if (request.getParameter("ring") != null) {
-        ring = Cluster.getRing(request.getParameter("ring"))
-        if (ring == null) throw new HttpError(400, "ring not found")
+      var cluster: Cluster = null
+      if (request.getParameter("cluster") != null) {
+        cluster = Nodes.getCluster(request.getParameter("cluster"))
+        if (cluster == null) throw new HttpError(400, "cluster not found")
       }
 
       var cpu: java.lang.Double = null
@@ -157,6 +158,11 @@ object HttpServer {
         catch { case e: NumberFormatException => throw new HttpError(400, "invalid mem") }
 
       val broadcast: String = request.getParameter("broadcast")
+
+      var stickinessPeriod: Period = null
+      if (request.getParameter("stickinessPeriod") != null)
+        try { stickinessPeriod = new Period(request.getParameter("stickinessPeriod")) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid stickinessPeriod") }
 
       val rack: String = request.getParameter("rack")
       val dc: String = request.getParameter("dc")
@@ -185,7 +191,7 @@ object HttpServer {
       // collect nodes and check existence & state
       val nodes = new ListBuffer[Node]()
       for (id <- ids) {
-        val node = Cluster.getNode(id)
+        val node = Nodes.getNode(id)
         if (add && node != null) throw new HttpError(400, s"node $id exists")
         if (!add && node == null) throw new HttpError(400, s"node $id not exists")
         if (!add && node.state != Node.State.IDLE) throw new HttpError(400, s"node should be idle")
@@ -194,11 +200,12 @@ object HttpServer {
 
       // add|update nodes
       def updateNode(node: Node) {
-        if (ring != null) node.ring = ring
+        if (cluster != null) node.cluster = cluster
 
         if (cpu != null) node.cpu = cpu
         if (mem != null) node.mem = mem
         if (broadcast != null) node.broadcast = if (broadcast != "") broadcast else null
+        if (stickinessPeriod != null) node.stickiness.period = stickinessPeriod
 
         if (rack != null) node.rack = if (rack != "") rack else "default"
         if (dc != null) node.dc = if (dc != "") dc else "default"
@@ -223,9 +230,9 @@ object HttpServer {
 
       for (node <- nodes) {
         updateNode(node)
-        if (add) Cluster.addNode(node)
+        if (add) Nodes.addNode(node)
       }
-      Cluster.save()
+      Nodes.save()
 
       // return result
       val nodesJson = nodes.map(_.toJson(expanded = true))
@@ -242,14 +249,14 @@ object HttpServer {
 
       val nodes = new ListBuffer[Node]
       for (id <- ids) {
-        val node: Node = Cluster.getNode(id)
+        val node: Node = Nodes.getNode(id)
         if (node == null) throw new HttpError(400, s"node $id not found")
         if (node.state != Node.State.IDLE) throw new HttpError(400, s"node $id should be idle")
         nodes += node
       }
 
-      nodes.foreach(Cluster.removeNode)
-      Cluster.save()
+      nodes.foreach(Nodes.removeNode)
+      Nodes.save()
     }
 
     def handleStartStopNode(start: Boolean, request: HttpServletRequest, response: HttpServletResponse) {
@@ -269,7 +276,7 @@ object HttpServer {
       // check&collect nodes
       val nodes = new ListBuffer[Node]
       for (id <- ids) {
-        val node = Cluster.getNode(id)
+        val node = Nodes.getNode(id)
         if (node == null) throw new HttpError(400, s"node $id not found")
         if (start && node.state != Node.State.IDLE) throw new HttpError(400, s"node $id should be idle")
         if (!start && node.state == Node.State.IDLE) throw new HttpError(400, s"node $id is idle")
@@ -281,7 +288,7 @@ object HttpServer {
         if (start) node.state = Node.State.STARTING
         else Scheduler.stopNode(node.id)
       }
-      Cluster.save()
+      Nodes.save()
 
       var success: Boolean = true
       if (timeout.toMillis > 0) {
@@ -301,67 +308,64 @@ object HttpServer {
       response.getWriter.println("" + resultJson)
     }
 
-    private def handleListRings(request: HttpServletRequest, response: HttpServletResponse) {
-      val ringsJson = Cluster.getRings.map(_.toJson)
-      response.getWriter.println("" + new JSONArray(ringsJson))
+    private def handleListClusters(request: HttpServletRequest, response: HttpServletResponse) {
+      val clustersJson = Nodes.getClusters.map(_.toJson)
+      response.getWriter.println("" + new JSONArray(clustersJson))
     }
     
-    private def handleAddUpdateRing(add: Boolean, request: HttpServletRequest, response: HttpServletResponse) {
-      val id: String = request.getParameter("ring")
-      if (id == null || id.isEmpty) throw new HttpError(400, "ring required")
-
-      val name: String = request.getParameter("name")
+    private def handleAddUpdateCluster(add: Boolean, request: HttpServletRequest, response: HttpServletResponse) {
+      val id: String = request.getParameter("cluster")
+      if (id == null || id.isEmpty) throw new HttpError(400, "cluster required")
 
       val internalPort: String = request.getParameter("internalPort")
       if (internalPort != null && !internalPort.isEmpty)
         try { new Util.Range(internalPort) }
-        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid internalPort") }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid internalPort") }
 
       val jmxPort: String = request.getParameter("jmxPort")
       if (jmxPort != null && !jmxPort.isEmpty)
         try { new Util.Range(jmxPort) }
-        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid jmxPort") }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid jmxPort") }
 
       val cqlPort: String = request.getParameter("cqlPort")
       if (cqlPort != null && !cqlPort.isEmpty)
         try { new Util.Range(cqlPort) }
-        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid cqlPort") }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid cqlPort") }
 
       val thriftPort: String = request.getParameter("thriftPort")
       if (thriftPort != null && !thriftPort.isEmpty)
         try { new Util.Range(thriftPort) }
-        catch { case e: IllegalArgumentException => throw new HttpError(400, "Invalid thriftPort") }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid thriftPort") }
 
 
-      var ring = Cluster.getRing(id)
-      if (add && ring != null) throw new HttpError(400, "duplicate ring")
-      if (!add && ring == null) throw new HttpError(400, "ring not found")
-      if (!add && ring.active) throw new HttpError(400, "ring has active nodes")
+      var cluster = Nodes.getCluster(id)
+      if (add && cluster != null) throw new HttpError(400, "duplicate cluster")
+      if (!add && cluster == null) throw new HttpError(400, "cluster not found")
+      if (!add && cluster.active) throw new HttpError(400, "cluster has active nodes")
 
       if (add)
-        ring = Cluster.addRing(new Ring(id))
+        cluster = Nodes.addCluster(new Cluster(id))
 
-      if (name != null) ring.name = if (name != "") name else null
+      if (internalPort != null) cluster.ports("internal") = if (internalPort != "") new Util.Range(internalPort) else null
+      if (jmxPort != null) cluster.ports("jmx") = if (jmxPort != "") new Util.Range(jmxPort) else null
+      if (cqlPort != null) cluster.ports("cql") = if (cqlPort != "") new Util.Range(cqlPort) else null
+      if (thriftPort != null) cluster.ports("thrift") = if (thriftPort != "") new Util.Range(thriftPort) else null
 
-      if (internalPort != null) ring.ports("internal") = if (internalPort != "") new Util.Range(internalPort) else null
-      if (jmxPort != null) ring.ports("jmx") = if (jmxPort != "") new Util.Range(jmxPort) else null
-      if (cqlPort != null) ring.ports("cql") = if (cqlPort != "") new Util.Range(cqlPort) else null
-      if (thriftPort != null) ring.ports("thrift") = if (thriftPort != "") new Util.Range(thriftPort) else null
-
-      Cluster.save()
-      response.getWriter.println(ring.toJson)
+      Nodes.save()
+      response.getWriter.println(cluster.toJson)
     }
 
-    private def handleRemoveRing(request: HttpServletRequest, response: HttpServletResponse) {
-      val id: String = request.getParameter("ring")
-      if (id == null || id.isEmpty) throw new HttpError(400, "ring required")
+    private def handleRemoveCluster(request: HttpServletRequest, response: HttpServletResponse) {
+      val id: String = request.getParameter("cluster")
+      if (id == null || id.isEmpty) throw new HttpError(400, "cluster required")
 
-      val ring = Cluster.getRing(id)
-      if (ring == null) throw new HttpError(400, "ring not found")
-      if (ring == Cluster.defaultRing) throw new HttpError(400, "can't remove default ring")
+      val cluster = Nodes.getCluster(id)
+      if (cluster == null) throw new HttpError(400, "cluster not found")
+      if (cluster == Nodes.defaultCluster) throw new HttpError(400, "can't remove default cluster")
+      if (cluster.active) throw new HttpError(400, "can't remove cluster with active nodes")
 
-      Cluster.removeRing(ring)
-      Cluster.save()
+      Nodes.removeCluster(cluster)
+      Nodes.save()
     }
 
     private def handleHealth(response: HttpServletResponse) {

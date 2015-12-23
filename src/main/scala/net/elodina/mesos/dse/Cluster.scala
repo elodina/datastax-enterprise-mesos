@@ -1,133 +1,70 @@
-/**
- * Licensed to the Apache Software Foundation (ASF) under one
- * or more contributor license agreements.  See the NOTICE file
- * distributed with this work for additional information
- * regarding copyright ownership.  The ASF licenses this file
- * to you under the Apache License, Version 2.0 (the
- * "License"); you may not use this file except in compliance
- * with the License.  You may obtain a copy of the License at
- *
- * http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing, software
- * distributed under the License is distributed on an "AS IS" BASIS,
- * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
- * See the License for the specific language governing permissions and
- * limitations under the License.
- */
-
 package net.elodina.mesos.dse
 
-import org.apache.log4j.Logger
-
+import scala.util.parsing.json.JSONObject
 import scala.collection.mutable
-import scala.util.parsing.json.{JSONArray, JSONObject}
-import java.io.File
 
-object Cluster {
-  private val logger = Logger.getLogger(this.getClass)
-  private[dse] var storage = Cluster.newStorage(Config.storage)
+class Cluster {
+  var id: String = null
+  var name: String = null
+  var ports: mutable.HashMap[String, Util.Range] = new mutable.HashMap[String, Util.Range]()
 
-  var frameworkId: String = null
-  private val rings: mutable.ListBuffer[Ring] = new mutable.ListBuffer[Ring]
-  private val nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]
+  resetPorts
 
-  reset()
-
-  def getRings: List[Ring] = rings.toList
-
-  def getRing(id: String): Ring = rings.filter(id == _.id).headOption.getOrElse(null)
-
-  def defaultRing: Ring = getRing("default")
-
-  def addRing(ring: Ring): Ring = {
-    if (getRing(ring.id) != null)
-      throw new IllegalArgumentException(s"duplicate ring ${ring.id}")
-
-    rings += ring
-    ring
+  def this(_id: String) {
+    this
+    id = _id
   }
 
-  def removeRing(ring: Ring): Unit = {
-    if (ring == defaultRing) throw new IllegalArgumentException("can't remove default ring")
-    rings -= ring
+  def this(json: Map[String, Any]) {
+    this
+    fromJson(json)
   }
 
+  def getNodes: List[Node] = Nodes.getNodes.filter(_.cluster == this)
 
-  def getNodes: List[Node] = nodes.toList.sortBy(_.id.toInt)
+  def active: Boolean = getNodes.exists(_.state != Node.State.IDLE)
+  def idle: Boolean = !active
 
-  def getNode(id: String) = nodes.filter(id == _.id).headOption.getOrElse(null)
+  def availSeeds: List[String] = {
+    val nodes: List[Node] = Nodes.getNodes
+      .filter(_.cluster == this)
+      .filter(_.seed)
+      .filter(_.runtime != null)
 
-  def addNode(node: Node): Node = {
-    if (getNode(node.id) != null) throw new IllegalArgumentException(s"duplicate node ${node.id}")
-    nodes += node
-    node
+    nodes.map(_.runtime.hostname).sorted
   }
 
-  def removeNode(node: Node): Unit = { nodes -= node }
-
-
-  def reset(): Unit = {
-    frameworkId = null
-
-    rings.clear()
-    val defaultRing = new Ring("default")
-    addRing(defaultRing)
-
-    nodes.clear()
+  def resetPorts: Unit = {
+    ports.clear()
+    Node.portNames.foreach(ports(_) = null)
   }
 
   def fromJson(json: Map[String, Any]): Unit = {
-    if (json.contains("rings")) {
-      rings.clear()
-      for (ringObj <- json("rings").asInstanceOf[List[Map[String, Object]]])
-        addRing(new Ring(ringObj))
-    }
+    id = json("id").asInstanceOf[String]
 
-    if (json.contains("nodes")) {
-      nodes.clear()
-      for (nodeJson <- json("nodes").asInstanceOf[List[Map[String, Object]]])
-        addNode(new Node(nodeJson))
-    }
-
-    if (json.contains("frameworkId"))
-      frameworkId = json("frameworkId").asInstanceOf[String]
+    resetPorts
+    for ((name, range) <- json("ports").asInstanceOf[Map[String, String]])
+      ports(name) = new Util.Range(range)
   }
 
   def toJson: JSONObject = {
-    val json = new mutable.LinkedHashMap[String, Object]()
-    if (frameworkId != null) json("frameworkId") = frameworkId
+    val json = new mutable.LinkedHashMap[String, Any]()
+    json("id") = id
 
-    if (!rings.isEmpty) {
-      val ringsJson = rings.map(_.toJson)
-      json("rings") = new JSONArray(ringsJson.toList)
-    }
-
-    if (!nodes.isEmpty) {
-      val nodesJson = nodes.map(_.toJson())
-      json("nodes") = new JSONArray(nodesJson.toList)
-    }
+    val portsJson = new mutable.HashMap[String, Any]()
+    for ((name, range) <- ports)
+      if (range != null) portsJson(name) = "" + range
+    json("ports") = new JSONObject(portsJson.toMap)
 
     new JSONObject(json.toMap)
   }
 
-  def save() = storage.save(this.toJson)
+  override def hashCode(): Int = id.hashCode
 
-  def load() {
-    val json = storage.load()
-    if (json == null) {
-      logger.info("No cluster state available")
-      return
-    }
-
-    this.fromJson(json)
+  override def equals(obj: scala.Any): Boolean = {
+    if (!obj.isInstanceOf[Cluster]) false
+    id == obj.asInstanceOf[Cluster].id
   }
 
-  private[dse] def newStorage(storage: String): Storage = {
-    storage.split(":", 2) match {
-      case Array("file", fileName) => FileStorage(new File(fileName))
-      case Array("zk", zk) => ZkStorage(zk)
-      case _ => throw new IllegalArgumentException(s"Unsupported storage: $storage")
-    }
-  }
+  override def toString: String = id
 }

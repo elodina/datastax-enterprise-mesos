@@ -9,7 +9,7 @@ import org.apache.mesos.Protos.TaskState
 class SchedulerTest extends MesosTestCase {
   @Test
   def acceptOffer {
-    val node = Cluster.addNode(new Node("0"))
+    val node = Nodes.addNode(new Node("0"))
     node.cpu = 0.5
     node.mem = 400
 
@@ -35,19 +35,19 @@ class SchedulerTest extends MesosTestCase {
   @Test
   def acceptOffer_seeds_first {
     for (i <- 0 until 10) {
-      val node = Cluster.addNode(new Node("" + i))
+      val node = Nodes.addNode(new Node("" + i))
       node.state = Node.State.STARTING
     }
-    Cluster.getNode("5").seed = true
+    Nodes.getNode("5").seed = true
 
     assertEquals(null, Scheduler.acceptOffer(offer(resources = s"cpus:1;mem:1000;ports:0..10")))
     assertEquals(1, schedulerDriver.launchedTasks.size())
-    assertNotNull(Cluster.getNode("5").runtime)
+    assertNotNull(Nodes.getNode("5").runtime)
   }
 
   @Test
   def onTaskStatus {
-    val node = Cluster.addNode(new Node("0"))
+    val node = Nodes.addNode(new Node("0"))
 
     // node started
     node.runtime = new Node.Runtime(node, offer())
@@ -76,7 +76,7 @@ class SchedulerTest extends MesosTestCase {
     assertEquals(1, schedulerDriver.killedTasks.size())
     schedulerDriver.killedTasks.clear()
 
-    val node = Cluster.addNode(new Node("0"))
+    val node = Nodes.addNode(new Node("0"))
     node.runtime = new Node.Runtime()
 
     // idle, stopping
@@ -107,7 +107,7 @@ class SchedulerTest extends MesosTestCase {
     // unknown node
     Scheduler.onTaskStopped(null, taskStatus(state = TaskState.TASK_FAILED))
 
-    val node = Cluster.addNode(new Node("0"))
+    val node = Nodes.addNode(new Node("0"))
     node.runtime = new Node.Runtime(taskId = "task")
 
     // idle
@@ -134,13 +134,13 @@ class SchedulerTest extends MesosTestCase {
   @Test
   def Reconciler_reconcileTasksIfRequired {
     Reconciler.reconcileTime = null
-    val node0 = Cluster.addNode(new Node("0"))
+    val node0 = Nodes.addNode(new Node("0"))
 
-    val node1 = Cluster.addNode(new Node("1"))
+    val node1 = Nodes.addNode(new Node("1"))
     node1.state = Node.State.RUNNING
     node1.runtime = new Node.Runtime(taskId = "1")
 
-    val node2 = Cluster.addNode(new Node("2"))
+    val node2 = Nodes.addNode(new Node("2"))
     node2.state = Node.State.STARTING
     node2.runtime = new Node.Runtime(taskId = "2")
 
