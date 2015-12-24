@@ -34,7 +34,7 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.language.postfixOps
 
-case class CassandraProcess(node: Node, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
+case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
 
   private val started = new AtomicBoolean(false)
@@ -44,7 +44,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, hostname: String, en
 
   def start() {
     if (started.getAndSet(true)) throw new IllegalStateException(s"Process already started")
-    logger.info(s"Starting Cassandra process")
+    logger.info("Starting Cassandra process")
 
     makeDataDirs()
     redirectCassandraLogs()
@@ -154,8 +154,6 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, hostname: String, en
   }
 
   private def editCassandraYaml(file: File) {
-    val address = if (node.cluster.bindAddress != null) node.cluster.bindAddress.resolve() else hostname
-
     val yaml = new Yaml()
     val cassandraYaml = mutable.Map(yaml.load(Source.fromFile(file).reader()).asInstanceOf[util.Map[String, AnyRef]].toSeq: _*)
 
@@ -171,7 +169,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, hostname: String, en
       if (portKeys.contains(key))
         cassandraYaml.put(portKeys(key), port.asInstanceOf[AnyRef])
 
-    setSeeds(cassandraYaml, node.runtime.seeds.mkString(","))
+    setSeeds(cassandraYaml, if (!node.runtime.seeds.isEmpty) node.runtime.seeds.mkString(",") else address)
     cassandraYaml.put("broadcast_address", address)
     cassandraYaml.put("endpoint_snitch", "GossipingPropertyFileSnitch")
 

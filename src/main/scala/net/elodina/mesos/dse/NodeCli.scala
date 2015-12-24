@@ -279,9 +279,9 @@ object NodeCli {
     printLine(s"task id: ${runtime.taskId}", indent + 1)
     printLine(s"executor id: ${runtime.executorId}", indent + 1)
     printLine(s"slave id: ${runtime.slaveId}", indent + 1)
-    printLine(s"hostname: ${runtime.hostname}", indent + 1)
+    printLine(s"host: ${nodeHost(runtime)}", indent + 1)
     printLine(s"reservation: ${nodeReservation(runtime.reservation)}", indent + 1)
-    printLine(s"seeds: ${runtime.seeds.mkString(",")}", indent + 1)
+    printLine(s"seeds: ${if (runtime.seeds.isEmpty) "<none>" else runtime.seeds.mkString(",")}", indent + 1)
     if (!runtime.attributes.isEmpty) printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
   }
 
@@ -304,6 +304,12 @@ object NodeCli {
     var s = "period:" + node.stickiness.period
     if (node.stickiness.hostname != null) s += ", hostname:" + node.stickiness.hostname
     if (node.stickiness.stopTime != null) s += ", expires:" + Util.Str.dateTime(node.stickiness.expires)
+    s
+  }
+
+  private def nodeHost(runtime: Node.Runtime): String = {
+    var s = "name:" + runtime.hostname
+    s += ", address:" + (if (runtime.address != null) runtime.address else "<pending>")
     s
   }
 

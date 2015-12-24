@@ -313,6 +313,7 @@ object Node {
 
     var slaveId: String = null
     var hostname: String = null
+    var address: String = null
 
     var seeds: List[String] = null
     var reservation: Reservation = null
@@ -346,7 +347,6 @@ object Node {
       if (seeds.isEmpty) {
         Scheduler.logger.info(s"No seed nodes available in cluster ${node.cluster.id}. Forcing seed==true for node ${node.id}")
         node.seed = true
-        seeds = List(offer.getHostname)
       }
 
       reservation = node.reserve(offer)
@@ -366,6 +366,7 @@ object Node {
 
       slaveId = json("slaveId").asInstanceOf[String]
       hostname = json("hostname").asInstanceOf[String]
+      if (json.contains("address")) address = json("address").asInstanceOf[String]
 
       seeds = json("seeds").asInstanceOf[List[String]]
       reservation = new Reservation(json("reservation").asInstanceOf[Map[String, Any]])
@@ -379,6 +380,7 @@ object Node {
 
       json("slaveId") = slaveId
       json("hostname") = hostname
+      if (address != null) json("address") = address
 
       json("seeds") = new JSONArray(seeds)
       json("reservation") = reservation.toJson

@@ -33,8 +33,9 @@ class Cluster {
       .filter(_.cluster == this)
       .filter(_.seed)
       .filter(_.runtime != null)
+      .filter(_.runtime.address != null)
 
-    nodes.map(_.runtime.hostname).sorted
+    nodes.map(_.runtime.address).sorted
   }
 
   def resetPorts: Unit = {

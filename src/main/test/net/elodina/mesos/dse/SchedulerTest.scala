@@ -84,9 +84,10 @@ class SchedulerTest extends MesosTestCase {
       node.runtime = new Node.Runtime(taskId = "task")
       node.state = state
 
-      Scheduler.onTaskStarted(node, taskStatus(id = "task", state = TaskState.TASK_RUNNING))
+      Scheduler.onTaskStarted(node, taskStatus(id = "task", state = TaskState.TASK_RUNNING, data = "address"))
       assertEquals("" + state, 1, schedulerDriver.killedTasks.size())
       assertEquals("" + state, state, node.state)
+      assertEquals("" + state, null, node.runtime.address)
 
       schedulerDriver.killedTasks.clear()
     }
@@ -96,9 +97,10 @@ class SchedulerTest extends MesosTestCase {
       node.runtime = new Node.Runtime(taskId = "task")
       node.state = state
 
-      Scheduler.onTaskStarted(node, taskStatus(id = "task", state = TaskState.TASK_RUNNING))
+      Scheduler.onTaskStarted(node, taskStatus(id = "task", state = TaskState.TASK_RUNNING, data = "address"))
       assertEquals("" + state, 0, schedulerDriver.killedTasks.size())
       assertEquals("" + state, Node.State.RUNNING, node.state)
+      assertEquals("" + state, "address", node.runtime.address)
     }
   }
 

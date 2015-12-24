@@ -24,11 +24,8 @@ import org.apache.log4j._
 import org.apache.mesos.Protos._
 import org.apache.mesos.{ExecutorDriver, MesosExecutorDriver}
 
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent._
-import scala.util.{Failure, Success}
-
 import Util.Str
+import com.google.protobuf.ByteString
 
 object Executor extends org.apache.mesos.Executor {
   private val logger = Logger.getLogger(Executor.getClass)
@@ -96,7 +93,9 @@ object Executor extends org.apache.mesos.Executor {
     var env = Map[String, String]()
     if (Executor.jreDir != null) env += "JAVA_HOME" -> Executor.jreDir.toString
 
-    cassandraProcess = CassandraProcess(node, task, hostname, env)
+    val address = if (node.cluster.bindAddress != null) node.cluster.bindAddress.resolve() else hostname
+
+    cassandraProcess = CassandraProcess(node, task, address, env)
     cassandraProcess.start()
 
     if (dseDir != null) {
@@ -105,7 +104,7 @@ object Executor extends org.apache.mesos.Executor {
     }
 
     cassandraProcess.awaitConsistentState()
-    driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(task.getTaskId).setState(TaskState.TASK_RUNNING).build)
+    driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(task.getTaskId).setData(ByteString.copyFromUtf8(address)).setState(TaskState.TASK_RUNNING).build)
 
     val error = cassandraProcess.await()
     if (error == null) driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(task.getTaskId).setState(TaskState.TASK_FINISHED).build)

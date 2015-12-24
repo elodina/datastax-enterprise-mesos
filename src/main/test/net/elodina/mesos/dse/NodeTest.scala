@@ -240,6 +240,8 @@ class NodeTest extends MesosTestCase {
   @Test
   def Runtime_toJson_fromJson {
     val runtime = new Runtime("task", "executor", "slave", "host", List("n0", "n1"), new Node.Reservation(), Map("a" -> "1"))
+    runtime.address = "address"
+
     val read = new Runtime(Util.parseJsonAsMap(runtime.toJson.toString()))
     assertRuntimeEquals(runtime, read)
   }
@@ -337,6 +339,7 @@ class NodeTest extends MesosTestCase {
 
     assertEquals(expected.slaveId, actual.slaveId)
     assertEquals(expected.hostname, actual.hostname)
+    assertEquals(expected.address, actual.address)
 
     assertEquals(expected.seeds, actual.seeds)
     assertReservationEquals(expected.reservation, actual.reservation)
