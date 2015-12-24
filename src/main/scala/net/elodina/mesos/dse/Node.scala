@@ -166,7 +166,7 @@ class Node extends Constrained {
     if (runtime == null) throw new IllegalStateException("runtime == null")
 
     TaskInfo.newBuilder()
-      .setName(runtime.taskId)
+      .setName(s"cassandra-$id")
       .setTaskId(TaskID.newBuilder().setValue(runtime.taskId).build())
       .setSlaveId(SlaveID.newBuilder().setValue(runtime.slaveId))
       .setExecutor(newExecutor())
@@ -201,7 +201,7 @@ class Node extends Constrained {
     ExecutorInfo.newBuilder()
       .setExecutorId(ExecutorID.newBuilder().setValue(runtime.executorId))
       .setCommand(commandBuilder)
-      .setName(runtime.executorId)
+      .setName(s"cassandra-$id")
       .build
   }
 
@@ -354,8 +354,8 @@ object Node {
 
       reservation = node.reserve(offer)
 
-      taskId = "node-" + node.id + "-" + System.currentTimeMillis()
-      executorId = "node-" + node.id + "-" + System.currentTimeMillis()
+      taskId = "cassandra-" + node.id + "-" + System.currentTimeMillis()
+      executorId = "cassandra-" + node.id + "-" + System.currentTimeMillis()
     }
 
     def this(json: Map[String, Any]) = {

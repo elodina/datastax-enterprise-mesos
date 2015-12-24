@@ -141,7 +141,7 @@ class NodeTest extends MesosTestCase {
 
     val task: TaskInfo = node.newTask()
     assertEquals(node.runtime.taskId, task.getTaskId.getValue)
-    assertEquals(node.runtime.taskId, task.getName)
+    assertEquals(s"cassandra-${node.id}", task.getName)
     assertEquals(node.runtime.slaveId, task.getSlaveId.getValue)
 
     val data: String = task.getData.toStringUtf8
@@ -158,7 +158,7 @@ class NodeTest extends MesosTestCase {
 
     val executor: ExecutorInfo = node.newExecutor()
     assertEquals(node.runtime.executorId, executor.getExecutorId.getValue)
-    assertEquals(node.runtime.executorId, executor.getName)
+    assertEquals(s"cassandra-${node.id}", executor.getName)
 
     val command: CommandInfo = executor.getCommand
 
