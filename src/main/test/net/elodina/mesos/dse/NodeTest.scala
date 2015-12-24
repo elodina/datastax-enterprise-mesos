@@ -206,7 +206,6 @@ class NodeTest extends MesosTestCase {
 
     node.cpu = 1
     node.mem = 1024
-    node.broadcast = "127.0.0.1"
 
     node.seed = true
     node.replaceAddress = "127.0.0.2"
@@ -314,9 +313,8 @@ class NodeTest extends MesosTestCase {
 
     assertEquals(expected.cpu, actual.cpu, 0.001)
     assertEquals(expected.mem, actual.mem)
-    assertEquals(expected.broadcast, actual.broadcast)
-
     assertEquals(expected.seed, actual.seed)
+
     assertEquals(expected.replaceAddress, actual.replaceAddress)
     assertEquals(expected.jvmOptions, actual.jvmOptions)
 

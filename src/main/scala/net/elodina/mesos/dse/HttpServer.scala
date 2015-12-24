@@ -157,8 +157,6 @@ object HttpServer {
         try { mem = java.lang.Long.valueOf(request.getParameter("mem")) }
         catch { case e: NumberFormatException => throw new HttpError(400, "invalid mem") }
 
-      val broadcast: String = request.getParameter("broadcast")
-
       var stickinessPeriod: Period = null
       if (request.getParameter("stickinessPeriod") != null)
         try { stickinessPeriod = new Period(request.getParameter("stickinessPeriod")) }
@@ -204,7 +202,6 @@ object HttpServer {
 
         if (cpu != null) node.cpu = cpu
         if (mem != null) node.mem = mem
-        if (broadcast != null) node.broadcast = if (broadcast != "") broadcast else null
         if (stickinessPeriod != null) node.stickiness.period = stickinessPeriod
 
         if (rack != null) node.rack = if (rack != "") rack else "default"

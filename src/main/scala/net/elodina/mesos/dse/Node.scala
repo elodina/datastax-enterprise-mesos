@@ -43,7 +43,6 @@ class Node extends Constrained {
   var cpu: Double = 0.5
   var mem: Long = 512
 
-  var broadcast: String = null
   var seed: Boolean = false
   var replaceAddress: String = null
   var jvmOptions: String = null
@@ -227,7 +226,6 @@ class Node extends Constrained {
     cpu = json("cpu").asInstanceOf[Number].doubleValue()
     mem = json("mem").asInstanceOf[Number].longValue()
 
-    if (json.contains("broadcast")) broadcast = json("broadcast").asInstanceOf[String]
     seed = json("seed").asInstanceOf[Boolean]
     if (json.contains("replaceAddress")) replaceAddress = json("replaceAddress").asInstanceOf[String]
     if (json.contains("jvmOptions")) jvmOptions = json("jvmOptions").asInstanceOf[String]
@@ -258,7 +256,6 @@ class Node extends Constrained {
     json("cpu") = cpu
     json("mem") = mem
 
-    if (broadcast != null) json("broadcast") = broadcast
     json("seed") = seed
     if (replaceAddress != null) json("replaceAddress") = replaceAddress
     if (jvmOptions != null) json("jvmOptions") = jvmOptions
