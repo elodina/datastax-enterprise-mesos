@@ -22,7 +22,7 @@ import java.io._
 import javax.servlet.http.{HttpServlet, HttpServletRequest, HttpServletResponse}
 
 import org.apache.log4j.Logger
-import org.eclipse.jetty.server.{Server, ServerConnector}
+import org.eclipse.jetty.server.{Response, Request, Server, ServerConnector}
 import org.eclipse.jetty.servlet.{ServletContextHandler, ServletHolder}
 import org.eclipse.jetty.util.thread.QueuedThreadPool
 
@@ -49,6 +49,7 @@ object HttpServer {
 
     val handler = new ServletContextHandler
     handler.addServlet(new ServletHolder(Servlet), "/")
+    handler.setErrorHandler(new ErrorHandler())
 
     server.setHandler(handler)
     server.addConnector(connector)
@@ -88,14 +89,15 @@ object HttpServer {
 
     def handle(request: HttpServletRequest, response: HttpServletResponse) {
       val uri = request.getRequestURI
+
       if (uri.startsWith("/health")) handleHealth(response)
       else if (uri.startsWith("/jar/")) downloadFile(Config.jar, response)
-      else if (uri.startsWith("/dse/")) downloadFile(Config.dse, response)
-      else if (uri.startsWith("/cassandra/")) downloadFile(Config.cassandra, response)
+      else if (Config.dse != null && uri.startsWith("/dse/")) downloadFile(Config.dse, response)
+      else if (Config.cassandra != null && uri.startsWith("/cassandra/")) downloadFile(Config.cassandra, response)
       else if (Config.jre != null && uri.startsWith("/jre/")) downloadFile(Config.jre, response)
       else if (uri.startsWith("/api/node")) handleNodeApi(request, response)
       else if (uri.startsWith("/api/cluster")) handleClusterApi(request, response)
-      else response.sendError(404)
+      else response.sendError(404, "not found")
     }
 
     def downloadFile(file: File, response: HttpServletResponse) {
@@ -107,6 +109,7 @@ object HttpServer {
     
     def handleNodeApi(request: HttpServletRequest, response: HttpServletResponse) {
       response.setContentType("application/json; charset=utf-8")
+      request.setAttribute("jsonResponse", true)
       var uri: String = request.getRequestURI.substring("/api/node".length)
       if (uri.startsWith("/")) uri = uri.substring(1)
 
@@ -114,18 +117,19 @@ object HttpServer {
       else if (uri == "add" || uri == "update") handleAddUpdateNode(uri == "add", request, response)
       else if (uri == "remove") handleRemoveNode(request, response)
       else if (uri == "start" || uri == "stop") handleStartStopNode(uri == "start", request, response)
-      else response.sendError(404)
+      else response.sendError(404, "unsupported method")
     }
     
     def handleClusterApi(request: HttpServletRequest, response: HttpServletResponse) {
       response.setContentType("application/json; charset=utf-8")
+      request.setAttribute("jsonResponse", true)
       var uri: String = request.getRequestURI.substring("/api/cluster".length)
       if (uri.startsWith("/")) uri = uri.substring(1)
 
       if (uri == "list") handleListClusters(request, response)
       else if (uri == "add" || uri == "update") handleAddUpdateCluster(uri == "add", request, response)
       else if (uri == "remove") handleRemoveCluster(request, response)
-      else response.sendError(404)
+      else response.sendError(404, "unsupported method")
     }
 
     def handleListNodes(request: HttpServletRequest, response: HttpServletResponse) {
@@ -378,6 +382,29 @@ object HttpServer {
 
     class HttpError(code: Int, message: String) extends Exception(message) {
       def getCode: Int = code
+    }
+  }
+
+  class ErrorHandler extends org.eclipse.jetty.server.handler.ErrorHandler () {
+    override def handle(target: String, baseRequest: Request, request: HttpServletRequest, response: HttpServletResponse): Unit = {
+      val code: Int = response.getStatus
+      val error: String = response match {
+        case response: Response => if (response.getReason != null) response.getReason else ""
+        case _ => ""
+      }
+
+      val writer: PrintWriter = response.getWriter
+
+      if (request.getAttribute("jsonResponse") != null) {
+        response.setContentType("application/json; charset=utf-8")
+        writer.println("" + new JSONObject(Map("code" -> code, "error" -> error)))
+      } else {
+        response.setContentType("text/plain; charset=utf-8")
+        writer.println(code + " - " + error)
+      }
+
+      writer.flush()
+      baseRequest.setHandled(true)
     }
   }
 }
