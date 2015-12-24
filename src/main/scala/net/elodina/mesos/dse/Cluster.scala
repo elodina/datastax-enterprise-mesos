@@ -2,10 +2,13 @@ package net.elodina.mesos.dse
 
 import scala.util.parsing.json.JSONObject
 import scala.collection.mutable
+import Util.BindAddress
 
 class Cluster {
   var id: String = null
   var name: String = null
+
+  var bindAddress: BindAddress = null
   var ports: mutable.HashMap[String, Util.Range] = new mutable.HashMap[String, Util.Range]()
 
   resetPorts
@@ -42,6 +45,8 @@ class Cluster {
   def fromJson(json: Map[String, Any]): Unit = {
     id = json("id").asInstanceOf[String]
 
+    if (json.contains("bindAddress")) bindAddress = new BindAddress(json("bindAddress").asInstanceOf[String])
+
     resetPorts
     for ((name, range) <- json("ports").asInstanceOf[Map[String, String]])
       ports(name) = new Util.Range(range)
@@ -50,6 +55,8 @@ class Cluster {
   def toJson: JSONObject = {
     val json = new mutable.LinkedHashMap[String, Any]()
     json("id") = id
+
+    if (bindAddress != null) json("bindAddress") = "" + bindAddress
 
     val portsJson = new mutable.HashMap[String, Any]()
     for ((name, range) <- ports)

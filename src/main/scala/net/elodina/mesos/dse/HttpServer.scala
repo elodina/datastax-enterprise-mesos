@@ -30,7 +30,7 @@ import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.Duration
 import net.elodina.mesos.dse.Node.State
-import net.elodina.mesos.dse.Util.Period
+import net.elodina.mesos.dse.Util.{Range, BindAddress, Period}
 
 object HttpServer {
   private val logger = Logger.getLogger(HttpServer.getClass)
@@ -317,24 +317,29 @@ object HttpServer {
       val id: String = request.getParameter("cluster")
       if (id == null || id.isEmpty) throw new HttpError(400, "cluster required")
 
+      val bindAddress: String = request.getParameter("bindAddress")
+      if (bindAddress != null && bindAddress != "")
+        try { new BindAddress(bindAddress) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid bindAddress") }
+
       val internalPort: String = request.getParameter("internalPort")
       if (internalPort != null && !internalPort.isEmpty)
-        try { new Util.Range(internalPort) }
+        try { new Range(internalPort) }
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid internalPort") }
 
       val jmxPort: String = request.getParameter("jmxPort")
       if (jmxPort != null && !jmxPort.isEmpty)
-        try { new Util.Range(jmxPort) }
+        try { new Range(jmxPort) }
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid jmxPort") }
 
       val cqlPort: String = request.getParameter("cqlPort")
       if (cqlPort != null && !cqlPort.isEmpty)
-        try { new Util.Range(cqlPort) }
+        try { new Range(cqlPort) }
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid cqlPort") }
 
       val thriftPort: String = request.getParameter("thriftPort")
       if (thriftPort != null && !thriftPort.isEmpty)
-        try { new Util.Range(thriftPort) }
+        try { new Range(thriftPort) }
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid thriftPort") }
 
 
@@ -346,10 +351,11 @@ object HttpServer {
       if (add)
         cluster = Nodes.addCluster(new Cluster(id))
 
-      if (internalPort != null) cluster.ports("internal") = if (internalPort != "") new Util.Range(internalPort) else null
-      if (jmxPort != null) cluster.ports("jmx") = if (jmxPort != "") new Util.Range(jmxPort) else null
-      if (cqlPort != null) cluster.ports("cql") = if (cqlPort != "") new Util.Range(cqlPort) else null
-      if (thriftPort != null) cluster.ports("thrift") = if (thriftPort != "") new Util.Range(thriftPort) else null
+      if (bindAddress != null) cluster.bindAddress = if (bindAddress != "") new BindAddress(bindAddress) else null
+      if (internalPort != null) cluster.ports("internal") = if (internalPort != "") new Range(internalPort) else null
+      if (jmxPort != null) cluster.ports("jmx") = if (jmxPort != "") new Range(jmxPort) else null
+      if (cqlPort != null) cluster.ports("cql") = if (cqlPort != "") new Range(cqlPort) else null
+      if (thriftPort != null) cluster.ports("thrift") = if (thriftPort != "") new Range(thriftPort) else null
 
       Nodes.save()
       response.getWriter.println(cluster.toJson)

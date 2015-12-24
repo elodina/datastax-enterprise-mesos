@@ -1,6 +1,6 @@
 package net.elodina.mesos.dse
 
-import Util.{Range, Period, AddressMask, IO}
+import Util.{Range, Period, BindAddress, IO}
 import org.junit.Test
 import org.junit.Assert._
 import java.io.File
@@ -194,28 +194,28 @@ class UtilTest {
     assertEquals("0", "" + new Range("0..0"))
   }
 
-  // AddressMask
+  // BindAddress
   @Test
-  def AddressMask_init {
-    new AddressMask("broker0")
-    new AddressMask("192.168.*")
-    new AddressMask("if:eth1")
+  def BindAddress_init {
+    new BindAddress("broker0")
+    new BindAddress("192.168.*")
+    new BindAddress("if:eth1")
 
     // unknown source
-    try { new AddressMask("unknown:value"); fail() }
+    try { new BindAddress("unknown:value"); fail() }
     catch { case e: IllegalArgumentException => }
   }
 
   @Test
-  def AddressMask_resolve {
+  def BindAddress_resolve {
     // address without mask
-    assertEquals("host", new AddressMask("host").resolve())
+    assertEquals("host", new BindAddress("host").resolve())
 
     // address with mask
-    assertEquals("127.0.0.1", new AddressMask("127.0.0.*").resolve())
+    assertEquals("127.0.0.1", new BindAddress("127.0.0.*").resolve())
 
     // unresolvable
-    try { new AddressMask("255.255.*").resolve(); fail() }
+    try { new BindAddress("255.255.*").resolve(); fail() }
     catch { case e: IllegalStateException => }
   }
 

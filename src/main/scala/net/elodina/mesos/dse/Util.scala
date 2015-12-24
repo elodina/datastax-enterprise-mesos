@@ -243,7 +243,7 @@ object Util {
     override def toString: String = _value + _unit
   }
 
-  class AddressMask(s: String) {
+  class BindAddress(s: String) {
     private var _source: String = null
     private var _value: String = null
 
@@ -298,8 +298,8 @@ object Util {
     override def hashCode(): Int = 31 * _source.hashCode + _value.hashCode
 
     override def equals(o: scala.Any): Boolean = {
-      if (!o.isInstanceOf[AddressMask]) return false
-      val address = o.asInstanceOf[AddressMask]
+      if (!o.isInstanceOf[BindAddress]) return false
+      val address = o.asInstanceOf[BindAddress]
       _source == address._source && _value == address._value
     }
 
