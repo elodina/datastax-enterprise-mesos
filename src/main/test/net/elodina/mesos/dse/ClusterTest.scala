@@ -2,7 +2,7 @@ package net.elodina.mesos.dse
 
 import org.junit.{Before, Test}
 import org.junit.Assert._
-import Util.Range
+import net.elodina.mesos.dse.Util.{BindAddress, Range}
 
 class ClusterTest extends MesosTestCase {
   @Before
@@ -51,6 +51,7 @@ class ClusterTest extends MesosTestCase {
     var read = new Cluster(Util.parseJsonAsMap("" + cluster.toJson))
     assertClusterEquals(cluster, read)
 
+    cluster.bindAddress = new BindAddress("192.168.3.*")
     cluster.ports ++= Map("internal" -> new Range("100..110"), "jmx" -> new Range("200..210"))
     read = new Cluster(Util.parseJsonAsMap("" + cluster.toJson))
     assertClusterEquals(cluster, read)
@@ -59,6 +60,7 @@ class ClusterTest extends MesosTestCase {
   private def assertClusterEquals(expected: Cluster, actual: Cluster) {
     if (checkNulls(expected, actual)) return
     assertEquals(expected.id, actual.id)
+    assertEquals(expected.bindAddress, actual.bindAddress)
     assertEquals(expected.ports, actual.ports)
   }
 

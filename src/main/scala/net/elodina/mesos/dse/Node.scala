@@ -43,7 +43,6 @@ class Node extends Constrained {
   var cpu: Double = 0.5
   var mem: Long = 512
 
-  var broadcast: String = null
   var seed: Boolean = false
   var replaceAddress: String = null
   var jvmOptions: String = null
@@ -227,7 +226,6 @@ class Node extends Constrained {
     cpu = json("cpu").asInstanceOf[Number].doubleValue()
     mem = json("mem").asInstanceOf[Number].longValue()
 
-    if (json.contains("broadcast")) broadcast = json("broadcast").asInstanceOf[String]
     seed = json("seed").asInstanceOf[Boolean]
     if (json.contains("replaceAddress")) replaceAddress = json("replaceAddress").asInstanceOf[String]
     if (json.contains("jvmOptions")) jvmOptions = json("jvmOptions").asInstanceOf[String]
@@ -258,7 +256,6 @@ class Node extends Constrained {
     json("cpu") = cpu
     json("mem") = mem
 
-    if (broadcast != null) json("broadcast") = broadcast
     json("seed") = seed
     if (replaceAddress != null) json("replaceAddress") = replaceAddress
     if (jvmOptions != null) json("jvmOptions") = jvmOptions
@@ -316,6 +313,7 @@ object Node {
 
     var slaveId: String = null
     var hostname: String = null
+    var address: String = null
 
     var seeds: List[String] = null
     var reservation: Reservation = null
@@ -349,7 +347,6 @@ object Node {
       if (seeds.isEmpty) {
         Scheduler.logger.info(s"No seed nodes available in cluster ${node.cluster.id}. Forcing seed==true for node ${node.id}")
         node.seed = true
-        seeds = List(offer.getHostname)
       }
 
       reservation = node.reserve(offer)
@@ -369,6 +366,7 @@ object Node {
 
       slaveId = json("slaveId").asInstanceOf[String]
       hostname = json("hostname").asInstanceOf[String]
+      if (json.contains("address")) address = json("address").asInstanceOf[String]
 
       seeds = json("seeds").asInstanceOf[List[String]]
       reservation = new Reservation(json("reservation").asInstanceOf[Map[String, Any]])
@@ -382,6 +380,7 @@ object Node {
 
       json("slaveId") = slaveId
       json("hostname") = hostname
+      if (address != null) json("address") = address
 
       json("seeds") = new JSONArray(seeds)
       json("reservation") = reservation.toJson

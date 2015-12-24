@@ -89,7 +89,6 @@ object NodeCli {
 
     parser.accepts("cpu", "CPU amount (0.5, 1, 2).").withRequiredArg().ofType(classOf[java.lang.Double])
     parser.accepts("mem", "Mem amount in Mb.").withRequiredArg().ofType(classOf[java.lang.Long])
-    parser.accepts("broadcast", "Network interface to broadcast for nodes.").withRequiredArg().ofType(classOf[String])
     parser.accepts("stickiness-period", "Stickiness period to preserve the same slave node (5m, 10m, 1h)").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("rack", "Node rack.").withRequiredArg().ofType(classOf[String])
@@ -128,7 +127,6 @@ object NodeCli {
 
     val cpu = options.valueOf("cpu").asInstanceOf[java.lang.Double]
     val mem = options.valueOf("mem").asInstanceOf[java.lang.Long]
-    val broadcast = options.valueOf("broadcast").asInstanceOf[String]
     val stickinessPeriod = options.valueOf("stickiness-period").asInstanceOf[String]
 
     val rack = options.valueOf("rack").asInstanceOf[String]
@@ -151,7 +149,6 @@ object NodeCli {
 
     if (cpu != null) params("cpu") = "" + cpu
     if (mem != null) params("mem") = "" + mem
-    if (broadcast != null) params("broadcast") = broadcast
     if (stickinessPeriod != null) params("stickinessPeriod") = stickinessPeriod
 
     if (rack != null) params("rack") = rack
@@ -261,9 +258,8 @@ object NodeCli {
 
     printLine(s"topology: ${nodeTopology(node)}", indent)
     printLine(s"resources: ${nodeResources(node)}", indent)
-
-    if (node.broadcast != null) printLine(s"broadcast: ${node.broadcast}", indent)
     printLine(s"seed: ${node.seed}", indent)
+
     if (node.replaceAddress != null) printLine(s"replace-address: ${node.replaceAddress}", indent)
     if (node.jvmOptions != null) printLine(s"jvm-options: ${node.jvmOptions}", indent)
 
@@ -283,9 +279,9 @@ object NodeCli {
     printLine(s"task id: ${runtime.taskId}", indent + 1)
     printLine(s"executor id: ${runtime.executorId}", indent + 1)
     printLine(s"slave id: ${runtime.slaveId}", indent + 1)
-    printLine(s"hostname: ${runtime.hostname}", indent + 1)
+    printLine(s"host: ${nodeHost(runtime)}", indent + 1)
     printLine(s"reservation: ${nodeReservation(runtime.reservation)}", indent + 1)
-    printLine(s"seeds: ${runtime.seeds.mkString(",")}", indent + 1)
+    printLine(s"seeds: ${if (runtime.seeds.isEmpty) "<none>" else runtime.seeds.mkString(",")}", indent + 1)
     if (!runtime.attributes.isEmpty) printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
   }
 
@@ -308,6 +304,12 @@ object NodeCli {
     var s = "period:" + node.stickiness.period
     if (node.stickiness.hostname != null) s += ", hostname:" + node.stickiness.hostname
     if (node.stickiness.stopTime != null) s += ", expires:" + Util.Str.dateTime(node.stickiness.expires)
+    s
+  }
+
+  private def nodeHost(runtime: Node.Runtime): String = {
+    var s = "name:" + runtime.hostname
+    s += ", address:" + (if (runtime.address != null) runtime.address else "<pending>")
     s
   }
 

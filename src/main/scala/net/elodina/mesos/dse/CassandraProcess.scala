@@ -19,7 +19,6 @@
 package net.elodina.mesos.dse
 
 import java.io._
-import java.net.NetworkInterface
 import java.nio.file._
 import java.nio.file.attribute.PosixFileAttributeView
 import java.util
@@ -35,7 +34,7 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.language.postfixOps
 
-case class CassandraProcess(node: Node, taskInfo: TaskInfo, hostname: String, env: Map[String, String] = Map.empty) {
+case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
 
   private val started = new AtomicBoolean(false)
@@ -45,7 +44,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, hostname: String, en
 
   def start() {
     if (started.getAndSet(true)) throw new IllegalStateException(s"Process already started")
-    logger.info(s"Starting Cassandra process")
+    logger.info("Starting Cassandra process")
 
     makeDataDirs()
     redirectCassandraLogs()
@@ -162,35 +161,21 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, hostname: String, en
     cassandraYaml.put("data_file_directories", node.dataFileDirs.split(","))
     cassandraYaml.put("commitlog_directory", Array(node.commitLogDir))
     cassandraYaml.put("saved_caches_directory", Array(node.savedCachesDir))
-    cassandraYaml.put("listen_address", hostname)
-    cassandraYaml.put("rpc_address", hostname)
+    cassandraYaml.put("listen_address", address)
+    cassandraYaml.put("rpc_address", address)
 
     val portKeys = Map("internal" -> "storage_port", "cql" -> "native_transport_port", "thrift" -> "rpc_port")
     for ((key, port) <- node.runtime.reservation.ports)
       if (portKeys.contains(key))
         cassandraYaml.put(portKeys(key), port.asInstanceOf[AnyRef])
 
-    setSeeds(cassandraYaml, node.runtime.seeds.mkString(","))
-    if (node.broadcast != null) {
-      val ip = getIP(node.broadcast)
-      cassandraYaml.put("broadcast_address", ip)
-    }
-
+    setSeeds(cassandraYaml, if (!node.runtime.seeds.isEmpty) node.runtime.seeds.mkString(",") else address)
+    cassandraYaml.put("broadcast_address", address)
     cassandraYaml.put("endpoint_snitch", "GossipingPropertyFileSnitch")
 
     val writer = new FileWriter(file)
     try { yaml.dump(mapAsJavaMap(cassandraYaml), writer)}
     finally { writer.close() }
-  }
-
-  private def getIP(networkInterface: String): String = {
-    val iface = NetworkInterface.getByName(networkInterface)
-    if (iface == null) throw new IllegalArgumentException(s"Unknown network interface $networkInterface")
-
-    val enumeration = iface.getInetAddresses
-    if (!enumeration.hasMoreElements) throw new IllegalArgumentException(s"Network interface $networkInterface does not have any IP address assigned to it")
-
-    enumeration.nextElement().getHostAddress
   }
 
   private def setSeeds(cassandraYaml: mutable.Map[String, AnyRef], seeds: String) {

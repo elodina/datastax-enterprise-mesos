@@ -213,6 +213,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
 
     node.state = Node.State.RUNNING
     node.replaceAddress = null
+    node.runtime.address = status.getData.toStringUtf8
     node.registerStart(node.runtime.hostname)
   }
 
