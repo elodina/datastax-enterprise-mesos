@@ -105,12 +105,25 @@ class Node extends Constrained {
     if (memResource != null) reservedMem = Math.min(memResource.getScalar.getValue.toLong, mem)
 
     // ports
-    val reservedPorts: Map[String, Int] = reservePorts(offer)
-   
-    new Reservation(reservedCpus, reservedMem, reservedPorts)
+    var reservedPorts: mutable.HashMap[String, Int] = new mutable.HashMap[String, Int]
+    reservedPorts ++= reservePorts(offer)
+
+    // ignore internal port reservation for collocated instances
+    var ignoreInternalPort: Boolean = false
+    val collocatedNode = cluster.getNodes.find(n => n.runtime != null && n.runtime.hostname == offer.getHostname).getOrElse(null)
+
+    if (reservedPorts("internal") == -1 && collocatedNode != null) {
+      ignoreInternalPort = true
+
+      val port: Int = collocatedNode.runtime.reservation.ports("internal")
+      reservedPorts += ("internal" -> port)
+    }
+
+    // return reservation
+    new Reservation(reservedCpus, reservedMem, reservedPorts.toMap, ignoreInternalPort)
   }
 
-  def reservePorts(offer: Offer): Map[String, Int] = {
+  private[dse] def reservePorts(offer: Offer): Map[String, Int] = {
     val result = new mutable.HashMap[String, Int]()
     Node.portNames.foreach(result(_) = -1)
 
@@ -129,7 +142,7 @@ class Node extends Constrained {
         val port = activeNode.runtime.reservation.ports("internal")
         range = new Range(port, port)
       }
-      
+
       result(name) = reservePort(range, availPorts)
     }
 
@@ -394,15 +407,17 @@ object Node {
     var mem: Long = 0
 
     var ports: mutable.HashMap[String, Int] = new mutable.HashMap[String, Int]()
+    var ignoreInternalPort: Boolean = false
     resetPorts()
 
-    def this(cpus: Double = 0, mem: Long = 0, ports: Map[String, Int] = Map()) {
+    def this(cpus: Double = 0, mem: Long = 0, ports: Map[String, Int] = Map(), ignoreInternalPort: Boolean = false) {
       this
       this.cpus = cpus
       this.mem = mem
 
       this.resetPorts()
       this.ports ++= ports
+      this.ignoreInternalPort = ignoreInternalPort
     }
 
     def this(json: Map[String, Any]) {
@@ -450,7 +465,8 @@ object Node {
 
       for (name <- Node.portNames) {
         val port = ports(name)
-        if (port != -1) resources += portResource(port)
+        val ignorePort = name == "internal" && ignoreInternalPort
+        if (port != -1 && !ignorePort) resources += portResource(port)
       }
 
       resources.toList
@@ -462,6 +478,7 @@ object Node {
 
       resetPorts()
       ports ++= json("ports").asInstanceOf[Map[String, Number]].mapValues(_.intValue)
+      ignoreInternalPort = json("ignoreInternalPort").asInstanceOf[Boolean]
     }
 
     def toJson: JSONObject = {
@@ -469,7 +486,9 @@ object Node {
 
       json("cpus") = cpus
       json("mem") = mem
+
       json("ports") = new JSONObject(ports.toMap)
+      json("ignoreInternalPort") = ignoreInternalPort
 
       new JSONObject(json.toMap)
     }
