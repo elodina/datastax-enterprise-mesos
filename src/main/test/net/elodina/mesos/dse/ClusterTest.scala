@@ -38,10 +38,12 @@ class ClusterTest extends MesosTestCase {
 
     n0.seed = true
     n0.runtime = new Node.Runtime(hostname = "n0")
+    n0.runtime.address = "n0"
     assertEquals(List("n0"), cluster.availSeeds)
 
     n2.seed = true
     n2.runtime = new Node.Runtime(hostname = "n2")
+    n2.runtime.address = "n2"
     assertEquals(List("n0", "n2"), cluster.availSeeds)
   }
 
