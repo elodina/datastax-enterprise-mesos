@@ -99,7 +99,7 @@ object Executor extends org.apache.mesos.Executor {
     cassandraProcess.start()
 
     if (dseDir != null) {
-      agentProcess = AgentProcess(node, env)
+      agentProcess = AgentProcess(node, address, env)
       agentProcess.start()
     }
 
