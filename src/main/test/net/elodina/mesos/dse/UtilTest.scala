@@ -5,6 +5,7 @@ import org.junit.Test
 import org.junit.Assert._
 import java.io.File
 import java.nio.file.Files
+import java.net.{InetSocketAddress, ServerSocket}
 
 class UtilTest {
   // Period
@@ -200,6 +201,7 @@ class UtilTest {
     new BindAddress("broker0")
     new BindAddress("192.168.*")
     new BindAddress("if:eth1")
+    new BindAddress("if:eth1,if:eth2,192.168.*")
 
     // unknown source
     try { new BindAddress("unknown:value"); fail() }
@@ -214,9 +216,30 @@ class UtilTest {
     // address with mask
     assertEquals("127.0.0.1", new BindAddress("127.0.0.*").resolve())
 
-    // unresolvable
-    try { new BindAddress("255.255.*").resolve(); fail() }
-    catch { case e: IllegalStateException => }
+    // unknown ip
+    assertEquals(null, new BindAddress("255.255.*").resolve())
+
+    // unknown if
+    assertEquals(null, new BindAddress("if:unknown").resolve())
+  }
+
+  @Test
+  def BindAddress_resolve_checkPort {
+    val port = Util.findAvailPort
+
+    // port avail
+    val address: BindAddress = new BindAddress("127.*")
+    assertEquals("127.0.0.1", address.resolve(port))
+
+    // port unavail
+    var socket: ServerSocket = null
+    try {
+      socket = new ServerSocket()
+      socket.bind(new InetSocketAddress("127.0.0.1", port))
+      assertEquals(null, address.resolve(port))
+    } finally {
+      if (socket != null) socket.close()
+    }
   }
 
   @Test

@@ -53,7 +53,7 @@ class ClusterTest extends MesosTestCase {
     var read = new Cluster(Util.parseJsonAsMap("" + cluster.toJson))
     assertClusterEquals(cluster, read)
 
-    cluster.bindAddress = new BindAddress("192.168.3.*")
+    cluster.bindAddress = new BindAddress("192.168.3.*, if:eth1")
     cluster.ports ++= Map("internal" -> new Range("100..110"), "jmx" -> new Range("200..210"))
     read = new Cluster(Util.parseJsonAsMap("" + cluster.toJson))
     assertClusterEquals(cluster, read)

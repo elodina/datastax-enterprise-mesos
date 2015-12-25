@@ -66,6 +66,25 @@ class NodeTest extends MesosTestCase {
   }
 
   @Test
+  def reserve_ignoreInternalPort {
+    val node0 = Nodes.addNode(new Node("0"))
+    val node1 = Nodes.addNode(new Node("1"))
+
+    // internal port available
+    var reservation: Reservation = node1.reserve(offer(hostname = "slave0", resources = "ports:0..200"))
+    assertEquals(0, reservation.ports("internal"))
+    assertFalse(reservation.ignoreInternalPort)
+
+    // internal port unavailable, have collocated, running node
+    node0.state = Node.State.RUNNING
+    node0.runtime = new Node.Runtime(hostname = "slave0", reservation = new Node.Reservation(ports = Map("internal" -> 100)))
+    
+    reservation = node1.reserve(offer(hostname = "slave0", resources = "ports:0..99,101..200"))
+    assertEquals(100, reservation.ports("internal"))
+    assertTrue(reservation.ignoreInternalPort)
+  }
+
+  @Test
   def reservePorts {
     val node: Node = Nodes.addNode(new Node("0"))
 
@@ -248,7 +267,7 @@ class NodeTest extends MesosTestCase {
 
   @Test
   def Reservation_toJson_fromJson {
-    val reservation = new Reservation(1.0, 256, Map("internal" -> 7000))
+    val reservation = new Reservation(1.0, 256, Map("internal" -> 7000), true)
     val read = new Reservation(Util.parseJsonAsMap("" + reservation.toJson))
     assertReservationEquals(reservation, read)
   }
@@ -257,6 +276,9 @@ class NodeTest extends MesosTestCase {
   def Reservation_toResources {
     assertEquals(resources("").toList, new Reservation().toResources)
     assertEquals(resources("cpus:0.5;mem:500;ports:1000..1000;ports:2000").toList, new Reservation(0.5, 500, Map("internal" -> 1000, "jmx" -> 2000)).toResources)
+
+    // ignore internal port
+    assertEquals(resources("ports:2000").toList, new Reservation(ports = Map("internal" -> 1000, "jmx" -> 2000), ignoreInternalPort = true).toResources)
   }
 
   // Stickiness
@@ -352,6 +374,7 @@ class NodeTest extends MesosTestCase {
     assertEquals(expected.cpus, actual.cpus, 0.001)
     assertEquals(expected.mem, actual.mem)
     assertEquals(expected.ports, actual.ports)
+    assertEquals(expected.ignoreInternalPort, actual.ignoreInternalPort)
   }
 
   def assertStickinessEquals(expected: Stickiness, actual: Stickiness) {

@@ -25,7 +25,7 @@ import scala.collection.JavaConversions._
 import org.apache.log4j.Logger
 import java.util
 
-case class AgentProcess(node: Node, env: Map[String, String] = Map.empty) {
+case class AgentProcess(node: Node, address: String, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
 
   private val started = new AtomicBoolean(false)
@@ -36,6 +36,7 @@ case class AgentProcess(node: Node, env: Map[String, String] = Map.empty) {
   def start() {
     if (started.getAndSet(true)) throw new IllegalStateException("Datastax Agent already started")
     logger.info("Starting Datastax Agent")
+    editAgentYaml()
     process = startProcess()
   }
 
@@ -63,5 +64,18 @@ case class AgentProcess(node: Node, env: Map[String, String] = Map.empty) {
         process.destroy()
       }
     }
+  }
+
+  private def editAgentYaml() {
+    val file = new File(Executor.dseDir, "datastax-agent/conf/address.yaml")
+
+    val content =
+      s"""
+        |local_interface: $address}
+        |cassandra_port: ${node.runtime.reservation.ports("cql")}
+        |jmx_port: ${node.runtime.reservation.ports("jmx")}
+      """.stripMargin
+
+    Util.IO.writeFile(file, content)
   }
 }
