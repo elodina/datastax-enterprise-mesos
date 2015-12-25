@@ -136,7 +136,7 @@ object Executor extends org.apache.mesos.Executor {
     val port = node.runtime.reservation.ports("internal")
     val address = bindAddress.resolve(port)
 
-    if (address == null) throw new IllegalStateException(s"Failed to resolve address $bindAddress")
+    if (address == null) throw new IllegalStateException(s"Failed to resolve address $bindAddress or allocate port $port")
     address
   }
 
