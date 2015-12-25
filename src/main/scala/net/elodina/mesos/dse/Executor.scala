@@ -91,7 +91,7 @@ object Executor extends org.apache.mesos.Executor {
     val node: Node = new Node(json, expanded = true)
 
     var env = Map[String, String]()
-    if (Executor.jreDir != null) env += "JAVA_HOME" -> Executor.jreDir.toString
+    if (Executor.jreDir != null) env += "JAVA_HOME" -> Executor.jreDir.getAbsolutePath
 
     val address = resolveAddress(node)
 
