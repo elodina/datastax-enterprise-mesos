@@ -478,7 +478,7 @@ object Node {
 
       resetPorts()
       ports ++= json("ports").asInstanceOf[Map[String, Number]].mapValues(_.intValue)
-      if (json.contains("ignoreInternalPort")) ignoreInternalPort = json("ignoreInternalPort").asInstanceOf[Boolean]
+      ignoreInternalPort = json("ignoreInternalPort").asInstanceOf[Boolean]
     }
 
     def toJson: JSONObject = {
