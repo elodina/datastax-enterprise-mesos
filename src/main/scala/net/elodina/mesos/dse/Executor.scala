@@ -24,7 +24,7 @@ import org.apache.log4j._
 import org.apache.mesos.Protos._
 import org.apache.mesos.{ExecutorDriver, MesosExecutorDriver}
 
-import Util.Str
+import Util.{BindAddress, Str}
 import com.google.protobuf.ByteString
 
 object Executor extends org.apache.mesos.Executor {
@@ -93,7 +93,7 @@ object Executor extends org.apache.mesos.Executor {
     var env = Map[String, String]()
     if (Executor.jreDir != null) env += "JAVA_HOME" -> Executor.jreDir.toString
 
-    val address = if (node.cluster.bindAddress != null) node.cluster.bindAddress.resolve() else hostname
+    val address = resolveAddress(node)
 
     cassandraProcess = CassandraProcess(node, task, address, env)
     cassandraProcess.start()
@@ -127,6 +127,17 @@ object Executor extends org.apache.mesos.Executor {
 
   def error(driver: ExecutorDriver, message: String) {
     logger.info("[error] " + message)
+  }
+
+  private def resolveAddress(node: Node): String = {
+    val bindAddress: BindAddress = node.cluster.bindAddress
+    if (bindAddress == null) return hostname
+
+    val internalPort = node.runtime.reservation.ports("internal")
+    val address = bindAddress.resolve(internalPort)
+
+    if (address == null) throw new IllegalStateException(s"Failed to resolve address $bindAddress")
+    address
   }
 
   private def stopProcesses() {

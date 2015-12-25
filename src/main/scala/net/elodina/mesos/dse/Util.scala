@@ -31,7 +31,7 @@ import java.util.Date
 import java.text.SimpleDateFormat
 import scala.collection.mutable.ListBuffer
 import java.util.regex.{Matcher, Pattern}
-import java.net.{Inet4Address, InetAddress, NetworkInterface}
+import java.net._
 
 object Util {
   def parseList(s: String, entrySep: Char = ',', valueSep: Char = '=', nullValues: Boolean = true): List[(String, String)] = {
@@ -134,6 +134,34 @@ object Util {
       if (current.getName == name) all ++ current.getRanges.getRangeList
       else all
     }
+  }
+
+  def findAvailPort: Int = {
+    var s: ServerSocket = null
+    var port: Int = -1
+
+    try {
+      s = new ServerSocket(0)
+      port = s.getLocalPort
+    } finally { if (s != null) s.close(); }
+
+    port
+  }
+
+  private def portAvail(address: String, port: Int): Boolean = {
+    var socket: ServerSocket = null
+    try {
+      socket = new ServerSocket()
+      socket.bind(new InetSocketAddress(address, port))
+    } catch {
+      case e: IOException => return false
+    } finally {
+      if (socket != null)
+        try { socket.close() }
+        catch { case e: IOException => }
+    }
+
+    true
   }
 
   class Range(s: String) {
@@ -244,66 +272,98 @@ object Util {
   }
 
   class BindAddress(s: String) {
-    private var _source: String = null
-    private var _value: String = null
-
-    def source: String = _source
-    def value: String = _value
+    private val _values: ListBuffer[Value] = new ListBuffer[Value]()
 
     parse
     def parse {
-      val idx = s.indexOf(":")
-      if (idx != -1) {
-        _source = s.substring(0, idx)
-        _value = s.substring(idx + 1)
-      } else
-        _value = s
-
-      if (source != null && source != "if")
-        throw new IllegalArgumentException(s)
-    }
-
-    def resolve(): String = {
-      _source match {
-        case null => resolveAddress(_value)
-        case "if" => resolveInterfaceAddress(_value)
-        case _ => throw new IllegalStateException("Failed to resolve " + s)
+      for (part <- s.split(",")) {
+        _values += new Value(part.trim)
       }
     }
 
-    def resolveAddress(addressOrMask: String): String = {
-      if (!addressOrMask.endsWith("*")) return addressOrMask
-      val prefix = addressOrMask.substring(0, addressOrMask.length - 1)
+    def values: List[Value] = _values.toList
 
-      for (ni <- NetworkInterface.getNetworkInterfaces) {
-        val address = ni.getInetAddresses.find(_.getHostAddress.startsWith(prefix)).getOrElse(null)
-        if (address != null) return address.getHostAddress
+    def resolve(port: Int = -1): String = {
+      for (value <- values) {
+        val address: String = value.resolve()
+        if (address != null && (port == -1 || portAvail(address, port)))
+          return address
       }
 
-      throw new IllegalStateException("Failed to resolve " + s)
+      null
     }
 
-    def resolveInterfaceAddress(name: String): String = {
-      val ni = NetworkInterface.getNetworkInterfaces.find(_.getName == name).getOrElse(null)
-      if (ni == null) throw new IllegalStateException("Failed to resolve " + s)
-
-      val addresses: util.Enumeration[InetAddress] = ni.getInetAddresses
-      val address = addresses.find(_.isInstanceOf[Inet4Address]).getOrElse(null)
-      if (address != null) return address.getHostAddress
-
-      throw new IllegalStateException("Failed to resolve " + s)
-    }
-
-
-    override def hashCode(): Int = 31 * _source.hashCode + _value.hashCode
+    override def hashCode(): Int = values.hashCode()
 
     override def equals(o: scala.Any): Boolean = {
       if (!o.isInstanceOf[BindAddress]) return false
       val address = o.asInstanceOf[BindAddress]
-      _source == address._source && _value == address._value
+      values == address.values
     }
 
-    override def toString: String = s
+    override def toString: String = values.mkString(",")
+
+    class Value(s: String) {
+      private var _source: String = null
+      private var _value: String = null
+
+      def source: String = _source
+      def value: String = _value
+
+      parse
+      def parse {
+        val idx = s.indexOf(":")
+        if (idx != -1) {
+          _source = s.substring(0, idx)
+          _value = s.substring(idx + 1)
+        } else
+          _value = s
+
+        if (source != null && source != "if")
+          throw new IllegalArgumentException(s)
+      }
+
+      def resolve(): String = {
+        _source match {
+          case null => resolveAddress(_value)
+          case "if" => resolveInterfaceAddress(_value)
+          case _ => throw new UnsupportedOperationException(s"Invalid source $s")
+        }
+      }
+
+      def resolveAddress(addressOrMask: String): String = {
+        if (!addressOrMask.endsWith("*")) return addressOrMask
+        val prefix = addressOrMask.substring(0, addressOrMask.length - 1)
+
+        for (ni <- NetworkInterface.getNetworkInterfaces) {
+          val address = ni.getInetAddresses.find(_.getHostAddress.startsWith(prefix)).getOrElse(null)
+          if (address != null) return address.getHostAddress
+        }
+
+        null
+      }
+
+      def resolveInterfaceAddress(name: String): String = {
+        val ni = NetworkInterface.getNetworkInterfaces.find(_.getName == name).getOrElse(null)
+        if (ni == null) return null
+
+        val addresses: util.Enumeration[InetAddress] = ni.getInetAddresses
+        val address = addresses.find(_.isInstanceOf[Inet4Address]).getOrElse(null)
+        if (address != null) return address.getHostAddress
+
+        null
+      }
+
+      override def hashCode(): Int = 31 * _source.hashCode + _value.hashCode
+
+      override def equals(o: scala.Any): Boolean = {
+        if (!o.isInstanceOf[Value]) return false
+        val address = o.asInstanceOf[Value]
+        _source == address._source && _value == address._value
+      }
+
+      override def toString: String = s
+    }
   }
 
   object Str {
