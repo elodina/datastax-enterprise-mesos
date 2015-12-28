@@ -78,7 +78,7 @@ object ClusterCli {
   def handleAddUpdate(cmd: String, id: String, args: Array[String], help: Boolean = false): Unit = {
     val parser = new OptionParser()
     parser.accepts("bind-address", "Bind address mask (192.168.50.*, if:eth1). Default - auto.").withRequiredArg().ofType(classOf[String])
-    parser.accepts("internal-port", "Inter-node port.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("storage-port", "Inter-node port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("jmx-port", "JMX monitoring port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("cql-port", "CQL port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("thrift-port", "Thrift port.").withRequiredArg().ofType(classOf[String])
@@ -102,7 +102,7 @@ object ClusterCli {
     }
 
     val bindAddress = options.valueOf("bind-address").asInstanceOf[String]
-    val internalPort = options.valueOf("internal-port").asInstanceOf[String]
+    val storagePort = options.valueOf("storage-port").asInstanceOf[String]
     val jmxPort = options.valueOf("jmx-port").asInstanceOf[String]
     val cqlPort = options.valueOf("cql-port").asInstanceOf[String]
     val thriftPort = options.valueOf("thrift-port").asInstanceOf[String]
@@ -110,7 +110,7 @@ object ClusterCli {
     val params = mutable.HashMap("cluster" -> id)
 
     if (bindAddress != null) params("bindAddress") = bindAddress
-    if (internalPort != null) params("internalPort") = internalPort
+    if (storagePort != null) params("storagePort") = storagePort
     if (jmxPort != null) params("jmxPort") = jmxPort
     if (cqlPort != null) params("cqlPort") = cqlPort
     if (thriftPort != null) params("thriftPort") = thriftPort

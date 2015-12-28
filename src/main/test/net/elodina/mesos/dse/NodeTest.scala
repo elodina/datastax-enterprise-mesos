@@ -56,32 +56,32 @@ class NodeTest extends MesosTestCase {
     var reservation = node.reserve(offer(resources = "cpus:0.3;mem:300;ports:0..1"))
     assertEquals(0.3d, reservation.cpus, 0.001)
     assertEquals(300, reservation.mem)
-    assertEquals(Map(Port.INTERNAL -> 0, Port.JMX -> 1, Port.CQL -> -1, Port.THRIFT -> -1), reservation.ports)
+    assertEquals(Map(Port.STORAGE -> 0, Port.JMX -> 1, Port.CQL -> -1, Port.THRIFT -> -1), reservation.ports)
 
     // complete reservation
     reservation = node.reserve(offer(resources = "cpus:0.7;mem:1000;ports:0..10"))
     assertEquals(node.cpu, reservation.cpus, 0.001)
     assertEquals(node.mem, reservation.mem)
-    assertEquals(Map(Port.INTERNAL -> 0, Port.JMX -> 1, Port.CQL -> 2, Port.THRIFT -> 3), reservation.ports)
+    assertEquals(Map(Port.STORAGE -> 0, Port.JMX -> 1, Port.CQL -> 2, Port.THRIFT -> 3), reservation.ports)
   }
 
   @Test
-  def reserve_ignoreInternalPort {
+  def reserve_ignoreStoragePort {
     val node0 = Nodes.addNode(new Node("0"))
     val node1 = Nodes.addNode(new Node("1"))
 
-    // internal port available
+    // storage port available
     var reservation: Reservation = node1.reserve(offer(hostname = "slave0", resources = "ports:0..200"))
-    assertEquals(0, reservation.ports(Port.INTERNAL))
-    assertFalse(reservation.ignoreInternalPort)
+    assertEquals(0, reservation.ports(Port.STORAGE))
+    assertFalse(reservation.ignoreStoragePort)
 
-    // internal port unavailable, have collocated, running node
+    // storage port unavailable, have collocated, running node
     node0.state = Node.State.RUNNING
-    node0.runtime = new Node.Runtime(hostname = "slave0", reservation = new Node.Reservation(ports = Map(Port.INTERNAL -> 100)))
+    node0.runtime = new Node.Runtime(hostname = "slave0", reservation = new Node.Reservation(ports = Map(Port.STORAGE -> 100)))
     
     reservation = node1.reserve(offer(hostname = "slave0", resources = "ports:0..99,101..200"))
-    assertEquals(100, reservation.ports(Port.INTERNAL))
-    assertTrue(reservation.ignoreInternalPort)
+    assertEquals(100, reservation.ports(Port.STORAGE))
+    assertTrue(reservation.ignoreStoragePort)
   }
 
   @Test
@@ -109,27 +109,27 @@ class NodeTest extends MesosTestCase {
     }
 
     // any ports
-    test("", "ports:0", Map(Port.INTERNAL -> 0, Port.JMX -> -1, Port.CQL -> -1, Port.THRIFT -> -1))
-    test("", "ports:0..2", Map(Port.INTERNAL -> 0, Port.JMX -> 1, Port.CQL -> 2, Port.THRIFT -> -1))
-    test("", "ports:0..1,10..20", Map(Port.INTERNAL -> 0, Port.JMX   -> 1, Port.CQL -> 10, Port.THRIFT -> 11))
+    test("", "ports:0", Map(Port.STORAGE -> 0, Port.JMX -> -1, Port.CQL -> -1, Port.THRIFT -> -1))
+    test("", "ports:0..2", Map(Port.STORAGE -> 0, Port.JMX -> 1, Port.CQL -> 2, Port.THRIFT -> -1))
+    test("", "ports:0..1,10..20", Map(Port.STORAGE -> 0, Port.JMX   -> 1, Port.CQL -> 10, Port.THRIFT -> 11))
 
     // single port
-    test("internal=0", "ports:0", Map(Port.INTERNAL -> 0))
-    test("internal=1000,jmx=1001", "ports:1000..1001", Map(Port.INTERNAL -> 1000, Port.JMX -> 1001))
-    test("internal=1000,jmx=1001", "ports:999..1000;ports:1002..1010", Map(Port.INTERNAL -> 1000, Port.JMX -> -1))
-    test("internal=1000,jmx=1001,cql=1005,thrift=1010", "ports:1001..1008,1011..1100", Map(Port.INTERNAL -> -1, Port.JMX -> 1001, Port.CQL -> 1005, Port.THRIFT -> -1))
+    test("storage=0", "ports:0", Map(Port.STORAGE -> 0))
+    test("storage=1000,jmx=1001", "ports:1000..1001", Map(Port.STORAGE -> 1000, Port.JMX -> 1001))
+    test("storage=1000,jmx=1001", "ports:999..1000;ports:1002..1010", Map(Port.STORAGE -> 1000, Port.JMX -> -1))
+    test("storage=1000,jmx=1001,cql=1005,thrift=1010", "ports:1001..1008,1011..1100", Map(Port.STORAGE -> -1, Port.JMX -> 1001, Port.CQL -> 1005, Port.THRIFT -> -1))
 
     // port ranges
-    test("internal=10..20", "ports:15..25", Map(Port.INTERNAL -> 15))
-    test("internal=10..20,jmx=100..200", "ports:15..25,150..160", Map(Port.INTERNAL -> 15, Port.JMX -> 150))
+    test("storage=10..20", "ports:15..25", Map(Port.STORAGE -> 15))
+    test("storage=10..20,jmx=100..200", "ports:15..25,150..160", Map(Port.STORAGE -> 15, Port.JMX -> 150))
 
     // cluster has active node
     node.state = Node.State.RUNNING
-    node.runtime = new Runtime(reservation = new Reservation(ports = Map(Port.INTERNAL -> 100)))
+    node.runtime = new Runtime(reservation = new Reservation(ports = Map(Port.STORAGE -> 100)))
 
-    test("internal=10..20", "ports:0..1000", Map(Port.INTERNAL -> 100))
-    test("", "ports:0..1000", Map(Port.INTERNAL -> 100))
-    test("internal=10..20", "ports:0..99", Map(Port.INTERNAL -> -1))
+    test("storage=10..20", "ports:0..1000", Map(Port.STORAGE -> 100))
+    test("", "ports:0..1000", Map(Port.STORAGE -> 100))
+    test("storage=10..20", "ports:0..99", Map(Port.STORAGE -> -1))
   }
 
   @Test
@@ -267,7 +267,7 @@ class NodeTest extends MesosTestCase {
 
   @Test
   def Reservation_toJson_fromJson {
-    val reservation = new Reservation(1.0, 256, Map(Port.INTERNAL -> 7000), true)
+    val reservation = new Reservation(1.0, 256, Map(Port.STORAGE -> 7000), true)
     val read = new Reservation(Util.parseJsonAsMap("" + reservation.toJson))
     assertReservationEquals(reservation, read)
   }
@@ -275,10 +275,10 @@ class NodeTest extends MesosTestCase {
   @Test
   def Reservation_toResources {
     assertEquals(resources("").toList, new Reservation().toResources)
-    assertEquals(resources("cpus:0.5;mem:500;ports:1000..1000;ports:2000").toList, new Reservation(0.5, 500, Map(Port.INTERNAL -> 1000, Port.JMX -> 2000)).toResources)
+    assertEquals(resources("cpus:0.5;mem:500;ports:1000..1000;ports:2000").toList, new Reservation(0.5, 500, Map(Port.STORAGE -> 1000, Port.JMX -> 2000)).toResources)
 
-    // ignore internal port
-    assertEquals(resources("ports:2000").toList, new Reservation(ports = Map(Port.INTERNAL -> 1000, Port.JMX -> 2000), ignoreInternalPort = true).toResources)
+    // ignore storage port
+    assertEquals(resources("ports:2000").toList, new Reservation(ports = Map(Port.STORAGE -> 1000, Port.JMX -> 2000), ignoreStoragePort = true).toResources)
   }
 
   // Stickiness
@@ -374,7 +374,7 @@ class NodeTest extends MesosTestCase {
     assertEquals(expected.cpus, actual.cpus, 0.001)
     assertEquals(expected.mem, actual.mem)
     assertEquals(expected.ports, actual.ports)
-    assertEquals(expected.ignoreInternalPort, actual.ignoreInternalPort)
+    assertEquals(expected.ignoreStoragePort, actual.ignoreStoragePort)
   }
 
   def assertStickinessEquals(expected: Stickiness, actual: Stickiness) {

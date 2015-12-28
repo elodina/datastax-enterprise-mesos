@@ -323,10 +323,10 @@ object HttpServer {
         try { new BindAddress(bindAddress) }
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid bindAddress") }
 
-      val internalPort: String = request.getParameter("internalPort")
-      if (internalPort != null && !internalPort.isEmpty)
-        try { new Range(internalPort) }
-        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid internalPort") }
+      val storagePort: String = request.getParameter("storagePort")
+      if (storagePort != null && !storagePort.isEmpty)
+        try { new Range(storagePort) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid storagePort") }
 
       val jmxPort: String = request.getParameter("jmxPort")
       if (jmxPort != null && !jmxPort.isEmpty)
@@ -353,7 +353,7 @@ object HttpServer {
         cluster = Nodes.addCluster(new Cluster(id))
 
       if (bindAddress != null) cluster.bindAddress = if (bindAddress != "") new BindAddress(bindAddress) else null
-      if (internalPort != null) cluster.ports(Node.Port.INTERNAL) = if (internalPort != "") new Range(internalPort) else null
+      if (storagePort != null) cluster.ports(Node.Port.STORAGE) = if (storagePort != "") new Range(storagePort) else null
       if (jmxPort != null) cluster.ports(Node.Port.JMX) = if (jmxPort != "") new Range(jmxPort) else null
       if (cqlPort != null) cluster.ports(Node.Port.CQL) = if (cqlPort != "") new Range(cqlPort) else null
       if (thriftPort != null) cluster.ports(Node.Port.THRIFT) = if (thriftPort != "") new Range(thriftPort) else null

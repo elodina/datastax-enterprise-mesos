@@ -164,7 +164,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
     cassandraYaml.put("listen_address", address)
     cassandraYaml.put("rpc_address", address)
 
-    val portKeys = Map("internal" -> "storage_port", "cql" -> "native_transport_port", "thrift" -> "rpc_port")
+    val portKeys = Map("storage" -> "storage_port", "cql" -> "native_transport_port", "thrift" -> "rpc_port")
     for ((port, value) <- node.runtime.reservation.ports)
       if (portKeys.contains("" + port))
         cassandraYaml.put(portKeys("" + port), value.asInstanceOf[AnyRef])
