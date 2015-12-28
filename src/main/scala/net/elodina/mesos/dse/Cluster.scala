@@ -9,7 +9,7 @@ class Cluster {
   var name: String = null
 
   var bindAddress: BindAddress = null
-  var ports: mutable.HashMap[String, Util.Range] = new mutable.HashMap[String, Util.Range]()
+  var ports: mutable.HashMap[Node.Port.Value, Util.Range] = new mutable.HashMap[Node.Port.Value, Util.Range]()
 
   resetPorts
 
@@ -40,7 +40,7 @@ class Cluster {
 
   def resetPorts: Unit = {
     ports.clear()
-    Node.portNames.foreach(ports(_) = null)
+    Node.Port.values.foreach(ports(_) = null)
   }
 
   def fromJson(json: Map[String, Any]): Unit = {
@@ -49,8 +49,8 @@ class Cluster {
     if (json.contains("bindAddress")) bindAddress = new BindAddress(json("bindAddress").asInstanceOf[String])
 
     resetPorts
-    for ((name, range) <- json("ports").asInstanceOf[Map[String, String]])
-      ports(name) = new Util.Range(range)
+    for ((port, range) <- json("ports").asInstanceOf[Map[String, String]])
+      ports(Node.Port.withName(port)) = new Util.Range(range)
   }
 
   def toJson: JSONObject = {
@@ -60,8 +60,8 @@ class Cluster {
     if (bindAddress != null) json("bindAddress") = "" + bindAddress
 
     val portsJson = new mutable.HashMap[String, Any]()
-    for ((name, range) <- ports)
-      if (range != null) portsJson(name) = "" + range
+    for ((port, range) <- ports)
+      if (range != null) portsJson("" + port) = "" + range
     json("ports") = new JSONObject(portsJson.toMap)
 
     new JSONObject(json.toMap)

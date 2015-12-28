@@ -72,7 +72,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
   def awaitConsistentState(): Boolean = {
     while (!stopped) {
       try {
-        val probe = new NodeProbe("localhost", node.runtime.reservation.ports("jmx"))
+        val probe = new NodeProbe("localhost", node.runtime.reservation.ports(Node.Port.JMX))
 
         val initialized = probe.isInitialized
         val joined = probe.isJoined
@@ -150,7 +150,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
 
     editCassandraYaml(new File(confDir , "cassandra.yaml"))
     Util.IO.replaceInFile(new File(confDir, "cassandra-rackdc.properties"), Map("dc=.*" -> s"dc=${node.dc}", "rack=.*" -> s"rack=${node.rack}"))
-    Util.IO.replaceInFile(new File(confDir, "cassandra-env.sh"), Map("JMX_PORT=.*" -> s"JMX_PORT=${node.runtime.reservation.ports("jmx")}"))
+    Util.IO.replaceInFile(new File(confDir, "cassandra-env.sh"), Map("JMX_PORT=.*" -> s"JMX_PORT=${node.runtime.reservation.ports(Node.Port.JMX)}"))
   }
 
   private def editCassandraYaml(file: File) {
@@ -165,9 +165,9 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
     cassandraYaml.put("rpc_address", address)
 
     val portKeys = Map("internal" -> "storage_port", "cql" -> "native_transport_port", "thrift" -> "rpc_port")
-    for ((key, port) <- node.runtime.reservation.ports)
-      if (portKeys.contains(key))
-        cassandraYaml.put(portKeys(key), port.asInstanceOf[AnyRef])
+    for ((port, value) <- node.runtime.reservation.ports)
+      if (portKeys.contains("" + port))
+        cassandraYaml.put(portKeys("" + port), value.asInstanceOf[AnyRef])
 
     setSeeds(cassandraYaml, if (!node.runtime.seeds.isEmpty) node.runtime.seeds.mkString(",") else address)
     cassandraYaml.put("broadcast_address", address)

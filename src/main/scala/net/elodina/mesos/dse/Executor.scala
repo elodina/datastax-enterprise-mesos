@@ -133,7 +133,7 @@ object Executor extends org.apache.mesos.Executor {
     val bindAddress: BindAddress = node.cluster.bindAddress
     if (bindAddress == null) return hostname
 
-    val port = node.runtime.reservation.ports("internal")
+    val port = node.runtime.reservation.ports(Node.Port.INTERNAL)
     val address = bindAddress.resolve(port)
 
     if (address == null) throw new IllegalStateException(s"Failed to resolve address $bindAddress or allocate port $port")

@@ -4,7 +4,7 @@ import org.junit.Test
 import org.junit.Assert._
 import org.apache.mesos.Protos.{TaskInfo, CommandInfo, ExecutorInfo}
 import scala.concurrent.duration.Duration
-import net.elodina.mesos.dse.Node.{Reservation, Runtime, Stickiness}
+import net.elodina.mesos.dse.Node.{Reservation, Runtime, Stickiness, Port}
 import scala.collection.mutable
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
@@ -56,13 +56,13 @@ class NodeTest extends MesosTestCase {
     var reservation = node.reserve(offer(resources = "cpus:0.3;mem:300;ports:0..1"))
     assertEquals(0.3d, reservation.cpus, 0.001)
     assertEquals(300, reservation.mem)
-    assertEquals(Map("internal" -> 0, "jmx" -> 1, "cql" -> -1, "thrift" -> -1), reservation.ports)
+    assertEquals(Map(Port.INTERNAL -> 0, Port.JMX -> 1, Port.CQL -> -1, Port.THRIFT -> -1), reservation.ports)
 
     // complete reservation
     reservation = node.reserve(offer(resources = "cpus:0.7;mem:1000;ports:0..10"))
     assertEquals(node.cpu, reservation.cpus, 0.001)
     assertEquals(node.mem, reservation.mem)
-    assertEquals(Map("internal" -> 0, "jmx" -> 1, "cql" -> 2, "thrift" -> 3), reservation.ports)
+    assertEquals(Map(Port.INTERNAL -> 0, Port.JMX -> 1, Port.CQL -> 2, Port.THRIFT -> 3), reservation.ports)
   }
 
   @Test
@@ -72,15 +72,15 @@ class NodeTest extends MesosTestCase {
 
     // internal port available
     var reservation: Reservation = node1.reserve(offer(hostname = "slave0", resources = "ports:0..200"))
-    assertEquals(0, reservation.ports("internal"))
+    assertEquals(0, reservation.ports(Port.INTERNAL))
     assertFalse(reservation.ignoreInternalPort)
 
     // internal port unavailable, have collocated, running node
     node0.state = Node.State.RUNNING
-    node0.runtime = new Node.Runtime(hostname = "slave0", reservation = new Node.Reservation(ports = Map("internal" -> 100)))
+    node0.runtime = new Node.Runtime(hostname = "slave0", reservation = new Node.Reservation(ports = Map(Port.INTERNAL -> 100)))
     
     reservation = node1.reserve(offer(hostname = "slave0", resources = "ports:0..99,101..200"))
-    assertEquals(100, reservation.ports("internal"))
+    assertEquals(100, reservation.ports(Port.INTERNAL))
     assertTrue(reservation.ignoreInternalPort)
   }
 
@@ -88,48 +88,48 @@ class NodeTest extends MesosTestCase {
   def reservePorts {
     val node: Node = Nodes.addNode(new Node("0"))
 
-    def test(portsDef: String, resources: String, expected: Map[String, Int]) {
+    def test(portsDef: String, resources: String, expected: Map[Port.Value, Int]) {
       // parses expr like: storage=0..4,jmx=5,cql=100..110
-      def parsePortsDef(s: String): Map[String, Range] = {
-        val ports = new mutable.HashMap[String, Range]()
-        Node.portNames.foreach(ports(_) = null)
+      def parsePortsDef(s: String): Map[Port.Value, Range] = {
+        val ports = new mutable.HashMap[Port.Value, Range]()
+        Port.values.foreach(ports(_) = null)
 
         for ((k,v) <- Util.parseMap(s))
-          ports(k) = new Range(v)
+          ports(Port.withName(k)) = new Range(v)
 
         ports.toMap
       }
 
       node.cluster.ports.clear()
       node.cluster.ports ++= parsePortsDef(portsDef)
-      val ports: Map[String, Int] = node.reservePorts(offer(resources = resources))
+      val ports: Map[Port.Value, Int] = node.reservePorts(offer(resources = resources))
 
-      for ((name, port) <- expected)
-        assertTrue(s"portsDef:$portsDef, resources:$resources, expected:$expected, actual:$ports", ports.getOrElse(name, null) == port)
+      for ((port, value) <- expected)
+        assertTrue(s"portsDef:$portsDef, resources:$resources, expected:$expected, actual:$ports", ports.getOrElse(port, null) == value)
     }
 
     // any ports
-    test("", "ports:0", Map("internal" -> 0, "jmx" -> -1, "cql" -> -1, "thrift" -> -1))
-    test("", "ports:0..2", Map("internal" -> 0, "jmx" -> 1, "cql" -> 2, "thrift" -> -1))
-    test("", "ports:0..1,10..20", Map("internal" -> 0, "jmx" -> 1, "cql" -> 10, "thrift" -> 11))
+    test("", "ports:0", Map(Port.INTERNAL -> 0, Port.JMX -> -1, Port.CQL -> -1, Port.THRIFT -> -1))
+    test("", "ports:0..2", Map(Port.INTERNAL -> 0, Port.JMX -> 1, Port.CQL -> 2, Port.THRIFT -> -1))
+    test("", "ports:0..1,10..20", Map(Port.INTERNAL -> 0, Port.JMX   -> 1, Port.CQL -> 10, Port.THRIFT -> 11))
 
     // single port
-    test("internal=0", "ports:0", Map("internal" -> 0))
-    test("internal=1000,jmx=1001", "ports:1000..1001", Map("internal" -> 1000, "jmx" -> 1001))
-    test("internal=1000,jmx=1001", "ports:999..1000;ports:1002..1010", Map("internal" -> 1000, "jmx" -> -1))
-    test("internal=1000,jmx=1001,cql=1005,thrift=1010", "ports:1001..1008,1011..1100", Map("internal" -> -1, "jmx" -> 1001, "cql" -> 1005, "thrift" -> -1))
+    test("internal=0", "ports:0", Map(Port.INTERNAL -> 0))
+    test("internal=1000,jmx=1001", "ports:1000..1001", Map(Port.INTERNAL -> 1000, Port.JMX -> 1001))
+    test("internal=1000,jmx=1001", "ports:999..1000;ports:1002..1010", Map(Port.INTERNAL -> 1000, Port.JMX -> -1))
+    test("internal=1000,jmx=1001,cql=1005,thrift=1010", "ports:1001..1008,1011..1100", Map(Port.INTERNAL -> -1, Port.JMX -> 1001, Port.CQL -> 1005, Port.THRIFT -> -1))
 
     // port ranges
-    test("internal=10..20", "ports:15..25", Map("internal" -> 15))
-    test("internal=10..20,jmx=100..200", "ports:15..25,150..160", Map("internal" -> 15, "jmx" -> 150))
+    test("internal=10..20", "ports:15..25", Map(Port.INTERNAL -> 15))
+    test("internal=10..20,jmx=100..200", "ports:15..25,150..160", Map(Port.INTERNAL -> 15, Port.JMX -> 150))
 
     // cluster has active node
     node.state = Node.State.RUNNING
-    node.runtime = new Runtime(reservation = new Reservation(ports = Map("internal" -> 100)))
+    node.runtime = new Runtime(reservation = new Reservation(ports = Map(Port.INTERNAL -> 100)))
 
-    test("internal=10..20", "ports:0..1000", Map("internal" -> 100))
-    test("", "ports:0..1000", Map("internal" -> 100))
-    test("internal=10..20", "ports:0..99", Map("internal" -> -1))
+    test("internal=10..20", "ports:0..1000", Map(Port.INTERNAL -> 100))
+    test("", "ports:0..1000", Map(Port.INTERNAL -> 100))
+    test("internal=10..20", "ports:0..99", Map(Port.INTERNAL -> -1))
   }
 
   @Test
@@ -267,7 +267,7 @@ class NodeTest extends MesosTestCase {
 
   @Test
   def Reservation_toJson_fromJson {
-    val reservation = new Reservation(1.0, 256, Map("internal" -> 7000), true)
+    val reservation = new Reservation(1.0, 256, Map(Port.INTERNAL -> 7000), true)
     val read = new Reservation(Util.parseJsonAsMap("" + reservation.toJson))
     assertReservationEquals(reservation, read)
   }
@@ -275,10 +275,10 @@ class NodeTest extends MesosTestCase {
   @Test
   def Reservation_toResources {
     assertEquals(resources("").toList, new Reservation().toResources)
-    assertEquals(resources("cpus:0.5;mem:500;ports:1000..1000;ports:2000").toList, new Reservation(0.5, 500, Map("internal" -> 1000, "jmx" -> 2000)).toResources)
+    assertEquals(resources("cpus:0.5;mem:500;ports:1000..1000;ports:2000").toList, new Reservation(0.5, 500, Map(Port.INTERNAL -> 1000, Port.JMX -> 2000)).toResources)
 
     // ignore internal port
-    assertEquals(resources("ports:2000").toList, new Reservation(ports = Map("internal" -> 1000, "jmx" -> 2000), ignoreInternalPort = true).toResources)
+    assertEquals(resources("ports:2000").toList, new Reservation(ports = Map(Port.INTERNAL -> 1000, Port.JMX -> 2000), ignoreInternalPort = true).toResources)
   }
 
   // Stickiness

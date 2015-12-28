@@ -82,8 +82,8 @@ class Node extends Constrained {
     if (reservation.cpus < cpu) return s"cpus < $cpu"
     if (reservation.mem < mem) return s"mem < $mem"
 
-    for (name <- Node.portNames)
-      if (reservation.ports(name) == -1) return s"no suitable $name port"
+    for (port <- Node.Port.values)
+      if (reservation.ports(port) == -1) return s"no suitable $port port"
 
     if (!stickiness.allowsHostname(offer.getHostname, now))
       return "hostname != stickiness hostname"
@@ -105,27 +105,27 @@ class Node extends Constrained {
     if (memResource != null) reservedMem = Math.min(memResource.getScalar.getValue.toLong, mem)
 
     // ports
-    var reservedPorts: mutable.HashMap[String, Int] = new mutable.HashMap[String, Int]
+    var reservedPorts = new mutable.HashMap[Node.Port.Value, Int]
     reservedPorts ++= reservePorts(offer)
 
     // ignore internal port reservation for collocated instances
     var ignoreInternalPort: Boolean = false
     val collocatedNode = cluster.getNodes.find(n => n.runtime != null && n.runtime.hostname == offer.getHostname).getOrElse(null)
 
-    if (reservedPorts("internal") == -1 && collocatedNode != null) {
+    if (reservedPorts(Node.Port.INTERNAL) == -1 && collocatedNode != null) {
       ignoreInternalPort = true
 
-      val port: Int = collocatedNode.runtime.reservation.ports("internal")
-      reservedPorts += ("internal" -> port)
+      val port: Int = collocatedNode.runtime.reservation.ports(Node.Port.INTERNAL)
+      reservedPorts += (Node.Port.INTERNAL -> port)
     }
 
     // return reservation
     new Reservation(reservedCpus, reservedMem, reservedPorts.toMap, ignoreInternalPort)
   }
 
-  private[dse] def reservePorts(offer: Offer): Map[String, Int] = {
-    val result = new mutable.HashMap[String, Int]()
-    Node.portNames.foreach(result(_) = -1)
+  private[dse] def reservePorts(offer: Offer): Map[Node.Port.Value, Int] = {
+    val result = new mutable.HashMap[Node.Port.Value, Int]()
+    Node.Port.values.foreach(result(_) = -1)
 
     val resource = offer.getResourcesList.toList.find(_.getName == "ports").getOrElse(null)
     if (resource == null) return result.toMap
@@ -133,17 +133,17 @@ class Node extends Constrained {
     var availPorts: ListBuffer[Range] = new ListBuffer[Range]()
     availPorts ++= resource.getRanges.getRangeList.map(r => new Util.Range(r.getBegin.toInt, r.getEnd.toInt)).sortBy(_.start)
 
-    for (name <- Node.portNames) {
-      var range: Range = cluster.ports(name)
+    for (port <- Node.Port.values) {
+      var range: Range = cluster.ports(port)
 
       // use same internal port for the whole cluster
       val activeNode = cluster.getNodes.find(_.runtime != null).getOrElse(null)
-      if (name == "internal" && activeNode != null) {
-        val port = activeNode.runtime.reservation.ports("internal")
-        range = new Range(port, port)
+      if (port == Node.Port.INTERNAL && activeNode != null) {
+        val value = activeNode.runtime.reservation.ports(Node.Port.INTERNAL)
+        range = new Range(value, value)
       }
 
-      result(name) = reservePort(range, availPorts)
+      result(port) = reservePort(range, availPorts)
     }
 
     result.toMap
@@ -297,8 +297,6 @@ class Node extends Constrained {
 }
 
 object Node {
-  def portNames: List[String] = List("internal", "jmx", "cql", "thrift")
-
   def idFromTaskId(taskId: String): String = {
     taskId.split("-", 3) match {
       case Array(_, value, _) => value
@@ -318,6 +316,13 @@ object Node {
     val RUNNING = Value("running")
     val STOPPING = Value("stopping")
     val RECONCILING = Value("reconciling")
+  }
+
+  object Port extends Enumeration {
+    val INTERNAL = Value("internal")
+    val JMX = Value("jmx")
+    val CQL = Value("cql")
+    val THRIFT = Value("thrift")
   }
 
   class Runtime() {
@@ -406,11 +411,11 @@ object Node {
     var cpus: Double = 0
     var mem: Long = 0
 
-    var ports: mutable.HashMap[String, Int] = new mutable.HashMap[String, Int]()
+    var ports: mutable.HashMap[Node.Port.Value, Int] = new mutable.HashMap[Node.Port.Value, Int]()
     var ignoreInternalPort: Boolean = false
     resetPorts()
 
-    def this(cpus: Double = 0, mem: Long = 0, ports: Map[String, Int] = Map(), ignoreInternalPort: Boolean = false) {
+    def this(cpus: Double = 0, mem: Long = 0, ports: Map[Node.Port.Value, Int] = Map(), ignoreInternalPort: Boolean = false) {
       this
       this.cpus = cpus
       this.mem = mem
@@ -427,7 +432,7 @@ object Node {
 
     def resetPorts() {
       ports.clear()
-      Node.portNames.foreach(ports(_) = -1)
+      Node.Port.values.foreach(ports(_) = -1)
     }
 
     def toResources: List[Resource] = {
@@ -463,10 +468,10 @@ object Node {
       if (cpus > 0) resources += cpusResource(cpus)
       if (mem > 0) resources += memResource(mem)
 
-      for (name <- Node.portNames) {
-        val port = ports(name)
-        val ignorePort = name == "internal" && ignoreInternalPort
-        if (port != -1 && !ignorePort) resources += portResource(port)
+      for (port <- Node.Port.values) {
+        val value = ports(port)
+        val ignorePort = port == Node.Port.INTERNAL && ignoreInternalPort
+        if (value != -1 && !ignorePort) resources += portResource(value)
       }
 
       resources.toList
@@ -477,7 +482,9 @@ object Node {
       mem = json("mem").asInstanceOf[Number].longValue()
 
       resetPorts()
-      ports ++= json("ports").asInstanceOf[Map[String, Number]].mapValues(_.intValue)
+      for ((port, value) <- json("ports").asInstanceOf[Map[String, Number]])
+        ports += Node.Port.withName(port) -> value.intValue
+
       ignoreInternalPort = json("ignoreInternalPort").asInstanceOf[Boolean]
     }
 
@@ -487,7 +494,10 @@ object Node {
       json("cpus") = cpus
       json("mem") = mem
 
-      json("ports") = new JSONObject(ports.toMap)
+      val portsJson = new mutable.HashMap[String, Any]()
+      for ((port, value) <- ports) portsJson += "" + port -> value
+      json("ports") = new JSONObject(portsJson.toMap)
+
       json("ignoreInternalPort") = ignoreInternalPort
 
       new JSONObject(json.toMap)

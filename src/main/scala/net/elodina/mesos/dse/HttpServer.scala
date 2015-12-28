@@ -353,10 +353,10 @@ object HttpServer {
         cluster = Nodes.addCluster(new Cluster(id))
 
       if (bindAddress != null) cluster.bindAddress = if (bindAddress != "") new BindAddress(bindAddress) else null
-      if (internalPort != null) cluster.ports("internal") = if (internalPort != "") new Range(internalPort) else null
-      if (jmxPort != null) cluster.ports("jmx") = if (jmxPort != "") new Range(jmxPort) else null
-      if (cqlPort != null) cluster.ports("cql") = if (cqlPort != "") new Range(cqlPort) else null
-      if (thriftPort != null) cluster.ports("thrift") = if (thriftPort != "") new Range(thriftPort) else null
+      if (internalPort != null) cluster.ports(Node.Port.INTERNAL) = if (internalPort != "") new Range(internalPort) else null
+      if (jmxPort != null) cluster.ports(Node.Port.JMX) = if (jmxPort != "") new Range(jmxPort) else null
+      if (cqlPort != null) cluster.ports(Node.Port.CQL) = if (cqlPort != "") new Range(cqlPort) else null
+      if (thriftPort != null) cluster.ports(Node.Port.THRIFT) = if (thriftPort != "") new Range(thriftPort) else null
 
       Nodes.save()
       response.getWriter.println(cluster.toJson)

@@ -318,8 +318,8 @@ object NodeCli {
     s += s"cpu:${reservation.cpus}"
     s += s", mem:${reservation.mem}"
 
-    for (name <- Node.portNames)
-      s += s", $name-port:${reservation.ports(name)}"
+    for (port <- Node.Port.values)
+      s += s", $port-port:${reservation.ports(port)}"
 
     s
   }

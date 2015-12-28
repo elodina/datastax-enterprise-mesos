@@ -158,10 +158,10 @@ object ClusterCli {
   private def clusterPorts(cluster: Cluster): String = {
     var s = ""
 
-    for (name <- Node.portNames) {
+    for (port <- Node.Port.values) {
       if (!s.isEmpty) s += ", "
-      val range = cluster.ports(name)
-      s += name + ":" + (if (range != null) range else "<auto>")
+      val range = cluster.ports(port)
+      s += port + ":" + (if (range != null) range else "<auto>")
     }
 
     s
