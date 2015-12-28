@@ -109,18 +109,18 @@ class Node extends Constrained {
     reservedPorts ++= reservePorts(offer)
 
     // ignore storage port reservation for collocated instances
-    var ignoreStoragePort: Boolean = false
+    var ignoredPorts = new ListBuffer[Node.Port.Value]
     val collocatedNode = cluster.getNodes.find(n => n.runtime != null && n.runtime.hostname == offer.getHostname).getOrElse(null)
 
     if (reservedPorts(Node.Port.STORAGE) == -1 && collocatedNode != null) {
-      ignoreStoragePort = true
+      ignoredPorts += Node.Port.STORAGE
 
       val port: Int = collocatedNode.runtime.reservation.ports(Node.Port.STORAGE)
       reservedPorts += (Node.Port.STORAGE -> port)
     }
 
     // return reservation
-    new Reservation(reservedCpus, reservedMem, reservedPorts.toMap, ignoreStoragePort)
+    new Reservation(reservedCpus, reservedMem, reservedPorts.toMap, ignoredPorts.toList)
   }
 
   private[dse] def reservePorts(offer: Offer): Map[Node.Port.Value, Int] = {
@@ -412,17 +412,18 @@ object Node {
     var mem: Long = 0
 
     var ports: mutable.HashMap[Node.Port.Value, Int] = new mutable.HashMap[Node.Port.Value, Int]()
-    var ignoreStoragePort: Boolean = false
+    var ignoredPorts: mutable.ListBuffer[Node.Port.Value] = new mutable.ListBuffer[Node.Port.Value]
+
     resetPorts()
 
-    def this(cpus: Double = 0, mem: Long = 0, ports: Map[Node.Port.Value, Int] = Map(), ignoreStoragePort: Boolean = false) {
+    def this(cpus: Double = 0, mem: Long = 0, ports: Map[Node.Port.Value, Int] = Map(), ignoredPorts: List[Node.Port.Value] = List()) {
       this
       this.cpus = cpus
       this.mem = mem
 
       this.resetPorts()
       this.ports ++= ports
-      this.ignoreStoragePort = ignoreStoragePort
+      this.ignoredPorts ++= ignoredPorts
     }
 
     def this(json: Map[String, Any]) {
@@ -470,8 +471,8 @@ object Node {
 
       for (port <- Node.Port.values) {
         val value = ports(port)
-        val ignorePort = port == Node.Port.STORAGE && ignoreStoragePort
-        if (value != -1 && !ignorePort) resources += portResource(value)
+        if (value != -1 && !ignoredPorts.contains(port))
+          resources += portResource(value)
       }
 
       resources.toList
@@ -485,7 +486,9 @@ object Node {
       for ((port, value) <- json("ports").asInstanceOf[Map[String, Number]])
         ports += Node.Port.withName(port) -> value.intValue
 
-      ignoreStoragePort = json("ignoreStoragePort").asInstanceOf[Boolean]
+      ignoredPorts.clear()
+      if (json.contains("ignoredPorts"))
+        ignoredPorts ++= json("ignoredPorts").asInstanceOf[List[String]].map(Node.Port.withName)
     }
 
     def toJson: JSONObject = {
@@ -498,8 +501,7 @@ object Node {
       for ((port, value) <- ports) portsJson += "" + port -> value
       json("ports") = new JSONObject(portsJson.toMap)
 
-      json("ignoreStoragePort") = ignoreStoragePort
-
+      json("ignoredPorts") = new JSONArray(ignoredPorts.toList.map("" + _))
       new JSONObject(json.toMap)
     }
   }

@@ -66,14 +66,14 @@ class NodeTest extends MesosTestCase {
   }
 
   @Test
-  def reserve_ignoreStoragePort {
+  def reserve_ignoredPorts {
     val node0 = Nodes.addNode(new Node("0"))
     val node1 = Nodes.addNode(new Node("1"))
 
     // storage port available
     var reservation: Reservation = node1.reserve(offer(hostname = "slave0", resources = "ports:0..200"))
     assertEquals(0, reservation.ports(Port.STORAGE))
-    assertFalse(reservation.ignoreStoragePort)
+    assertTrue(reservation.ignoredPorts.isEmpty)
 
     // storage port unavailable, have collocated, running node
     node0.state = Node.State.RUNNING
@@ -81,7 +81,7 @@ class NodeTest extends MesosTestCase {
     
     reservation = node1.reserve(offer(hostname = "slave0", resources = "ports:0..99,101..200"))
     assertEquals(100, reservation.ports(Port.STORAGE))
-    assertTrue(reservation.ignoreStoragePort)
+    assertEquals(List(Port.STORAGE), reservation.ignoredPorts)
   }
 
   @Test
@@ -267,7 +267,7 @@ class NodeTest extends MesosTestCase {
 
   @Test
   def Reservation_toJson_fromJson {
-    val reservation = new Reservation(1.0, 256, Map(Port.STORAGE -> 7000), true)
+    val reservation = new Reservation(1.0, 256, Map(Port.STORAGE -> 7000), List(Node.Port.JMX))
     val read = new Reservation(Util.parseJsonAsMap("" + reservation.toJson))
     assertReservationEquals(reservation, read)
   }
@@ -278,7 +278,7 @@ class NodeTest extends MesosTestCase {
     assertEquals(resources("cpus:0.5;mem:500;ports:1000..1000;ports:2000").toList, new Reservation(0.5, 500, Map(Port.STORAGE -> 1000, Port.JMX -> 2000)).toResources)
 
     // ignore storage port
-    assertEquals(resources("ports:2000").toList, new Reservation(ports = Map(Port.STORAGE -> 1000, Port.JMX -> 2000), ignoreStoragePort = true).toResources)
+    assertEquals(resources("ports:2000").toList, new Reservation(ports = Map(Port.STORAGE -> 1000, Port.JMX -> 2000), ignoredPorts = List(Port.STORAGE)).toResources)
   }
 
   // Stickiness
@@ -374,7 +374,7 @@ class NodeTest extends MesosTestCase {
     assertEquals(expected.cpus, actual.cpus, 0.001)
     assertEquals(expected.mem, actual.mem)
     assertEquals(expected.ports, actual.ports)
-    assertEquals(expected.ignoreStoragePort, actual.ignoreStoragePort)
+    assertEquals(expected.ignoredPorts, actual.ignoredPorts)
   }
 
   def assertStickinessEquals(expected: Stickiness, actual: Stickiness) {
