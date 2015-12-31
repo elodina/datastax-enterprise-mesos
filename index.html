@@ -1,0 +1,238 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <meta http-equiv="X-UA-Compatible" content="chrome=1">
+    <title>DataStax Enterprise Mesos Framework by elodina</title>
+
+    <link rel="stylesheet" href="stylesheets/styles.css">
+    <link rel="stylesheet" href="stylesheets/github-light.css">
+    <meta name="viewport" content="width=device-width">
+    <!--[if lt IE 9]>
+    <script src="//html5shiv.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="wrapper">
+      <header>
+        <h1>DataStax Enterprise Mesos Framework</h1>
+        <p></p>
+
+        <p class="view"><a href="https://github.com/elodina/datastax-enterprise-mesos">View the Project on GitHub <small>elodina/datastax-enterprise-mesos</small></a></p>
+
+
+        <ul>
+          <li><a href="https://github.com/elodina/datastax-enterprise-mesos/zipball/master">Download <strong>ZIP File</strong></a></li>
+          <li><a href="https://github.com/elodina/datastax-enterprise-mesos/tarball/master">Download <strong>TAR Ball</strong></a></li>
+          <li><a href="https://github.com/elodina/datastax-enterprise-mesos">View On <strong>GitHub</strong></a></li>
+        </ul>
+      </header>
+      <section>
+        <h1>
+<a id="datastax-enterprise-mesos-framework" class="anchor" href="#datastax-enterprise-mesos-framework" aria-hidden="true"><span class="octicon octicon-link"></span></a>Datastax Enterprise Mesos Framework</h1>
+
+<p><a href="#description">Description</a><br>
+<a href="#installation">Installation</a></p>
+
+<ul>
+<li><a href="#prerequisites">Prerequisites</a></li>
+<li><a href="#scheduler-configuration">Scheduler configuration</a></li>
+<li><a href="#run-the-scheduler">Run the scheduler</a></li>
+<li><a href="#quick-start">Quick start</a></li>
+<li><a href="https://github.com/elodina/datastax-enterprise-mesos/tree/master/richer_usage_example.md">Richer usage example</a></li>
+</ul>
+
+<p><a href="#typical-operations">Typical operations</a></p>
+
+<ul>
+<li><a href="#shutting-down-framework">Shutting down framework</a></li>
+</ul>
+
+<p><a href="#navigating-the-cli">Navigating the CLI</a></p>
+
+<ul>
+<li>
+<a href="#requesting-help">Requesting help</a><br>
+</li>
+</ul>
+
+<h2>
+<a id="description" class="anchor" href="#description" aria-hidden="true"><span class="octicon octicon-link"></span></a>Description</h2>
+
+<p>This framework aims to simplify running Datastax Enterprise on Mesos. Being actively developed right now.</p>
+
+<p>Currently this framework supports running Cassandra nodes only.</p>
+
+<p>Open issues here <a href="https://github.com/elodina/datastax-enterprise-mesos/issues">https://github.com/elodina/datastax-enterprise-mesos/issues</a></p>
+
+<h1>
+<a id="installation" class="anchor" href="#installation" aria-hidden="true"><span class="octicon octicon-link"></span></a>Installation</h1>
+
+<h2>
+<a id="prerequisites" class="anchor" href="#prerequisites" aria-hidden="true"><span class="octicon octicon-link"></span></a>Prerequisites</h2>
+
+<p>Minimum supported Mesos version is 0.23.0</p>
+
+<p>Clone and build the project</p>
+
+<pre><code># git clone https://github.com/elodina/datastax-enterprise-mesos
+# cd datastax-enterprise-mesos
+# ./gradlew jar
+</code></pre>
+
+<p>Get Java 7 JRE</p>
+
+<pre><code># wget --no-check-certificate --no-cookies --header "Cookie: oraclelicense=accept-securebackup-cookie" http://download.oracle.com/otn-pub/java/jdk/7u79-b15/jre-7u79-linux-x64.tar.gz
+</code></pre>
+
+<p>Get Datastax Enterprise distribution</p>
+
+<pre><code># wget --user user --password pass http://downloads.datastax.com/enterprise/dse.tar.gz
+</code></pre>
+
+<h2>
+<a id="scheduler-configuration" class="anchor" href="#scheduler-configuration" aria-hidden="true"><span class="octicon octicon-link"></span></a>Scheduler configuration</h2>
+
+<pre><code># ./dse-mesos.sh help scheduler
+Start scheduler
+Usage: scheduler [options]
+
+Option (* = required)  Description
+---------------------  -----------
+--debug &lt;Boolean&gt;      Run in debug mode. (default: false)
+--framework-name       Framework name. Defaults to dse.
+--framework-role       Framework role. Defaults to *.
+--framework-timeout    Framework failover timeout. Defaults
+                         to 30 days.
+--jre                  Path to JRE archive.
+* --master             Mesos Master addresses.
+--principal            Principal (username) used to register
+                         framework.
+--secret               Secret (password) used to register
+                         framework.
+--storage              Storage for cluster state. Examples:
+                         file:dse-mesos.json; zk:master:
+                         2181/dse-mesos.
+--user                 Mesos user. Defaults to current system
+                         user.
+
+Generic Options
+Option  Description
+------  -----------
+--api   Binding host:port for http/artifact
+          server. Optional if DM_API env is
+          set.
+</code></pre>
+
+<h2>
+<a id="quick-start" class="anchor" href="#quick-start" aria-hidden="true"><span class="octicon octicon-link"></span></a>Quick start</h2>
+
+<p>In order not to pass the API url to each CLI call lets export the URL as follows:</p>
+
+<pre><code># export DM_API=http://master:7000
+</code></pre>
+
+<p>First lets start 1 Cassandra node with the default settings. Further you will see how to change node settings.</p>
+
+<pre><code># ./dse-mesos.sh node add 0
+node added:
+  id: 0
+  state: idle
+  topology: cluster:default, dc:default, rack:default
+  resources: cpu:0.5, mem:512
+  seed: false
+  stickiness: period:30m
+</code></pre>
+
+<p>You now have a cluster with 1 Cassandra node that is not started.    </p>
+
+<pre><code># ./dse-mesos.sh node list
+node:
+  id: 0
+  state: idle
+  topology: cluster:default, dc:default, rack:default
+  resources: cpu:0.5, mem:512
+  seed: false
+  stickiness: period:30m
+</code></pre>
+
+<p>Now lets start the task. This call to CLI will block until the task is actually started but will wait no more than a configured timeout. Timeout can be passed via --timeout flag and defaults to 2 minutes. If a timeout of 0s is passed CLI won't wait for tasks to start at all and will reply with "Scheduled tasks ..." message.</p>
+
+<pre><code># ./dse-mesos.sh node start 0
+node started:
+  id: 0
+  state: running
+  topology: cluster:default, dc:default, rack:default
+  resources: cpu:0.5, mem:512
+  seed: true
+  stickiness: period:30m, hostname:slave0
+  runtime:
+    task id: node-0-1449579588537
+    executor id: node-0-1449579588537
+    slave id: faa6dc48-30d4-4385-8cd4-d0be512e0521-S1
+    hostname: slave0
+    seeds: slave0
+</code></pre>
+
+<p>By now you should have a single Cassandra node instance running. You should be able to connect to it via <code>cqlsh &lt;hostname&gt;</code> (in our case <code>cqlsh slave0</code> should work).</p>
+
+<p>Here's how you stop it:</p>
+
+<pre><code># ./dse-mesos.sh node stop 0
+node stopped:
+  id: 0
+  state: idle
+  topology: cluster:default, dc:default, rack:default
+  resources: cpu:0.5, mem:512
+  seed: true
+  stickiness: period:30m, hostname:slave0, expires:2015-12-22 16:23:29+02
+</code></pre>
+
+<p>And remove:</p>
+
+<pre><code># ./dse-mesos.sh node remove 0
+node removed
+</code></pre>
+
+<h1>
+<a id="typical-operations" class="anchor" href="#typical-operations" aria-hidden="true"><span class="octicon octicon-link"></span></a>Typical operations</h1>
+
+<h2>
+<a id="shutting-down-framework" class="anchor" href="#shutting-down-framework" aria-hidden="true"><span class="octicon octicon-link"></span></a>Shutting down framework</h2>
+
+<p>While the scheduler has a shutdown hook it doesn't actually finish the framework.
+To shutdown the framework completely (e.g. unregister it in Mesos) you may shoot a
+<code>POST</code> to <code>/teardown</code> specifying the framework id to shutdown:</p>
+
+<pre><code># curl -d frameworkId=20150807-094500-84125888-5050-14187-0005 -X POST http://master:5050/teardown
+</code></pre>
+
+<h1>
+<a id="navigating-the-cli" class="anchor" href="#navigating-the-cli" aria-hidden="true"><span class="octicon octicon-link"></span></a>Navigating the CLI</h1>
+
+<h2>
+<a id="requesting-help" class="anchor" href="#requesting-help" aria-hidden="true"><span class="octicon octicon-link"></span></a>Requesting help</h2>
+
+<pre><code># ./dse-mesos.sh help
+Usage: &lt;cmd&gt; ...
+
+Commands:
+  help [cmd [cmd]] - print general or command-specific help
+  scheduler        - start scheduler
+  node             - node management commands
+  cluster          - cluster management commands
+
+Run `help &lt;cmd&gt;` to see details of specific command
+</code></pre>
+
+<p>You may also run <code>./dse-mesos.sh help &lt;cmd&gt; [&lt;cmd&gt;]</code> to view help of specific command/sub-command.</p>
+      </section>
+      <footer>
+        <p>This project is maintained by <a href="https://github.com/elodina">elodina</a></p>
+        <p><small>Hosted on GitHub Pages &mdash; Theme by <a href="https://github.com/orderedlist">orderedlist</a></small></p>
+      </footer>
+    </div>
+    <script src="javascripts/scale.fix.js"></script>
+    
+  </body>
+</html>
