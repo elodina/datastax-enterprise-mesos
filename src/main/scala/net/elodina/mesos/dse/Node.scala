@@ -108,16 +108,20 @@ class Node extends Constrained {
     var reservedPorts = new mutable.HashMap[Node.Port.Value, Int]
     reservedPorts ++= reservePorts(offer)
 
-    // ignore storage port reservation for collocated instances
+    // ignore storage/agent port reservation for collocated instances
     var ignoredPorts = new ListBuffer[Node.Port.Value]
     val collocatedNode = cluster.getNodes.find(n => n.runtime != null && n.runtime.hostname == offer.getHostname).getOrElse(null)
 
-    if (reservedPorts(Node.Port.STORAGE) == -1 && collocatedNode != null) {
-      ignoredPorts += Node.Port.STORAGE
+    def ignorePortIfRequired(port: Node.Port.Value) {
+      if (reservedPorts(port) != -1 || collocatedNode == null) return
+      ignoredPorts += port
 
-      val port: Int = collocatedNode.runtime.reservation.ports(Node.Port.STORAGE)
-      reservedPorts += (Node.Port.STORAGE -> port)
+      val value: Int = collocatedNode.runtime.reservation.ports(port)
+      reservedPorts += (port -> value)
     }
+
+    ignorePortIfRequired(Node.Port.STORAGE)
+    ignorePortIfRequired(Node.Port.AGENT)
 
     // return reservation
     new Reservation(reservedCpus, reservedMem, reservedPorts.toMap, ignoredPorts.toList)
@@ -136,10 +140,12 @@ class Node extends Constrained {
     for (port <- Node.Port.values) {
       var range: Range = cluster.ports(port)
 
-      // use same storage port for the whole cluster
+      // use same storage/agent port for the whole cluster
       val activeNode = cluster.getNodes.find(_.runtime != null).getOrElse(null)
-      if (port == Node.Port.STORAGE && activeNode != null) {
-        val value = activeNode.runtime.reservation.ports(Node.Port.STORAGE)
+      val samePortRequired = port == Node.Port.STORAGE || port == Node.Port.AGENT
+
+      if (samePortRequired && activeNode != null) {
+        val value = activeNode.runtime.reservation.ports(port)
         range = new Range(value, value)
       }
 
