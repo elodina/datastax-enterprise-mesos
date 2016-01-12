@@ -74,6 +74,7 @@ case class AgentProcess(node: Node, address: String, env: Map[String, String] = 
         |local_interface: $address}
         |cassandra_port: ${node.runtime.reservation.ports(Node.Port.CQL)}
         |jmx_port: ${node.runtime.reservation.ports(Node.Port.JMX)}
+        |api_port: ${node.runtime.reservation.ports(Node.Port.AGENT)}
       """.stripMargin
 
     Util.IO.writeFile(file, content)

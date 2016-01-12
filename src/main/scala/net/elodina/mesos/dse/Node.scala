@@ -323,6 +323,7 @@ object Node {
     val JMX = Value("jmx")
     val CQL = Value("cql")
     val THRIFT = Value("thrift")
+    val AGENT = Value("agent")
   }
 
   class Runtime() {

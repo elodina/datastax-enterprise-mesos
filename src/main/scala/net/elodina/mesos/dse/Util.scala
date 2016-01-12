@@ -544,9 +544,12 @@ object Util {
       file.delete()
     }
 
-    def findDir(dir: File, mask: String): File = {
+    def findFile(dir: File, mask: String): File = findFile0(dir, mask)
+    def findDir(dir: File, mask: String): File = findFile0(dir, mask, isDir = true)
+
+    private[dse] def findFile0(dir: File, mask: String, isDir: Boolean = false): File = {
       for (file <- dir.listFiles())
-        if (file.isDirectory && file.getName.matches(mask))
+        if (file.getName.matches(mask) && (isDir && file.isDirectory || !isDir && file.isFile))
           return file
 
       null

@@ -343,6 +343,11 @@ object HttpServer {
         try { new Range(thriftPort) }
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid thriftPort") }
 
+      val agentPort: String = request.getParameter("agentPort")
+      if (agentPort != null && !agentPort.isEmpty)
+        try { new Range(agentPort) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid agentPort") }
+
 
       var cluster = Nodes.getCluster(id)
       if (add && cluster != null) throw new HttpError(400, "duplicate cluster")
@@ -357,6 +362,7 @@ object HttpServer {
       if (jmxPort != null) cluster.ports(Node.Port.JMX) = if (jmxPort != "") new Range(jmxPort) else null
       if (cqlPort != null) cluster.ports(Node.Port.CQL) = if (cqlPort != "") new Range(cqlPort) else null
       if (thriftPort != null) cluster.ports(Node.Port.THRIFT) = if (thriftPort != "") new Range(thriftPort) else null
+      if (agentPort != null) cluster.ports(Node.Port.AGENT) = if (agentPort != "") new Range(agentPort) else null
 
       Nodes.save()
       response.getWriter.println(cluster.toJson)
