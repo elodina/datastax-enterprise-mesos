@@ -170,4 +170,8 @@ object Executor extends org.apache.mesos.Executor {
     if (dseDir == null && cassandraDir == null)
       throw new IllegalStateException("Either cassandra or dse dir should exist")
   }
+
+  def cassandraConfDir: File = {
+    if (dseDir != null) new File(dseDir, "resources/cassandra/conf") else new File(cassandraDir, "conf")
+  }
 }

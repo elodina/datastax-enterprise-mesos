@@ -146,7 +146,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
   }
 
   private def editCassandraConfigs() {
-    val confDir = if (Executor.dseDir != null) new File(Executor.dseDir, "resources/cassandra/conf") else new File(Executor.cassandraDir, "conf")
+    val confDir = Executor.cassandraConfDir
 
     editCassandraYaml(new File(confDir , "cassandra.yaml"))
     Util.IO.replaceInFile(new File(confDir, "cassandra-rackdc.properties"), Map("dc=.*" -> s"dc=${node.dc}", "rack=.*" -> s"rack=${node.rack}"))

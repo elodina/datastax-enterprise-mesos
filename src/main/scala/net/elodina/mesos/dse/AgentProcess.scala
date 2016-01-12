@@ -68,12 +68,17 @@ case class AgentProcess(node: Node, address: String, env: Map[String, String] = 
 
   private def editAgentYaml() {
     val file = new File(Executor.dseDir, "datastax-agent/conf/address.yaml")
+    val cassandraYaml = new File(Executor.cassandraConfDir, "cassandra.yaml")
 
     val content =
       s"""
-        |local_interface: $address}
+        |cassandra_conf: ${cassandraYaml.getAbsolutePath}
+        |local_interface: $address
         |cassandra_port: ${node.runtime.reservation.ports(Node.Port.CQL)}
+        |monitored_cassandra_port: ${node.runtime.reservation.ports(Node.Port.CQL)}
         |jmx_port: ${node.runtime.reservation.ports(Node.Port.JMX)}
+        |agent_rpc_interface: $address
+        |api_port: ${node.runtime.reservation.ports(Node.Port.AGENT)}
       """.stripMargin
 
     Util.IO.writeFile(file, content)

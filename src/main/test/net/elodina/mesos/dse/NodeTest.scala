@@ -56,13 +56,13 @@ class NodeTest extends MesosTestCase {
     var reservation = node.reserve(offer(resources = "cpus:0.3;mem:300;ports:0..1"))
     assertEquals(0.3d, reservation.cpus, 0.001)
     assertEquals(300, reservation.mem)
-    assertEquals(Map(Port.STORAGE -> 0, Port.JMX -> 1, Port.CQL -> -1, Port.THRIFT -> -1), reservation.ports)
+    assertEquals(Map(Port.STORAGE -> 0, Port.JMX -> 1, Port.CQL -> -1, Port.THRIFT -> -1, Port.AGENT -> -1), reservation.ports)
 
     // complete reservation
     reservation = node.reserve(offer(resources = "cpus:0.7;mem:1000;ports:0..10"))
     assertEquals(node.cpu, reservation.cpus, 0.001)
     assertEquals(node.mem, reservation.mem)
-    assertEquals(Map(Port.STORAGE -> 0, Port.JMX -> 1, Port.CQL -> 2, Port.THRIFT -> 3), reservation.ports)
+    assertEquals(Map(Port.STORAGE -> 0, Port.JMX -> 1, Port.CQL -> 2, Port.THRIFT -> 3, Port.AGENT -> 4), reservation.ports)
   }
 
   @Test
@@ -70,18 +70,19 @@ class NodeTest extends MesosTestCase {
     val node0 = Nodes.addNode(new Node("0"))
     val node1 = Nodes.addNode(new Node("1"))
 
-    // storage port available
+    // storage/agent ports available
     var reservation: Reservation = node1.reserve(offer(hostname = "slave0", resources = "ports:0..200"))
     assertEquals(0, reservation.ports(Port.STORAGE))
     assertTrue(reservation.ignoredPorts.isEmpty)
 
     // storage port unavailable, have collocated, running node
     node0.state = Node.State.RUNNING
-    node0.runtime = new Node.Runtime(hostname = "slave0", reservation = new Node.Reservation(ports = Map(Port.STORAGE -> 100)))
+    node0.runtime = new Node.Runtime(hostname = "slave0", reservation = new Node.Reservation(ports = Map(Port.STORAGE -> 100, Port.AGENT -> 101)))
     
-    reservation = node1.reserve(offer(hostname = "slave0", resources = "ports:0..99,101..200"))
+    reservation = node1.reserve(offer(hostname = "slave0", resources = "ports:0..99,102..200"))
     assertEquals(100, reservation.ports(Port.STORAGE))
-    assertEquals(List(Port.STORAGE), reservation.ignoredPorts)
+    assertEquals(101, reservation.ports(Port.AGENT))
+    assertEquals(List(Port.STORAGE, Port.AGENT), reservation.ignoredPorts)
   }
 
   @Test
@@ -125,11 +126,11 @@ class NodeTest extends MesosTestCase {
 
     // cluster has active node
     node.state = Node.State.RUNNING
-    node.runtime = new Runtime(reservation = new Reservation(ports = Map(Port.STORAGE -> 100)))
+    node.runtime = new Runtime(reservation = new Reservation(ports = Map(Port.STORAGE -> 100, Port.AGENT -> 200)))
 
-    test("storage=10..20", "ports:0..1000", Map(Port.STORAGE -> 100))
-    test("", "ports:0..1000", Map(Port.STORAGE -> 100))
-    test("storage=10..20", "ports:0..99", Map(Port.STORAGE -> -1))
+    test("storage=10..20,agent=30..40", "ports:0..1000", Map(Port.STORAGE -> 100, Port.AGENT -> 200))
+    test("", "ports:0..1000", Map(Port.STORAGE -> 100, Port.AGENT -> 200))
+    test("storage=10..20,agent=30..40", "ports:0..99", Map(Port.STORAGE -> -1, Port.AGENT -> -1))
   }
 
   @Test
@@ -167,7 +168,7 @@ class NodeTest extends MesosTestCase {
     val read: Node = new Node(Util.parseJsonAsMap(data), expanded = true)
     assertEquals(node, read)
 
-    assertEquals(resources("cpus:0.1; mem:500; ports:0..0; ports:1..1; ports:2..2; ports:3..3"), task.getResourcesList)
+    assertEquals(resources("cpus:0.1; mem:500; ports:0..0; ports:1..1; ports:2..2; ports:3..3; ports:4..4"), task.getResourcesList)
   }
 
   @Test

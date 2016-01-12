@@ -82,6 +82,7 @@ object ClusterCli {
     parser.accepts("jmx-port", "JMX monitoring port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("cql-port", "CQL port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("thrift-port", "Thrift port.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("agent-port", "DataStax agent port.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
       printLine(s"${cmd.capitalize} cluster \nUsage: cluster $cmd <id> [options]\n")
@@ -106,6 +107,7 @@ object ClusterCli {
     val jmxPort = options.valueOf("jmx-port").asInstanceOf[String]
     val cqlPort = options.valueOf("cql-port").asInstanceOf[String]
     val thriftPort = options.valueOf("thrift-port").asInstanceOf[String]
+    val agentPort = options.valueOf("agent-port").asInstanceOf[String]
 
     val params = mutable.HashMap("cluster" -> id)
 
@@ -114,6 +116,7 @@ object ClusterCli {
     if (jmxPort != null) params("jmxPort") = jmxPort
     if (cqlPort != null) params("cqlPort") = cqlPort
     if (thriftPort != null) params("thriftPort") = thriftPort
+    if (agentPort != null) params("agentPort") = agentPort
 
     var json: Map[String, Any] = null
     try { json = Cli.sendRequest(s"/cluster/$cmd", params.toMap).asInstanceOf[Map[String, Any]] }

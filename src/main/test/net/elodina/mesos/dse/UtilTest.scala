@@ -243,15 +243,17 @@ class UtilTest {
   }
 
   @Test
-  def IO_findDir {
+  def IO_findFile0 {
     val dir: File = Files.createTempDirectory(classOf[UtilTest].getSimpleName).toFile
 
     try {
       assertNull(IO.findDir(dir, "mask.*"))
 
-      val matchedDir: File = new File(dir, "mask-123")
-      matchedDir.mkdir()
-      assertEquals(matchedDir, IO.findDir(dir, "mask.*"))
+      val matchedFile: File = new File(dir, "mask-123")
+      matchedFile.createNewFile()
+
+      assertNull(IO.findFile0(dir, "mask.*", isDir = true))
+      assertEquals(matchedFile, IO.findFile0(dir, "mask.*"))
     } finally {
       IO.delete(dir)
     }
