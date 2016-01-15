@@ -240,6 +240,7 @@ class NodeTest extends MesosTestCase {
     node.dataFileDirs = "dataDir"
     node.commitLogDir = "logDir"
     node.savedCachesDir = "saveCachesDir"
+    node.cassandraYamlConfigs = new mutable.HashMap() ++= Seq("hinted_handoff_enabled" -> "false", "num_tokens" -> "312")
 
     read = new Node(Util.parseJsonAsMap("" + node.toJson()))
     assertNodeEquals(read, node)
