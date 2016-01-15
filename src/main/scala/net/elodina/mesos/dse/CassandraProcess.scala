@@ -173,6 +173,10 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
     cassandraYaml.put("broadcast_address", address)
     cassandraYaml.put("endpoint_snitch", "GossipingPropertyFileSnitch")
 
+    for ((configKey, configValue) <- node.cassandraYamlConfigs) {
+      cassandraYaml.put(configKey, configValue)
+    }
+
     val writer = new FileWriter(file)
     try { yaml.dump(mapAsJavaMap(cassandraYaml), writer)}
     finally { writer.close() }
