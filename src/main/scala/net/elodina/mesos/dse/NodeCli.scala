@@ -104,7 +104,7 @@ object NodeCli {
     parser.accepts("data-file-dirs", "Cassandra data file directories separated by comma. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
     parser.accepts("commit-log-dir", "Cassandra commit log dir. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
     parser.accepts("saved-caches-dir", "Cassandra saved caches dir. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
-    parser.accepts("yaml-config", "Comma separated key-value pairs (k1=v1,k2=v2) that override default cassandra yaml configuration. " +
+    parser.accepts("cassandra-yaml-configs", "Comma separated key-value pairs (k1=v1,k2=v2) that override default cassandra.yaml configuration. " +
       "Default configuration file is shipped with the dse tarball. Note: These pairs are not validated by the Scheduler.").withRequiredArg.ofType(classOf[String])
 
     if (help) {
@@ -144,7 +144,7 @@ object NodeCli {
     val dataFileDirs = options.valueOf("data-file-dirs").asInstanceOf[String]
     val commitLogDir = options.valueOf("commit-log-dir").asInstanceOf[String]
     val savedCachesDir = options.valueOf("saved-caches-dir").asInstanceOf[String]
-    val yamlConfigs = options.valueOf("yaml-config").asInstanceOf[String]
+    val cassandraDotYaml = options.valueOf("cassandra-yaml-configs").asInstanceOf[String]
 
     val params = new mutable.HashMap[String, String]()
     params("node") = expr
@@ -167,7 +167,7 @@ object NodeCli {
     if (dataFileDirs != null) params("dataFileDirs") = dataFileDirs
     if (commitLogDir != null) params("commitLogDir") = commitLogDir
     if (savedCachesDir != null) params("savedCachesDir") = savedCachesDir
-    if (yamlConfigs != null) params("cassandraYamlConfigs") = yamlConfigs
+    if (cassandraDotYaml != null) params("cassandraDotYaml") = cassandraDotYaml
 
     var nodesJson: List[Any] = null
     try { nodesJson = Cli.sendRequest(s"/node/$cmd", params.toMap).asInstanceOf[List[Any]] }
@@ -273,7 +273,7 @@ object NodeCli {
     if (node.dataFileDirs != null) printLine(s"data file dirs: ${node.dataFileDirs}", indent)
     if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent)
     if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent)
-    if (node.cassandraYamlConfigs != null) printLine(s"cassandra yaml overrides: ${Util.formatMap(node.cassandraYamlConfigs)}", indent)
+    if (node.cassandraDotYaml != null) printLine(s"cassandra.yaml overrides: ${Util.formatMap(node.cassandraDotYaml)}", indent)
 
     printLine(s"stickiness: ${nodeStickiness(node)}", indent)
     if (node.runtime != null) printNodeRuntime(node.runtime, indent)
