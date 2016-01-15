@@ -173,7 +173,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
     cassandraYaml.put("broadcast_address", address)
     cassandraYaml.put("endpoint_snitch", "GossipingPropertyFileSnitch")
 
-    for ((configKey, configValue) <- node.cassandraYamlConfigs) {
+    for ((configKey, configValue) <- node.cassandraDotYaml) {
       cassandraYaml.put(configKey, configValue)
     }
 

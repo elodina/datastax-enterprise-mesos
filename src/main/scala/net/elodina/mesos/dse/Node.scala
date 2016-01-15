@@ -57,7 +57,7 @@ class Node extends Constrained {
   var commitLogDir: String = null
   var savedCachesDir: String = null
 
-  var cassandraYamlConfigs: mutable.Map[String, String] = new mutable.HashMap[String, String]
+  var cassandraDotYaml: mutable.Map[String, String] = new mutable.HashMap[String, String]
 
   def this(id: String) = {
     this
@@ -264,8 +264,8 @@ class Node extends Constrained {
     if (json.contains("commitLogDir")) commitLogDir = json("commitLogDir").asInstanceOf[String]
     if (json.contains("savedCachesDir")) savedCachesDir = json("savedCachesDir").asInstanceOf[String]
 
-    cassandraYamlConfigs.clear()
-    if (json.contains("cassandraYamlConfigs")) cassandraYamlConfigs ++= json("cassandraYamlConfigs").asInstanceOf[Map[String, String]]
+    cassandraDotYaml.clear()
+    if (json.contains("cassandraDotYaml")) cassandraDotYaml ++= json("cassandraDotYaml").asInstanceOf[Map[String, String]]
   }
 
   def toJson(expanded: Boolean = false): JSONObject = {
@@ -294,7 +294,7 @@ class Node extends Constrained {
     if (commitLogDir != null) json("commitLogDir") = commitLogDir
     if (savedCachesDir != null) json("savedCachesDir") = savedCachesDir
 
-    if (!cassandraYamlConfigs.isEmpty) json("cassandraYamlConfigs") = new JSONObject(cassandraYamlConfigs.toMap)
+    if (!cassandraDotYaml.isEmpty) json("cassandraDotYaml") = new JSONObject(cassandraDotYaml.toMap)
 
     new JSONObject(json.toMap)
   }
