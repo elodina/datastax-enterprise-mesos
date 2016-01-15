@@ -1,4 +1,4 @@
-[![Build Status](https://travis-ci.org/elodina/datastax-enterprise-mesos.svg?branch=master)](https://travis-ci.org/elodina/datastax-enterprise-mesos)
+[![Build Status](https://travis-ci.com/elodina/datastax-enterprise-mesos.svg?branch=master)](https://travis-ci.com/elodina/datastax-enterprise-mesos)
 
 Datastax Enterprise Mesos Framework
 ==================================
