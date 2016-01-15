@@ -112,6 +112,24 @@ node:
   stickiness: period:30m
 ```
 
+You can configure node with resource requirement like cpu or memory, also you can specify overrides to cassandra.yaml file.
+
+```
+# ./dse-mesos.sh node update 0 --cpu 0.8 --yaml-config max_hints_delivery_threads=2,hinted_handoff_enabled=false
+node added:
+  id: 0
+  state: idle
+  topology: cluster:default, dc:default, rack:default
+  resources: cpu:0.8, mem:512
+  seed: false
+  stickiness: period:30m
+  cassandra yaml overrides: max_hints_delivery_threads=2,hinted_handoff_enabled=false
+```
+
+Key-value pairs specified after `--yaml-config` option will override default cassandra.yaml configuration file that comes with 
+dse distribution. Note that this way you can override only *key-value* configs from casandra.yaml while there are also arrays,
+objects. Also, supplied key-value pairs are "blindly" passed to the Casasndra process, i.e. configs are not validated. 
+
 Now lets start the task. This call to CLI will block until the task is actually started but will wait no more than a configured timeout. Timeout can be passed via --timeout flag and defaults to 2 minutes. If a timeout of 0s is passed CLI won't wait for tasks to start at all and will reply with "Scheduled tasks ..." message.
 
 ```
