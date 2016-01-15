@@ -15,12 +15,23 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+install_ssh_keys() {
+  # own key
+  cp .vagrant/`hostname`_key.pub /home/vagrant/.ssh/id_rsa.pub
+  cp .vagrant/`hostname`_key /home/vagrant/.ssh/id_rsa
+  chown vagrant:vagrant /home/vagrant/.ssh/id_rsa*
+
+  # other hosts keys
+  cat .vagrant/*_key.pub >> /home/vagrant/.ssh/authorized_keys
+}
+
 install_mesos() {
     mode=$1 # master | slave
     apt-get -qy install mesos=0.25.0*
 
     echo "zk://master:2181/mesos" > /etc/mesos/zk
-    echo '5mins' > /etc/mesos-slave/executor_registration_timeout
+    echo '10mins' > /etc/mesos-slave/executor_registration_timeout
+    echo 'cpus:1;mem:2500;ports:[5000-32000]' > /etc/mesos-slave/resources
 
     ip=$(cat /etc/hosts | grep `hostname` | grep -E -o "([0-9]{1,3}[\.]){3}[0-9]{1,3}")
     echo $ip > "/etc/mesos-$mode/ip"
@@ -53,16 +64,12 @@ if [[ $1 != "master" && $1 != "slave" ]]; then
 fi
 mode=$1
 
-cd /vagrant/src/vagrant
+cd /vagrant/vagrant
 
 # name resolution
 cp .vagrant/hosts /etc/hosts
 
-# ssh key
-key=".vagrant/ssh_key.pub"
-if [ -f $key ]; then
-    cat $key >> /home/vagrant/.ssh/authorized_keys
-fi
+install_ssh_keys
 
 # disable ipv6
 echo -e "\nnet.ipv6.conf.all.disable_ipv6 = 1\n" >> /etc/sysctl.conf
