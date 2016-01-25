@@ -42,7 +42,6 @@ dependencies {
     compile "log4j:log4j:1.2.16"
     compile "com.101tec:zkclient:0.6"
     testCompile 'junit:junit:4.12'
-    testCompile 'org.mockito:mockito-core:1.+'
 }
 
 jar {
