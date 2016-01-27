@@ -152,7 +152,7 @@ object ClusterCli {
     printLine("remove     - remove cluster", 1)
   }
 
-  private def printCluster(cluster: Cluster, indent: Int): Unit = {
+  private[dse] def printCluster(cluster: Cluster, indent: Int): Unit = {
     printLine("id: " + cluster.id, indent)
     printLine("bind-address: " + (if (cluster.bindAddress != null) cluster.bindAddress else "<auto>"), indent)
     printLine(s"ports: ${clusterPorts(cluster)}", indent)

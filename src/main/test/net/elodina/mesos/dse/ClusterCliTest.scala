@@ -16,6 +16,7 @@ class ClusterCliTest extends MesosTestCase with CliTestCase {
   @After
   override def after = {
     super.after
+    Nodes.reset()
     HttpServer.stop()
   }
 
@@ -29,4 +30,32 @@ class ClusterCliTest extends MesosTestCase with CliTestCase {
     assertCliError(Array("wrong_command", "arg"), "unsupported cluster command wrong_command")
   }
 
+  @Test
+  def handleList() = {
+    val defaultCluster = Nodes.getCluster("default")
+    val res = "cluster:\n" + outputToString { ClusterCli.printCluster(defaultCluster, 1) }
+    assertCliResponse(Array("list"), res)
+  }
+
+  @Test
+  def handleAddUpdate() = {
+    val clusterId = "test-cluster"
+
+    {
+      val actualResponse = outputToString { cli(Array("add", clusterId)) }
+      val cluster = Nodes.getCluster(clusterId)
+      val expectedResponse = "cluster added:\n" + outputToString { ClusterCli.printCluster(cluster, 1) } + "\n"
+      assertEquals(expectedResponse, actualResponse)
+    }
+
+    {
+      val updateArgs = Array("--bind-address", "2.2.2.2", "--storage-port", "9999", "--jmx-port", "666",
+        "--cql-port", "777", "--thrift-port", "0000", "--agent-port", "1234"
+      )
+      val actualResponse = outputToString { cli(Array("update", clusterId) ++ updateArgs) }
+      val cluster = Nodes.getCluster(clusterId)
+      val expectedResponse = "cluster updated:\n" + outputToString { ClusterCli.printCluster(cluster, 1) } + "\n"
+      assertEquals(expectedResponse, actualResponse)
+    }
+  }
 }
