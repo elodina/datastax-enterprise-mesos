@@ -14,41 +14,36 @@ class NodeCliTest extends MesosTestCase {
   }
 
   def assertCliResponse(args: Array[String], msg: String, newLine: Boolean = true) = {
-    baos.reset()
+    val baos = new ByteArrayOutputStream()
+    Cli.out = new PrintStream(baos)
     cli(args)
-    System.out.flush()
+    Cli.out.flush()
     assertEquals(if(newLine) msg + "\n" else msg, baos.toString)
+    Cli.out = System.out
   }
 
-  val baos = new ByteArrayOutputStream()
-  val out = new PrintStream(baos)
-  val defaultOut = System.out
-
   def outputToString(cmd: => Unit) = {
-    val oldOut = Cli.out
     val baos = new ByteArrayOutputStream()
     val out = new PrintStream(baos)
     Cli.out = out
     cmd
     Cli.out.flush()
-    Cli.out = oldOut
+    Cli.out = System.out
     baos.toString
   }
 
   @Before
   override def before = {
     super.before
+    Nodes.reset()
     HttpServer.start()
-    baos.reset()
-    System.setOut(out)
   }
 
   @After
   override def after = {
     super.after
+    Nodes.reset()
     HttpServer.stop()
-    baos.reset()
-    System.setOut(defaultOut)
   }
 
   @Test
