@@ -141,7 +141,7 @@ object ClusterCli {
     try { Cli.sendRequest(s"/cluster/remove", Map("cluster" -> id)) }
     catch { case e: IOException => throw new Error("" + e) }
 
-    println("cluster removed")
+    printLine("cluster removed")
   }
 
   def printCmds(): Unit = {
