@@ -126,4 +126,21 @@ class NodeCliTest extends MesosTestCase {
 
   }
 
+  @Test
+  def handleRemove() = {
+    assertCliError(Array("remove", ""), "java.io.IOException: 400 - node required")
+    assertCliError(Array("remove", "+"), "java.io.IOException: 400 - invalid node expr")
+    assertCliError(Array("remove", "0"), "java.io.IOException: 400 - node 0 not found")
+
+    val node = new Node("0")
+    node.state = Node.State.RUNNING
+    Nodes.addNode(node)
+    Nodes.save()
+    assertCliError(Array("remove", "0"), "java.io.IOException: 400 - node 0 should be idle")
+
+    node.state = Node.State.IDLE
+    Nodes.save()
+    assertCliResponse(Array("remove", "0"), "node removed")
+  }
+
 }
