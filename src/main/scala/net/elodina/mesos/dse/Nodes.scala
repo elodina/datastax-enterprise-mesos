@@ -28,14 +28,8 @@ object Nodes {
   private val logger = Logger.getLogger(this.getClass)
   private[dse] var storage = Nodes.newStorage(Config.storage)
 
-  var frameworkState = FrameworkState(Config.namespace)
+  var frameworkState = FrameworkState(namespace = Config.namespace)
   frameworkState.reset()
-
-//  var frameworkId: String = null
-//  private val clusters: mutable.ListBuffer[Cluster] = new mutable.ListBuffer[Cluster]
-//  private val nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]
-
-//  reset()
 
   def getClusters: List[Cluster] = frameworkState.clusters.toList
 
@@ -70,51 +64,6 @@ object Nodes {
 
   def removeNode(node: Node): Unit = { frameworkState.nodes -= node }
 
-
-//  def reset(): Unit = {
-//    frameworkState.frameworkId = null
-//
-//    frameworkState.clusters.clear()
-//    val defaultCluster = new Cluster("default")
-//    addCluster(defaultCluster)
-//
-//    frameworkState.nodes.clear()
-//  }
-
-//  def fromJson(json: Map[String, Any]): Unit = {
-//    if (json.contains("clusters")) {
-//      frameworkState.clusters.clear()
-//      for (clusterObj <- json("clusters").asInstanceOf[List[Map[String, Object]]])
-//        addCluster(new Cluster(clusterObj))
-//    }
-//
-//    if (json.contains("nodes")) {
-//      frameworkState.nodes.clear()
-//      for (nodeJson <- json("nodes").asInstanceOf[List[Map[String, Object]]])
-//        addNode(new Node(nodeJson))
-//    }
-//
-//    if (json.contains("frameworkId"))
-//      frameworkState.frameworkId = json("frameworkId").asInstanceOf[String]
-//  }
-//
-//  def toJson: JSONObject = {
-//    val json = new mutable.LinkedHashMap[String, Object]()
-//    if (frameworkState.frameworkId != null) json("frameworkId") = frameworkState.frameworkId
-//
-//    if (!frameworkState.clusters.isEmpty) {
-//      val clustersJson = frameworkState.clusters.map(_.toJson)
-//      json("clusters") = new JSONArray(clustersJson.toList)
-//    }
-//
-//    if (!frameworkState.nodes.isEmpty) {
-//      val nodesJson = frameworkState.nodes.map(_.toJson())
-//      json("nodes") = new JSONArray(nodesJson.toList)
-//    }
-//
-//    new JSONObject(json.toMap)
-//  }
-
   def save() = storage.save(frameworkState)
 
   def load() {
@@ -122,7 +71,9 @@ object Nodes {
     frameworkState =
       if (storedFrameworkState == null) {
         logger.info("No nodes state available")
-        FrameworkState(namespace = Config.namespace)
+        val fs = FrameworkState(namespace = Config.namespace)
+        fs.reset()
+        fs
       } else {
         storedFrameworkState
       }
@@ -133,7 +84,7 @@ object Nodes {
     storage.split(":", 3) match {
       case Array("file", fileName) => FileStorage(new File(fileName))
       case Array("zk", zk) => ZkStorage(zk)
-      case Array("cassandra", port, contactPoints) => new CassandraStorage(port.toInt, contactPoints.split(",").toSeq, Config.keyspace)
+      case Array("cassandra", port, contactPoints) => new CassandraStorage(port.toInt, contactPoints.split(",").toSeq, Config.cassandraKeyspace, Config.cassandraTable)
       case _ => throw new IllegalArgumentException(s"Unsupported storage: $storage")
     }
   }
@@ -142,19 +93,16 @@ object Nodes {
 object FrameworkState{
   def fromJson(json: Map[String, Any]): FrameworkState = {
     val frameworkState = FrameworkState()
-    frameworkState.reset()
 
     if (json.contains("clusters")) {
-      frameworkState.clusters.clear()
       for (clusterObj <- json("clusters").asInstanceOf[List[Map[String, Object]]])
         frameworkState.addCluster(new Cluster(clusterObj))
     }
 
     if (json.contains("nodes")) {
-      frameworkState.nodes.clear()
       for (nodeJson <- json("nodes").asInstanceOf[List[Map[String, Object]]]){
         val node = new Node(nodeJson, false)
-        node.cluster = frameworkState.clusters.find(_.id == node.id).orNull
+        node.cluster = frameworkState.clusters.find(_.id == node.clusterId).orNull
         frameworkState.addNode(node)
       }
 
@@ -162,6 +110,9 @@ object FrameworkState{
 
     if (json.contains("frameworkId"))
       frameworkState.frameworkId = json("frameworkId").asInstanceOf[String]
+
+    if (json.contains("namespace"))
+      frameworkState.namespace = json("namespace").asInstanceOf[String]
 
     frameworkState
   }
@@ -204,6 +155,7 @@ case class FrameworkState(var namespace: String = null,
   def toJson: JSONObject = {
     val json = new mutable.LinkedHashMap[String, Object]()
     if (frameworkId != null) json("frameworkId") = frameworkId
+    if (namespace != null) json("namespace") = namespace
 
     if (clusters.nonEmpty) {
       val clustersJson = clusters.map(_.toJson)

@@ -22,7 +22,7 @@ import net.elodina.mesos.dse.Node.{Reservation, Runtime, Stickiness}
 import net.elodina.mesos.dse.Util.{Period, BindAddress}
 import scala.collection.JavaConverters._
 
-class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String) extends Storage {
+class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, stateTable: String) extends Storage {
 
   private val tg = new AtomicMonotonicTimestampGenerator
 
@@ -30,9 +30,9 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String) 
     Cluster.builder()
       .withPort(port).addContactPoints(contactPoints: _*).build().connect(keyspace)
 
-  private val SelectPs = session.prepare(CassandraStorage.SelectQuery)
-  private val InsertionPs = session.prepare(CassandraStorage.InsertionQuery)
-  private val DeletionPs = session.prepare(CassandraStorage.DeleteQuery)
+  private val SelectPs = session.prepare(CassandraStorage.selectQuery(stateTable))
+  private val InsertionPs = session.prepare(CassandraStorage.insertionQuery(stateTable))
+  private val DeletionPs = session.prepare(CassandraStorage.deleteQuery(stateTable))
 
   private def stringOrNull[T](value: T): String = {
     if (value != null) value.toString
@@ -213,30 +213,33 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String) 
     val boundStatement = SelectPs.bind().setString(0, Config.namespace).setConsistencyLevel(ConsistencyLevel.ONE)
 
     val rows = session.execute(boundStatement).all().asScala
+    if (rows.nonEmpty) {
+      val frameworkId = rows.headOption.map(_.getString("framework_id")).orNull
+      val frameworkState = FrameworkState(Config.namespace, frameworkId)
 
-    val frameworkId = rows.headOption.map(_.getString("framework_id")).orNull
-    val frameworkState = FrameworkState(Config.namespace, frameworkId)
+      for (row <- rows) {
 
-    for (row <- rows) {
+        val cluster = extractCluster(row)
 
-      val cluster = extractCluster(row)
-
-      if (frameworkState.clusters.exists(c => c.id == cluster.id)) {
-        // skip
-      } else {
-        frameworkState.addCluster(cluster)
-
-        val nodeId = row.getString("node_id")
-        if (nodeId == null) {
+        if (frameworkState.clusters.exists(c => c.id == cluster.id)) {
           // skip
         } else {
-          val node = extractNode(row, cluster)
-          frameworkState.addNode(node)
+          frameworkState.addCluster(cluster)
+
+          val nodeId = row.getString("node_id")
+          if (nodeId == null) {
+            // skip
+          } else {
+            val node = extractNode(row, cluster)
+            frameworkState.addNode(node)
+          }
         }
       }
-    }
 
-    frameworkState
+      frameworkState
+    } else {
+      null
+    }
   }
 }
 
@@ -278,12 +281,12 @@ object CassandraStorage{
     /*33*/"node_cassandra_dot_yaml"
   )
 
-  val InsertionQuery =
-    s"INSERT INTO dse_mesos_framework(${Fields.mkString(",")}) VALUES (${List.fill(Fields.size)("?").mkString(",")}) USING TIMESTAMP ?"
+  def insertionQuery(table: String) =
+    s"INSERT INTO $table(${Fields.mkString(",")}) VALUES (${List.fill(Fields.size)("?").mkString(",")}) USING TIMESTAMP ?"
 
-  val DeleteQuery =
-    s"DELETE FROM dse_mesos_framework USING TIMESTAMP ? WHERE namespace = ?"
+  def deleteQuery(table: String) =
+    s"DELETE FROM $table USING TIMESTAMP ? WHERE namespace = ?"
 
-  val SelectQuery =
-    s"SELECT * FROM dse_mesos_framework WHERE namespace = ?"
+  def selectQuery(table: String) =
+    s"SELECT * FROM $table WHERE namespace = ?"
 }

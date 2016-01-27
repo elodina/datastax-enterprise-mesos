@@ -173,6 +173,39 @@ And remove:
 node removed
 ```
     
+Using external Cassandra in HA mode 
+-----------
+To run in HA mode (that is tolerate scheduler failures) this framework supports two options for persisting its state:
+ 
+ - zookeeper (`scheduler --storage zk:...`)
+ - external cassandra (`scheduler --storage casandra:...`)
+ 
+ (Note: choosing storage type `file` doesn't guarantee you fault tolerance because after failover new scheduler instance may
+ be started on a different machine where the initial state file will be not available thus new scheduler instance won't be able to
+ recover its state)
+ 
+To use `cassandra` storage type you need to do some preparations:
+ 
+ 1. have a running C* instance reachable from machines where you plan to run schedulers
+ 2. create a keyspace e.g. `dse_mesos` with a replication factor per your needs
+ 3. create a table e.g. `dse_mesos_framework` in a newly created keyspace, the schema is defined in `vagrant/cassandra_schema.cql`
+  
+  Last two items can be achieve by executing (cqlsh needs to be in PATH):
+  
+  ```
+  # cqlsh host cql_port -f /vagrant/vagrant/cassandra_schema.cql
+  ```
+  
+After that you can run scheduler with the following command:
+  
+  ```
+  # ./dse-mesos.sh scheduler --master zk://master:2181/mesos --debug true --storage cassandra:9042:master \
+   --cassandra-keyspace dse_mesos --cassandra-table dse_mesos_framework
+  ```
+
+Note: the state table is *not* shared among datastax-enterprise-mesos frameworks, scheduler will delete all
+ data in the provided keyspace.tablename as it's meant to be used as a storage for only one framework.
+    
 Typical operations
 =================
 Shutting down framework

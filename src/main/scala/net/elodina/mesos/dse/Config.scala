@@ -48,7 +48,8 @@ object Config {
   var jre: File = null
 
   var namespace = "default"
-  var keyspace = "dse_mesos"
+  var cassandraKeyspace: String = null
+  var cassandraTable: String = null
 
   def httpServerPort: Int = {
     val port = new URI(api).getPort

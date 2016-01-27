@@ -20,9 +20,13 @@ object SchedulerCli {
     parser.accepts("framework-role", "Framework role. Defaults to *.").withRequiredArg().ofType(classOf[String])
     parser.accepts("framework-timeout", "Framework failover timeout. Defaults to 30 days.").withRequiredArg().ofType(classOf[String])
 
-    parser.accepts("storage", "Storage for nodes state. Examples: file:dse-mesos.json; zk:master:2181/dse-mesos.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("storage", "Storage for nodes state. Examples: file:dse-mesos.json; zk:master:2181/dse-mesos; cassandra:9042:master.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("cassandra-keyspace", "Cassandra keyspace used to find framework state table. Required if storage=cassandra.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("cassandra-table", "Cassandra table where framework state to be persisted. Required if storage=cassandra").withRequiredArg().ofType(classOf[String])
     parser.accepts("debug", "Run in debug mode.").withRequiredArg().ofType(classOf[Boolean]).defaultsTo(false)
     parser.accepts("jre", "Path to JRE archive.").withRequiredArg().ofType(classOf[String])
+
+    parser.accepts("namespace", "A grouping label for this framework. Optional.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
       printLine("Start scheduler \nUsage: scheduler [options]\n")
@@ -45,6 +49,8 @@ object SchedulerCli {
     val api = options.valueOf("api").asInstanceOf[String]
     Cli.resolveApi(api)
 
+    if (options.has("namespace")) Config.namespace = options.valueOf("namespace").asInstanceOf[String]
+
     Config.master = options.valueOf("master").asInstanceOf[String]
     Config.user = options.valueOf("user").asInstanceOf[String]
     Config.principal = options.valueOf("principal").asInstanceOf[String]
@@ -55,6 +61,15 @@ object SchedulerCli {
     if (options.has("framework-timeout")) Config.frameworkTimeout = Duration(options.valueOf("framework-timeout").asInstanceOf[String])
 
     if (options.has("storage")) Config.storage = options.valueOf("storage").asInstanceOf[String]
+    if (Config.storage.startsWith("cassandra")){
+      if (!options.has("cassandra-keyspace"))
+        throw new Error("cassandra-keyspace is required if storage=cassandra")
+      else Config.cassandraKeyspace = options.valueOf("cassandra-keyspace").asInstanceOf[String]
+
+      if (!options.has("cassandra-table"))
+        throw new Error("cassandra-table is required if storage=cassandra")
+      else Config.cassandraTable = options.valueOf("cassandra-table").asInstanceOf[String]
+    }
     Config.debug = options.valueOf("debug").asInstanceOf[Boolean]
 
     val jre = options.valueOf("jre").asInstanceOf[String]

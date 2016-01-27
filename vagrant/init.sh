@@ -73,8 +73,8 @@ install_cassandra() {
     sed "s/rpc_address:.*/rpc_address: /" /tmp/cass.2.yaml > $CASSANDRA_CFG
 
     service cassandra start
-    sleep 10
-    cqlsh master --f /vagrant/vagrant/cassandra_schema.cql
+    sleep 20
+    cqlsh master -f /vagrant/vagrant/cassandra_schema.cql
 }
 
 if [[ $1 != "master" && $1 != "slave" ]]; then
@@ -119,4 +119,5 @@ apt-get install -qy vim zip mc curl wget openjdk-7-jre scala git
 install_mesos $mode
 if [ $mode == "master" ]; then install_marathon; fi
 #install_docker
+install_cassandra
 

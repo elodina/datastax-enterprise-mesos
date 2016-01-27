@@ -55,7 +55,8 @@ should be created. You can check it with cqlsh utility (available on PATH):
 With that you can start the framework using local C* node as a storage:
 ```
 # export DM_API=http://master:7001
-# ./dse-mesos.sh scheduler --master zk://master:2181/mesos --debug true --storage cassandra:9042:master
+# ./dse-mesos.sh scheduler --master zk://master:2181/mesos --debug true --storage cassandra:9042:master \
+ --cassandra-keyspace dse_mesos --cassandra-table dse_mesos_framework  
 ```
 
 
