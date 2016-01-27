@@ -143,4 +143,22 @@ class NodeCliTest extends MesosTestCase {
     assertCliResponse(Array("remove", "0"), "node removed")
   }
 
+  @Test
+  def handleStart() = {
+    assertCliError(Array("start", ""), "java.io.IOException: 400 - node required")
+    assertCliError(Array("start", "+"), "java.io.IOException: 400 - invalid node expr")
+    assertCliError(Array("start", "0"), "java.io.IOException: 400 - node 0 not found")
+
+    val id = "0"
+    val node = new Node(id)
+    Nodes.addNode(node)
+    Nodes.save()
+
+    assertCliError(Array("start", "0", "--timeout", "+"), "java.io.IOException: 400 - invalid timeout")
+
+    val actualResponse = outputToString { cli(Array("start", "0", "--timeout", "0ms")) }
+    val expectedResponse = "node scheduled to start:\n" + outputToString { NodeCli.printNode(node, 1) } + "\n"
+    assertEquals(expectedResponse, actualResponse)
+    assertTrue(Nodes.getNodes.forall(_.state == Node.State.STARTING))
+  }
 }
