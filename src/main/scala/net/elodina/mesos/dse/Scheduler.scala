@@ -48,7 +48,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
 
     val frameworkBuilder = FrameworkInfo.newBuilder()
     frameworkBuilder.setUser(if (Config.user != null) Config.user else "")
-    if (Nodes.frameworkId != null) frameworkBuilder.setId(FrameworkID.newBuilder().setValue(Nodes.frameworkId))
+    if (Nodes.frameworkState.frameworkId != null) frameworkBuilder.setId(FrameworkID.newBuilder().setValue(Nodes.frameworkState.frameworkId))
     frameworkBuilder.setRole(Config.frameworkRole)
 
     frameworkBuilder.setName(Config.frameworkName)
@@ -81,7 +81,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     logger.info("[registered] framework:" + Str.id(id.getValue) + " master:" + Str.master(master))
     checkMesosVersion(master, driver)
 
-    Nodes.frameworkId = id.getValue
+    Nodes.frameworkState.frameworkId = id.getValue
     Nodes.save()
 
     this.driver = driver

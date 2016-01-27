@@ -23,22 +23,21 @@ import org.I0Itec.zkclient.ZkClient
 import org.I0Itec.zkclient.exception.ZkNodeExistsException
 import org.I0Itec.zkclient.serialize.BytesPushThroughSerializer
 
-import scala.util.parsing.json.JSONObject
-
 trait Storage {
-  def save(json: JSONObject)
-  def load(): Map[String, Any]
+  def save(frameworkState: FrameworkState)
+  def load(): FrameworkState
 }
 
 case class FileStorage(file: File) extends Storage {
-  override def save(json: JSONObject) {
-    Util.IO.writeFile(file, json.toString())
+
+  override def save(frameworkState: FrameworkState): Unit = {
+    Util.IO.writeFile(file, frameworkState.toJson.toString())
   }
 
-  override def load(): Map[String, Any] = {
+  override def load(): FrameworkState = {
     if (!file.exists()) return null
     val json = Util.IO.readFile(file)
-    Util.parseJsonAsMap(json)
+    FrameworkState.fromJson(Util.parseJsonAsMap(json))
   }
 }
 
@@ -60,9 +59,9 @@ case class ZkStorage[T](zk: String) extends Storage {
 
   private def zkClient: ZkClient = new ZkClient(zkConnect, 30000, 30000, new BytesPushThroughSerializer)
 
-  override def save(json: JSONObject) {
+  override def save(frameworkState: FrameworkState): Unit = {
     val client = zkClient
-    val encoded = json.toString().getBytes("utf-8")
+    val encoded = frameworkState.toJson.toString().getBytes("utf-8")
     try {
       client.createPersistent(path, encoded)
     } catch {
@@ -73,13 +72,13 @@ case class ZkStorage[T](zk: String) extends Storage {
     }
   }
 
-  override def load(): Map[String, Any] = {
+  override def load():FrameworkState = {
     val client = zkClient
     try {
       val bytes: Array[Byte] = client.readData(path, true).asInstanceOf[Array[Byte]]
       if (bytes == null) return null
 
-      Util.parseJsonAsMap(new String(bytes, "utf-8"))
+      FrameworkState.fromJson(Util.parseJsonAsMap(new String(bytes, "utf-8")))
     } finally {
       client.close()
     }

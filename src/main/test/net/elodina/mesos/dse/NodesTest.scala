@@ -7,7 +7,7 @@ import scala.util.parsing.json.JSONObject
 class NodesTest {
   @Before
   def before {
-    Nodes.reset()
+    Nodes.frameworkState.reset()
   }
 
   @Test
@@ -89,16 +89,16 @@ class NodesTest {
 
   @Test
   def reset {
-    assertNull(Nodes.frameworkId)
+    assertNull(Nodes.frameworkState.frameworkId)
     assertTrue(Nodes.getNodes.isEmpty)
     assertEquals(List(Nodes.defaultCluster), Nodes.getClusters)
 
-    Nodes.frameworkId = "id"
+    Nodes.frameworkState.frameworkId = "id"
     Nodes.addNode(new Node("0"))
     Nodes.addCluster(new Cluster("1"))
 
-    Nodes.reset()
-    assertNull(Nodes.frameworkId)
+    Nodes.frameworkState.reset()
+    assertNull(Nodes.frameworkState.frameworkId)
     assertTrue(Nodes.getNodes.isEmpty)
     assertEquals(List(Nodes.defaultCluster), Nodes.getClusters)
   }
@@ -111,9 +111,9 @@ class NodesTest {
     Nodes.addCluster(new Cluster("1"))
     Nodes.addCluster(new Cluster("2"))
 
-    val json: JSONObject = Nodes.toJson
-    Nodes.reset()
-    Nodes.fromJson(Util.parseJsonAsMap("" + json))
+    val json: JSONObject = Nodes.frameworkState.toJson
+    Nodes.frameworkState.reset()
+    Nodes.frameworkState = FrameworkState.fromJson(Util.parseJsonAsMap("" + json))
 
     assertEquals(2, Nodes.getNodes.size)
     assertEquals(3, Nodes.getClusters.size)

@@ -28,15 +28,18 @@ object Nodes {
   private val logger = Logger.getLogger(this.getClass)
   private[dse] var storage = Nodes.newStorage(Config.storage)
 
-  var frameworkId: String = null
-  private val clusters: mutable.ListBuffer[Cluster] = new mutable.ListBuffer[Cluster]
-  private val nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]
+  var frameworkState = FrameworkState(Config.namespace)
+  frameworkState.reset()
 
-  reset()
+//  var frameworkId: String = null
+//  private val clusters: mutable.ListBuffer[Cluster] = new mutable.ListBuffer[Cluster]
+//  private val nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]
 
-  def getClusters: List[Cluster] = clusters.toList
+//  reset()
 
-  def getCluster(id: String): Cluster = clusters.filter(id == _.id).headOption.getOrElse(null)
+  def getClusters: List[Cluster] = frameworkState.clusters.toList
+
+  def getCluster(id: String): Cluster = frameworkState.clusters.filter(id == _.id).headOption.getOrElse(null)
 
   def defaultCluster: Cluster = getCluster("default")
 
@@ -44,29 +47,130 @@ object Nodes {
     if (getCluster(cluster.id) != null)
       throw new IllegalArgumentException(s"duplicate cluster ${cluster.id}")
 
-    clusters += cluster
+    frameworkState.clusters += cluster
     cluster
   }
 
   def removeCluster(cluster: Cluster): Unit = {
     if (cluster == defaultCluster) throw new IllegalArgumentException("can't remove default cluster")
     cluster.getNodes.foreach(_.cluster = defaultCluster)
-    clusters -= cluster
+    frameworkState.clusters -= cluster
   }
 
 
-  def getNodes: List[Node] = nodes.toList.sortBy(_.id.toInt)
+  def getNodes: List[Node] = frameworkState.nodes.toList.sortBy(_.id.toInt)
 
-  def getNode(id: String) = nodes.filter(id == _.id).headOption.getOrElse(null)
+  def getNode(id: String) = frameworkState.nodes.filter(id == _.id).headOption.getOrElse(null)
 
   def addNode(node: Node): Node = {
     if (getNode(node.id) != null) throw new IllegalArgumentException(s"duplicate node ${node.id}")
-    nodes += node
+    frameworkState.nodes += node
     node
   }
 
-  def removeNode(node: Node): Unit = { nodes -= node }
+  def removeNode(node: Node): Unit = { frameworkState.nodes -= node }
 
+
+//  def reset(): Unit = {
+//    frameworkState.frameworkId = null
+//
+//    frameworkState.clusters.clear()
+//    val defaultCluster = new Cluster("default")
+//    addCluster(defaultCluster)
+//
+//    frameworkState.nodes.clear()
+//  }
+
+//  def fromJson(json: Map[String, Any]): Unit = {
+//    if (json.contains("clusters")) {
+//      frameworkState.clusters.clear()
+//      for (clusterObj <- json("clusters").asInstanceOf[List[Map[String, Object]]])
+//        addCluster(new Cluster(clusterObj))
+//    }
+//
+//    if (json.contains("nodes")) {
+//      frameworkState.nodes.clear()
+//      for (nodeJson <- json("nodes").asInstanceOf[List[Map[String, Object]]])
+//        addNode(new Node(nodeJson))
+//    }
+//
+//    if (json.contains("frameworkId"))
+//      frameworkState.frameworkId = json("frameworkId").asInstanceOf[String]
+//  }
+//
+//  def toJson: JSONObject = {
+//    val json = new mutable.LinkedHashMap[String, Object]()
+//    if (frameworkState.frameworkId != null) json("frameworkId") = frameworkState.frameworkId
+//
+//    if (!frameworkState.clusters.isEmpty) {
+//      val clustersJson = frameworkState.clusters.map(_.toJson)
+//      json("clusters") = new JSONArray(clustersJson.toList)
+//    }
+//
+//    if (!frameworkState.nodes.isEmpty) {
+//      val nodesJson = frameworkState.nodes.map(_.toJson())
+//      json("nodes") = new JSONArray(nodesJson.toList)
+//    }
+//
+//    new JSONObject(json.toMap)
+//  }
+
+  def save() = storage.save(frameworkState)
+
+  def load() {
+    val storedFrameworkState = storage.load()
+    frameworkState =
+      if (storedFrameworkState == null) {
+        logger.info("No nodes state available")
+        FrameworkState(namespace = Config.namespace)
+      } else {
+        storedFrameworkState
+      }
+
+  }
+
+  private[dse] def newStorage(storage: String): Storage = {
+    storage.split(":", 3) match {
+      case Array("file", fileName) => FileStorage(new File(fileName))
+      case Array("zk", zk) => ZkStorage(zk)
+      case Array("cassandra", port, contactPoints) => new CassandraStorage(port.toInt, contactPoints.split(",").toSeq, Config.keyspace)
+      case _ => throw new IllegalArgumentException(s"Unsupported storage: $storage")
+    }
+  }
+}
+
+object FrameworkState{
+  def fromJson(json: Map[String, Any]): FrameworkState = {
+    val frameworkState = FrameworkState()
+    frameworkState.reset()
+
+    if (json.contains("clusters")) {
+      frameworkState.clusters.clear()
+      for (clusterObj <- json("clusters").asInstanceOf[List[Map[String, Object]]])
+        frameworkState.addCluster(new Cluster(clusterObj))
+    }
+
+    if (json.contains("nodes")) {
+      frameworkState.nodes.clear()
+      for (nodeJson <- json("nodes").asInstanceOf[List[Map[String, Object]]]){
+        val node = new Node(nodeJson, false)
+        node.cluster = frameworkState.clusters.find(_.id == node.id).orNull
+        frameworkState.addNode(node)
+      }
+
+    }
+
+    if (json.contains("frameworkId"))
+      frameworkState.frameworkId = json("frameworkId").asInstanceOf[String]
+
+    frameworkState
+  }
+}
+
+case class FrameworkState(var namespace: String = null,
+                          var frameworkId: String = null,
+                          clusters: mutable.ListBuffer[Cluster] = new mutable.ListBuffer[Cluster],
+                          nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]) {
 
   def reset(): Unit = {
     frameworkId = null
@@ -78,57 +182,39 @@ object Nodes {
     nodes.clear()
   }
 
-  def fromJson(json: Map[String, Any]): Unit = {
-    if (json.contains("clusters")) {
-      clusters.clear()
-      for (clusterObj <- json("clusters").asInstanceOf[List[Map[String, Object]]])
-        addCluster(new Cluster(clusterObj))
-    }
+  def getCluster(id: String): Cluster = clusters.filter(id == _.id).headOption.getOrElse(null)
 
-    if (json.contains("nodes")) {
-      nodes.clear()
-      for (nodeJson <- json("nodes").asInstanceOf[List[Map[String, Object]]])
-        addNode(new Node(nodeJson))
-    }
+  def addCluster(cluster: Cluster): Cluster = {
+    if (getCluster(cluster.id) != null)
+      throw new IllegalArgumentException(s"duplicate cluster ${cluster.id}")
 
-    if (json.contains("frameworkId"))
-      frameworkId = json("frameworkId").asInstanceOf[String]
+    clusters += cluster
+    cluster
   }
+
+  def getNode(id: String) = nodes.filter(id == _.id).headOption.getOrElse(null)
+
+  def addNode(node: Node): Node = {
+    if (getNode(node.id) != null) throw new IllegalArgumentException(s"duplicate node ${node.id}")
+    nodes += node
+    node
+  }
+
 
   def toJson: JSONObject = {
     val json = new mutable.LinkedHashMap[String, Object]()
     if (frameworkId != null) json("frameworkId") = frameworkId
 
-    if (!clusters.isEmpty) {
+    if (clusters.nonEmpty) {
       val clustersJson = clusters.map(_.toJson)
       json("clusters") = new JSONArray(clustersJson.toList)
     }
 
-    if (!nodes.isEmpty) {
+    if (nodes.nonEmpty) {
       val nodesJson = nodes.map(_.toJson())
       json("nodes") = new JSONArray(nodesJson.toList)
     }
 
     new JSONObject(json.toMap)
-  }
-
-  def save() = storage.save(this.toJson)
-
-  def load() {
-    val json = storage.load()
-    if (json == null) {
-      logger.info("No nodes state available")
-      return
-    }
-
-    this.fromJson(json)
-  }
-
-  private[dse] def newStorage(storage: String): Storage = {
-    storage.split(":", 2) match {
-      case Array("file", fileName) => FileStorage(new File(fileName))
-      case Array("zk", zk) => ZkStorage(zk)
-      case _ => throw new IllegalArgumentException(s"Unsupported storage: $storage")
-    }
   }
 }

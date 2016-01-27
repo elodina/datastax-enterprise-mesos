@@ -8,7 +8,7 @@ class ClusterTest extends MesosTestCase {
   @Before
   override def before {
     super.before
-    Nodes.reset()
+    Nodes.frameworkState.reset()
   }
 
   @Test

@@ -7,7 +7,7 @@ Master provides web ui listening on http://master:5050
 Both master and slave nodes runs mesos slave daemons.
 
 Every node has pre-installed docker. Master node has pre-installed
-marathon scheduler.
+marathon scheduler and Cassandra (meant to be used as framework storage).
 
 Host's public key is copied to `authorized_hosts`,
 so direct access like `ssh vagrant@master|slaveX` should work.
@@ -43,3 +43,19 @@ for details.
 
 ## Logs
 Logs are written to `/var/log/mesos/mesos-{master|slave}.*`
+
+## Starting the Framework with Cassandra as a Storage
+After starting vagrant `master` machine should have C* service started, respective keyspace(`dse_mesos`) and table(`dse_mesos_framework`)
+should be created. You can check it with cqlsh utility (available on PATH):
+
+```
+# cqlsh master -e 'SELECT * FROM dse_mesos.dse_mesos_framework;'
+```
+
+With that you can start the framework using local C* node as a storage:
+```
+# export DM_API=http://master:7001
+# ./dse-mesos.sh scheduler --master zk://master:2181/mesos --debug true --storage cassandra:9042:master
+```
+
+
