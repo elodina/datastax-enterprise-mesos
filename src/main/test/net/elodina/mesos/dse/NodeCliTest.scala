@@ -68,8 +68,62 @@ class NodeCliTest extends MesosTestCase {
     val node = new Node("0")
     Nodes.addNode(node)
     Nodes.save()
-    assertCliResponse(
-      Array("list"),
-      "node:\n" + outputToString { NodeCli.printNode(node, 1) })
+    val response = "node:\n" + outputToString { NodeCli.printNode(node, 1) }
+    assertCliResponse(Array("list"), response)
   }
+
+  @Test
+  def handleAddUpdate() = {
+    val node = new Node("0")
+    Nodes.addNode(node)
+    Nodes.save()
+    val defaultAddNodeResponse = "node added:\n" + outputToString { NodeCli.printNode(node, 1) }
+    Nodes.removeNode(node)
+    Nodes.save()
+
+    assertCliResponse(Array("add", "0"), defaultAddNodeResponse)
+    assertEquals(Nodes.getNodes.size, 1)
+
+    val cluster = new Cluster("test-cluster")
+    val args = Array("update", "0", "--cluster", cluster.id)
+
+    assertCliError(args, "java.io.IOException: 400 - cluster not found")
+
+    Nodes.addCluster(cluster)
+    Nodes.save()
+    cli(args)
+    assertEquals(cluster.id, Nodes.getNode("0").cluster.id)
+
+    val options = Array(
+      "--cpu", "10",
+      "--mem", "10",
+      "--stickiness-period", "60m",
+      "--rack", "rack",
+      "--dc", "dc",
+      "--seed", "true",
+      "--replace-address", "1.1.1.1",
+      "--jvm-options", "-Dfile.encoding=UTF8",
+      "--data-file-dirs", "/tmp/datadir",
+      "--commit-log-dir", "/tmp/commitlog",
+      "--saved-caches-dir", "/tmp/caches"
+    )
+    cli(Array("update", "0") ++ options)
+
+    {
+      val node = Nodes.getNode("0")
+      assertEquals(node.cpu, 10.0, 0)
+      assertEquals(node.mem, 10.0, 0)
+      assertEquals(node.stickiness.period.toString, "60m")
+      assertEquals(node.rack, "rack")
+      assertEquals(node.dc, "dc")
+      assertEquals(node.seed, true)
+      assertEquals(node.replaceAddress, "1.1.1.1")
+      assertEquals(node.jvmOptions, "-Dfile.encoding=UTF8")
+      assertEquals(node.dataFileDirs, "/tmp/datadir")
+      assertEquals(node.commitLogDir, "/tmp/commitlog")
+      assertEquals(node.savedCachesDir, "/tmp/caches")
+    }
+
+  }
+
 }
