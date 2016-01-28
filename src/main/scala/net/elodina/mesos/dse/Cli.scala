@@ -70,7 +70,7 @@ object Cli {
     printLine("cluster          - cluster management commands", 1)
   }
 
-  private[dse] def sendRequest(uri: String, params: Map[String, String]): Any = {
+  private[dse] def sendRequest(uri: String, params: Map[String, String], urlPathPrefix: String = "api", parseJson: Boolean = true): Any = {
     def queryString(params: Map[String, String]): String = {
       var s = ""
       for ((name, value) <- params) {
@@ -82,7 +82,7 @@ object Cli {
     }
 
     val qs: String = queryString(params)
-    val url: String = Config.api + (if (Config.api.endsWith("/")) "" else "/") + "api" + uri
+    val url: String = Config.api + (if (Config.api.endsWith("/")) "" else "/") + urlPathPrefix + uri
 
     val connection: HttpURLConnection = new URL(url).openConnection().asInstanceOf[HttpURLConnection]
     var response: String = null
@@ -107,11 +107,18 @@ object Cli {
 
     if (response.trim().isEmpty) return null
 
-    var json: Any = null
-    try { json = Util.parseJson(response)}
-    catch { case e: IllegalArgumentException => throw new IOException(e) }
+    if(parseJson) {
+      var json: Any = null
+      try {
+        json = Util.parseJson(response)
+      }
+      catch {
+        case e: IllegalArgumentException => throw new IOException(e)
+      }
 
-    json
+      json
+    } else
+      response
   }
 
   def resolveApi(api: String) {

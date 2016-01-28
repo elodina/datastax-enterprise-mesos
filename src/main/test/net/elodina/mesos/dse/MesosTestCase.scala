@@ -17,12 +17,14 @@
 
 package net.elodina.mesos.dse
 
+import net.elodina.mesos.dse.Node.{Runtime, Stickiness, Reservation}
 import org.apache.mesos.Protos.Resource.DiskInfo.Persistence
 import org.apache.mesos.Protos.Resource.{DiskInfo, ReservationInfo}
 import org.apache.mesos.Protos.Volume.Mode
 import org.apache.mesos.Protos._
 import java.util.{Collections, UUID}
 import org.apache.mesos.Protos.Value.Text
+import org.junit.Assert._
 import scala.collection.JavaConversions._
 import org.apache.mesos.{ExecutorDriver, SchedulerDriver}
 import java.util
@@ -368,4 +370,71 @@ class MesosTestCase {
 
     def sendFrameworkMessage(message: Array[Byte]): Status = throw new UnsupportedOperationException
   }
+
+  def assertNodeEquals(expected: Node, actual: Node) {
+    if (checkNulls(expected, actual)) return
+
+    assertEquals(expected.id, actual.id)
+    assertEquals(expected.state, actual.state)
+    assertEquals(expected.cluster, actual.cluster)
+    assertStickinessEquals(expected.stickiness, actual.stickiness)
+    assertRuntimeEquals(expected.runtime, actual.runtime)
+
+    assertEquals(expected.cpu, actual.cpu, 0.001)
+    assertEquals(expected.mem, actual.mem)
+    assertEquals(expected.seed, actual.seed)
+
+    assertEquals(expected.replaceAddress, actual.replaceAddress)
+    assertEquals(expected.jvmOptions, actual.jvmOptions)
+
+    assertEquals(expected.rack, actual.rack)
+    assertEquals(expected.dc, actual.dc)
+
+    assertEquals(expected.constraints, actual.constraints)
+    assertEquals(expected.seedConstraints, actual.seedConstraints)
+
+    assertEquals(expected.dataFileDirs, actual.dataFileDirs)
+    assertEquals(expected.commitLogDir, actual.commitLogDir)
+    assertEquals(expected.savedCachesDir, actual.savedCachesDir)
+  }
+
+  def assertReservationEquals(expected: Reservation, actual: Reservation) {
+    if (checkNulls(expected, actual)) return
+
+    assertEquals(expected.cpus, actual.cpus, 0.001)
+    assertEquals(expected.mem, actual.mem)
+    assertEquals(expected.ports, actual.ports)
+    assertEquals(expected.ignoredPorts, actual.ignoredPorts)
+  }
+
+  def assertStickinessEquals(expected: Stickiness, actual: Stickiness) {
+    if (checkNulls(expected, actual)) return
+
+    assertEquals(expected.period, actual.period)
+    assertEquals(expected.hostname, actual.hostname)
+    assertEquals(expected.stopTime, actual.stopTime)
+  }
+
+  def assertRuntimeEquals(expected: Runtime, actual: Runtime) {
+    if (checkNulls(expected, actual)) return
+
+    assertEquals(expected.taskId, actual.taskId)
+    assertEquals(expected.executorId, actual.executorId)
+
+    assertEquals(expected.slaveId, actual.slaveId)
+    assertEquals(expected.hostname, actual.hostname)
+    assertEquals(expected.address, actual.address)
+
+    assertEquals(expected.seeds, actual.seeds)
+    assertReservationEquals(expected.reservation, actual.reservation)
+    assertEquals(expected.attributes, actual.attributes)
+  }
+
+  private def checkNulls(expected: Object, actual: Object): Boolean = {
+    if (expected == actual) return true
+    if (expected == null) throw new AssertionError("actual != null")
+    if (actual == null) throw new AssertionError("actual == null")
+    false
+  }
+
 }

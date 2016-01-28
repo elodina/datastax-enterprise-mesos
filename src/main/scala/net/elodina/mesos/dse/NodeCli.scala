@@ -194,7 +194,7 @@ object NodeCli {
     try { Cli.sendRequest(s"/node/remove", Map("node" -> expr)) }
     catch { case e: IOException => throw new Error("" + e) }
 
-    println("node removed")
+    printLine("node removed")
   }
 
   def handleStartStop(cmd: String, expr: String, args: Array[String], help: Boolean = false): Unit = {
@@ -256,7 +256,7 @@ object NodeCli {
     printLine("stop       - stop node", 1)
   }
 
-  private def printNode(node: Node, indent: Int = 0) {
+  private[dse] def printNode(node: Node, indent: Int = 0) {
     printLine(s"id: ${node.id}", indent)
     printLine(s"state: ${node.state}", indent)
 
