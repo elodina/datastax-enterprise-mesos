@@ -64,16 +64,16 @@ class ClusterCliTest extends MesosTestCase with CliTestCase {
     val cluster = new Cluster("test-cluster")
     Nodes.addCluster(cluster)
 
-    assertCliError(Array("remove", ""), "java.io.IOException: 400 - cluster required")
-    assertCliError(Array("remove", "nonexistent"), "java.io.IOException: 400 - cluster not found")
-    assertCliError(Array("remove", "default"), "java.io.IOException: 400 - can't remove default cluster")
+    assertCliError(Array("remove", ""), "cluster required")
+    assertCliError(Array("remove", "nonexistent"), "cluster not found")
+    assertCliError(Array("remove", "default"), "can't remove default cluster")
 
     val node = new Node("0")
     node.cluster = cluster
     node.state = Node.State.RUNNING
     Nodes.addNode(node)
     Nodes.save()
-    assertCliError(Array("remove", cluster.id), "java.io.IOException: 400 - can't remove cluster with active nodes")
+    assertCliError(Array("remove", cluster.id), "can't remove cluster with active nodes")
 
     node.state = Node.State.IDLE
     Nodes.save()

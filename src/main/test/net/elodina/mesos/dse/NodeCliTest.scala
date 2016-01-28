@@ -1,36 +1,11 @@
 package net.elodina.mesos.dse
 
-import java.io.{PrintStream, PrintWriter, ByteArrayOutputStream}
-
 import org.junit.{Test, Before, After}
 import org.junit.Assert._
 
-class NodeCliTest extends MesosTestCase {
+
+class NodeCliTest extends MesosTestCase with CliTestCase {
   def cli = NodeCli.handle(_: Array[String])
-
-  def assertCliError(args: Array[String], msg: String) = {
-    val _ = try{ cli(args) }
-    catch { case e: Cli.Error => assertEquals(msg, e.getMessage) }
-  }
-
-  def assertCliResponse(args: Array[String], msg: String, newLine: Boolean = true) = {
-    val baos = new ByteArrayOutputStream()
-    Cli.out = new PrintStream(baos)
-    cli(args)
-    Cli.out.flush()
-    assertEquals(if(newLine) msg + "\n" else msg, baos.toString)
-    Cli.out = System.out
-  }
-
-  def outputToString(cmd: => Unit) = {
-    val baos = new ByteArrayOutputStream()
-    val out = new PrintStream(baos)
-    Cli.out = out
-    cmd
-    Cli.out.flush()
-    Cli.out = System.out
-    baos.toString
-  }
 
   @Before
   override def before = {
@@ -82,7 +57,7 @@ class NodeCliTest extends MesosTestCase {
     val cluster = new Cluster("test-cluster")
     val args = Array("update", "0", "--cluster", cluster.id)
 
-    assertCliError(args, "java.io.IOException: 400 - cluster not found")
+    assertCliError(args, "cluster not found")
 
     Nodes.addCluster(cluster)
     Nodes.save()
@@ -123,15 +98,15 @@ class NodeCliTest extends MesosTestCase {
 
   @Test
   def handleRemove() = {
-    assertCliError(Array("remove", ""), "java.io.IOException: 400 - node required")
-    assertCliError(Array("remove", "+"), "java.io.IOException: 400 - invalid node expr")
-    assertCliError(Array("remove", "0"), "java.io.IOException: 400 - node 0 not found")
+    assertCliError(Array("remove", ""), "node required")
+    assertCliError(Array("remove", "+"), "invalid node expr")
+    assertCliError(Array("remove", "0"), "node 0 not found")
 
     val node = new Node("0")
     node.state = Node.State.RUNNING
     Nodes.addNode(node)
     Nodes.save()
-    assertCliError(Array("remove", "0"), "java.io.IOException: 400 - node 0 should be idle")
+    assertCliError(Array("remove", "0"), "node 0 should be idle")
 
     node.state = Node.State.IDLE
     Nodes.save()
@@ -140,16 +115,16 @@ class NodeCliTest extends MesosTestCase {
 
   @Test
   def handleStart() = {
-    assertCliError(Array("start", ""), "java.io.IOException: 400 - node required")
-    assertCliError(Array("start", "+"), "java.io.IOException: 400 - invalid node expr")
-    assertCliError(Array("start", "0"), "java.io.IOException: 400 - node 0 not found")
+    assertCliError(Array("start", ""), "node required")
+    assertCliError(Array("start", "+"), "invalid node expr")
+    assertCliError(Array("start", "0"), "node 0 not found")
 
     val id = "0"
     val node = new Node(id)
     Nodes.addNode(node)
     Nodes.save()
 
-    assertCliError(Array("start", "0", "--timeout", "+"), "java.io.IOException: 400 - invalid timeout")
+    assertCliError(Array("start", "0", "--timeout", "+"), "invalid timeout")
 
     val actualResponse = outputToString { cli(Array("start", "0", "--timeout", "0ms")) }
     val expectedResponse = "node scheduled to start:\n" + outputToString { NodeCli.printNode(node, 1) } + "\n"
