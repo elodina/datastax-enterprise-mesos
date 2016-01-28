@@ -12,14 +12,14 @@ class HttpServerTest extends MesosTestCase {
   override def before = {
     super.before
     HttpServer.start()
-    Nodes.reset()
+    Nodes.frameworkState.reset()
   }
 
   @After
   override def after = {
     super.after
     HttpServer.stop()
-    Nodes.reset()
+    Nodes.frameworkState.reset()
   }
 
   val getPlainResponse = sendRequest(_: String, parseMap(""), urlPathPrefix = "", parseJson = false)
@@ -109,7 +109,7 @@ class HttpServerTest extends MesosTestCase {
         "savedCachesDir" -> "/tmp/caches"
       )
 
-      Nodes.reset()
+      Nodes.frameworkState.reset()
       val response = nodeAdd(parameters).asInstanceOf[JsonNodes].head
       val node = Nodes.getNode("1")
       assertEquals(Nodes.getNodes.size, 1)

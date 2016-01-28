@@ -35,14 +35,14 @@ class NodeCliTest extends MesosTestCase {
   @Before
   override def before = {
     super.before
-    Nodes.reset()
+    Nodes.frameworkState.reset()
     HttpServer.start()
   }
 
   @After
   override def after = {
     super.after
-    Nodes.reset()
+    Nodes.frameworkState.reset()
     HttpServer.stop()
   }
 
