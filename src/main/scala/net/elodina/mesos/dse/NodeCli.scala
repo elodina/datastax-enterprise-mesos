@@ -105,8 +105,8 @@ object NodeCli {
     parser.accepts("saved-caches-dir", "Cassandra saved caches dir. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
     parser.accepts("cassandra-yaml-configs", "Comma separated key-value pairs (k1=v1,k2=v2) that override default cassandra.yaml configuration. " +
       "Default configuration file is shipped with the dse tarball. Note: These pairs are not validated by the Scheduler.").withRequiredArg.ofType(classOf[String])
-    parser.accepts("cassandra-jvm-options", "Comma separated key-value pairs (k1=v1,k2=v2) that should be passed to cassandra process. " +
-      "E.g. cassandra.replace_address=127.0.0.1,cassandra.ring_delay_ms=15000. Note: These pairs are not validated by the Scheduler.").withRequiredArg.ofType(classOf[String])
+    parser.accepts("cassandra-jvm-options", "A string to set JVM_OPTS environment variable. " +
+      "E.g. \"-Dcassandra.replace_address=127.0.0.1 -Dcassandra.ring_delay_ms=15000\".").withRequiredArg.ofType(classOf[String])
 
     if (help) {
       printLine(s"${cmd.capitalize} node \nUsage: node $cmd <id> [options]\n")
@@ -274,7 +274,7 @@ object NodeCli {
     if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent)
     if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent)
     if (node.cassandraDotYaml != null) printLine(s"cassandra.yaml overrides: ${Util.formatMap(node.cassandraDotYaml)}", indent)
-    if (node.cassandraJvmOptions != null) printLine(s"cassandra jvm options: ${Util.formatMap(node.cassandraJvmOptions)}", indent)
+    if (node.cassandraJvmOptions != null) printLine(s"cassandra jvm options: ${node.cassandraJvmOptions}", indent)
 
     printLine(s"stickiness: ${nodeStickiness(node)}", indent)
     if (node.runtime != null) printNodeRuntime(node.runtime, indent)

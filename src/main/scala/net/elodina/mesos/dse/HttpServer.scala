@@ -189,7 +189,7 @@ object HttpServer {
       val commitLogDir = request.getParameter("commitLogDir")
       val savedCachesDir = request.getParameter("savedCachesDir")
       val cassandraDotYaml = Util.parseMap(request.getParameter("cassandraDotYaml"))
-      val cassandraJvmOptions = Util.parseMap(request.getParameter("cassandraJvmOptions"))
+      val cassandraJvmOptions = request.getParameter("cassandraJvmOptions")
 
       // collect nodes and check existence & state
       val nodes = new ListBuffer[Node]()
@@ -234,8 +234,7 @@ object HttpServer {
         }
 
         if (cassandraJvmOptions != null) {
-          node.cassandraJvmOptions.clear()
-          node.cassandraJvmOptions ++= cassandraJvmOptions
+          node.cassandraJvmOptions = cassandraJvmOptions
         }
       }
 
