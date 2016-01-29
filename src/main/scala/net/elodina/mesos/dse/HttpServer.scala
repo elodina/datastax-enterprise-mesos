@@ -233,9 +233,7 @@ object HttpServer {
           node.cassandraDotYaml ++= cassandraDotYaml
         }
 
-        if (cassandraJvmOptions != null) {
-          node.cassandraJvmOptions = cassandraJvmOptions
-        }
+        node.cassandraJvmOptions = if (cassandraJvmOptions != "") cassandraJvmOptions else null
       }
 
       for (node <- nodes) {
