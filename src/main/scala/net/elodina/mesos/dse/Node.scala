@@ -44,7 +44,6 @@ class Node extends Constrained {
   var mem: Long = 512
 
   var seed: Boolean = false
-  var replaceAddress: String = null
   var jvmOptions: String = null
 
   var rack: String = "default"
@@ -58,6 +57,7 @@ class Node extends Constrained {
   var savedCachesDir: String = null
 
   var cassandraDotYaml: mutable.Map[String, String] = new mutable.HashMap[String, String]
+  var cassandraJvmOptions: mutable.Map[String, String] = new mutable.HashMap[String, String]
 
   def this(id: String) = {
     this
@@ -248,7 +248,6 @@ class Node extends Constrained {
     mem = json("mem").asInstanceOf[Number].longValue()
 
     seed = json("seed").asInstanceOf[Boolean]
-    if (json.contains("replaceAddress")) replaceAddress = json("replaceAddress").asInstanceOf[String]
     if (json.contains("jvmOptions")) jvmOptions = json("jvmOptions").asInstanceOf[String]
 
     rack = json("rack").asInstanceOf[String]
@@ -266,6 +265,9 @@ class Node extends Constrained {
 
     cassandraDotYaml.clear()
     if (json.contains("cassandraDotYaml")) cassandraDotYaml ++= json("cassandraDotYaml").asInstanceOf[Map[String, String]]
+
+    cassandraJvmOptions.clear()
+    if (json.contains("cassandraJvmOptions")) cassandraJvmOptions ++= json("cassandraJvmOptions").asInstanceOf[Map[String, String]]
   }
 
   def toJson(expanded: Boolean = false): JSONObject = {
@@ -281,7 +283,6 @@ class Node extends Constrained {
     json("mem") = mem
 
     json("seed") = seed
-    if (replaceAddress != null) json("replaceAddress") = replaceAddress
     if (jvmOptions != null) json("jvmOptions") = jvmOptions
 
     json("rack") = rack
@@ -295,6 +296,7 @@ class Node extends Constrained {
     if (savedCachesDir != null) json("savedCachesDir") = savedCachesDir
 
     if (!cassandraDotYaml.isEmpty) json("cassandraDotYaml") = new JSONObject(cassandraDotYaml.toMap)
+    if (!cassandraJvmOptions.isEmpty) json("cassandraJvmOptions") = new JSONObject(cassandraJvmOptions.toMap)
 
     new JSONObject(json.toMap)
   }
