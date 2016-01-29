@@ -1,13 +1,101 @@
 package net.elodina.mesos.dse
 
-import Util.{Range, Period, BindAddress, IO}
+import java.util.Arrays
+
 import org.junit.Test
 import org.junit.Assert._
-import java.io.File
+import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File}
 import java.nio.file.Files
 import java.net.{InetSocketAddress, ServerSocket}
 
+import scala.collection.mutable.LinkedHashMap
+
+import Util._
+
+
 class UtilTest {
+  @Test
+  def parseMapTest() = {
+    var map = parseMap("a=1,b=2")
+
+    assertEquals(2, map.size)
+    assertEquals(Some("1"), map.get("a"))
+    assertEquals(Some("2"), map.get("b"))
+
+    // missing pair
+    try { map = parseMap("a=1,,b=2"); fail() }
+    catch { case e: IllegalArgumentException => }
+
+    // null value
+    map = parseMap("a=1,b,c=3")
+    assertEquals(3, map.size)
+    assertEquals(Some(null), map.get("b"))
+
+    try { parseMap("a=1,b,c=3", nullValues = false) }
+    catch { case e: IllegalArgumentException => }
+
+    // escaping
+    map = parseMap("a=\\,,b=\\=,c=\\\\")
+    assertEquals(3, map.size)
+    assertEquals(Some(","), map.get("a"))
+    assertEquals(Some("="), map.get("b"))
+    assertEquals(Some("\\"), map.get("c"))
+
+    // open escaping
+    try { parseMap("a=\\"); fail() }
+    catch { case e: IllegalArgumentException => }
+
+    // null
+    assertTrue(parseMap(null).isEmpty)
+  }
+
+  @Test
+  def formatMapTest() = {
+    val map = new LinkedHashMap[String, String]()
+    map.put("a", "1")
+    map.put("b", "2")
+    assertEquals("a=1,b=2", formatMap(map))
+
+    // null value
+    map.put("b", null)
+    assertEquals("a=1,b", formatMap(map))
+
+    // escaping
+    map.put("a", ",")
+    map.put("b", "=")
+    map.put("c", "\\")
+    assertEquals("a=\\,,b=\\=,c=\\\\", formatMap(map))
+  }
+
+  @Test
+  def parseJsonTest() = {
+    val node = parseJson("{\"a\":\"1\", \"b\":\"2\"}").asInstanceOf[Map[String, Object]]
+    assertEquals(2, node.size)
+    assertEquals("1", node("a").asInstanceOf[String])
+    assertEquals("2", node("b").asInstanceOf[String])
+  }
+
+  @Test
+  def copyAndCloseTest() = {
+    val data = new Array[Byte](16 * 1024)
+    for (i <- data.indices) data(i) = i.toByte
+
+    var inClosed = false
+    var outClosed = false
+
+    val in = new ByteArrayInputStream(data) {
+      override def close(): Unit = super.close(); inClosed = true
+    }
+    val out = new ByteArrayOutputStream() {
+      override def close(): Unit = super.close(); outClosed = true
+    }
+
+    IO.copyAndClose(in, out)
+    assertTrue(Arrays.equals(data, out.toByteArray))
+    assertTrue(inClosed)
+    assertTrue(outClosed)
+  }
+
   // Period
   @Test
   def Period_init() {
@@ -225,7 +313,7 @@ class UtilTest {
 
   @Test
   def BindAddress_resolve_checkPort {
-    val port = Util.findAvailPort
+    val port = findAvailPort
 
     // port avail
     val address: BindAddress = new BindAddress("127.*")
