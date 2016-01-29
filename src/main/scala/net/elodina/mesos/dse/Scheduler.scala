@@ -212,7 +212,10 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
       logger.info(s"Finished reconciling of node ${node.id}, task ${node.runtime.taskId}")
 
     node.state = Node.State.RUNNING
-    node.replaceAddress = null
+    // cassandra.replace_address is a one-time option
+    if (node.cassandraJvmOptions != null)
+      node.cassandraJvmOptions = node.cassandraJvmOptions.split(" ").filterNot(s => s.contains("-Dcassandra.replace_address")).mkString(" ")
+
     node.runtime.address = status.getData.toStringUtf8
     node.registerStart(node.runtime.hostname)
   }

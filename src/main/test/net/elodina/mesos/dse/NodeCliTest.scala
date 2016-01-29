@@ -71,11 +71,12 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
       "--rack", "rack",
       "--dc", "dc",
       "--seed", "true",
-      "--replace-address", "1.1.1.1",
       "--jvm-options", "-Dfile.encoding=UTF8",
       "--data-file-dirs", "/tmp/datadir",
       "--commit-log-dir", "/tmp/commitlog",
-      "--saved-caches-dir", "/tmp/caches"
+      "--saved-caches-dir", "/tmp/caches",
+      "--cassandra-yaml-configs", "num_tokens=312,hinted_handoff=false",
+      "--cassandra-jvm-options", "-Dcassandra.replace_address=127.0.0.1 -Dcassandra.ring_delay_ms=15000"
     )
     cli(Array("update", "0") ++ options)
 
@@ -87,11 +88,12 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
       assertEquals(node.rack, "rack")
       assertEquals(node.dc, "dc")
       assertEquals(node.seed, true)
-      assertEquals(node.replaceAddress, "1.1.1.1")
       assertEquals(node.jvmOptions, "-Dfile.encoding=UTF8")
       assertEquals(node.dataFileDirs, "/tmp/datadir")
       assertEquals(node.commitLogDir, "/tmp/commitlog")
       assertEquals(node.savedCachesDir, "/tmp/caches")
+      assertEquals(node.cassandraDotYaml.toMap, Map("num_tokens" -> "312", "hinted_handoff" -> "false"))
+      assertEquals(node.cassandraJvmOptions, "-Dcassandra.replace_address=127.0.0.1 -Dcassandra.ring_delay_ms=15000")
     }
 
   }

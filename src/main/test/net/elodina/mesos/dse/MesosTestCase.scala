@@ -384,7 +384,6 @@ class MesosTestCase {
     assertEquals(expected.mem, actual.mem)
     assertEquals(expected.seed, actual.seed)
 
-    assertEquals(expected.replaceAddress, actual.replaceAddress)
     assertEquals(expected.jvmOptions, actual.jvmOptions)
 
     assertEquals(expected.rack, actual.rack)
