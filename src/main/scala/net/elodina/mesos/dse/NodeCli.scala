@@ -98,7 +98,6 @@ object NodeCli {
     parser.accepts("seed-constraints", "Seed node constraints. Will be evaluated only across seed nodes.").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("seed", "Flags whether this node is a seed node.").withRequiredArg().ofType(classOf[java.lang.Boolean])
-    parser.accepts("replace-address", "Replace address for the dead node.").withRequiredArg().ofType(classOf[String])
     parser.accepts("jvm-options", "JVM options for node executor.").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("data-file-dirs", "Cassandra data file directories separated by comma. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
@@ -106,6 +105,8 @@ object NodeCli {
     parser.accepts("saved-caches-dir", "Cassandra saved caches dir. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
     parser.accepts("cassandra-yaml-configs", "Comma separated key-value pairs (k1=v1,k2=v2) that override default cassandra.yaml configuration. " +
       "Default configuration file is shipped with the dse tarball. Note: These pairs are not validated by the Scheduler.").withRequiredArg.ofType(classOf[String])
+    parser.accepts("cassandra-jvm-options", "Comma separated key-value pairs (k1=v1,k2=v2) that should be passed to cassandra process. " +
+      "E.g. cassandra.replace_address=127.0.0.1,cassandra.ring_delay_ms=15000. Note: These pairs are not validated by the Scheduler.").withRequiredArg.ofType(classOf[String])
 
     if (help) {
       printLine(s"${cmd.capitalize} node \nUsage: node $cmd <id> [options]\n")
@@ -138,13 +139,13 @@ object NodeCli {
     val seedConstraints = options.valueOf("seed-constraints").asInstanceOf[String]
 
     val seed = options.valueOf("seed").asInstanceOf[java.lang.Boolean]
-    val replaceAddress = options.valueOf("replace-address").asInstanceOf[String]
     val jvmOptions = options.valueOf("jvm-options").asInstanceOf[String]
 
     val dataFileDirs = options.valueOf("data-file-dirs").asInstanceOf[String]
     val commitLogDir = options.valueOf("commit-log-dir").asInstanceOf[String]
     val savedCachesDir = options.valueOf("saved-caches-dir").asInstanceOf[String]
     val cassandraDotYaml = options.valueOf("cassandra-yaml-configs").asInstanceOf[String]
+    val cassandraJvmOptions = options.valueOf("cassandra-jvm-options").asInstanceOf[String]
 
     val params = new mutable.HashMap[String, String]()
     params("node") = expr
@@ -161,13 +162,13 @@ object NodeCli {
     if (seedConstraints != null) params("seedConstraints") = seedConstraints
 
     if (seed != null) params("seed") = "" + seed
-    if (replaceAddress != null) params("replaceAddress") = replaceAddress
     if (jvmOptions != null) params("jvmOptions") = jvmOptions
 
     if (dataFileDirs != null) params("dataFileDirs") = dataFileDirs
     if (commitLogDir != null) params("commitLogDir") = commitLogDir
     if (savedCachesDir != null) params("savedCachesDir") = savedCachesDir
     if (cassandraDotYaml != null) params("cassandraDotYaml") = cassandraDotYaml
+    if (cassandraJvmOptions != null) params("cassandraJvmOptions") = cassandraJvmOptions
 
     var nodesJson: List[Any] = null
     try { nodesJson = Cli.sendRequest(s"/node/$cmd", params.toMap).asInstanceOf[List[Any]] }
@@ -264,7 +265,6 @@ object NodeCli {
     printLine(s"resources: ${nodeResources(node)}", indent)
     printLine(s"seed: ${node.seed}", indent)
 
-    if (node.replaceAddress != null) printLine(s"replace-address: ${node.replaceAddress}", indent)
     if (node.jvmOptions != null) printLine(s"jvm-options: ${node.jvmOptions}", indent)
 
     if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent)
@@ -274,6 +274,7 @@ object NodeCli {
     if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent)
     if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent)
     if (node.cassandraDotYaml != null) printLine(s"cassandra.yaml overrides: ${Util.formatMap(node.cassandraDotYaml)}", indent)
+    if (node.cassandraJvmOptions != null) printLine(s"cassandra jvm options: ${Util.formatMap(node.cassandraJvmOptions)}", indent)
 
     printLine(s"stickiness: ${nodeStickiness(node)}", indent)
     if (node.runtime != null) printNodeRuntime(node.runtime, indent)

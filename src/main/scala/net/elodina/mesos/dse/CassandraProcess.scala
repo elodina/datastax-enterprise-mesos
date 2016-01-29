@@ -54,16 +54,20 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
   }
 
   private def startProcess(): Process = {
-    var cmd: List[String] = null
-    if (Executor.dseDir != null) cmd = List("" + new File(Executor.dseDir, "bin/dse"), "cassandra", "-f")
-    else cmd = List("" + new File(Executor.cassandraDir, "bin/cassandra"), "-f")
+    val startCmd: List[String] =
+      if (Executor.dseDir != null)
+      List("" + new File(Executor.dseDir, "bin/dse"), "cassandra", "-f")
+    else
+      List("" + new File(Executor.cassandraDir, "bin/cassandra"), "-f")
+
+
+    val cmd = startCmd ++ node.cassandraJvmOptions.map { case (k, v) => s"-D$k=$v" }.toList
+
+    logger.debug(s"Starting command: $cmd")
 
     val builder: ProcessBuilder = new ProcessBuilder(cmd)
       .redirectOutput(new File(Executor.dir, "cassandra.out"))
       .redirectError(new File(Executor.dir, "cassandra.err"))
-
-    if (node.replaceAddress != null)
-      builder.environment().put("JVM_OPTS", s"-Dcassandra.replace_address=${node.replaceAddress}")
 
     builder.environment().putAll(env)
     builder.start()
