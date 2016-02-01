@@ -45,7 +45,9 @@ for details.
 Logs are written to `/var/log/mesos/mesos-{master|slave}.*`
 
 ## Starting the Framework with Cassandra as a Storage
-After starting vagrant `master` machine should have C* service started, respective keyspace(`dse_mesos`) and table(`dse_mesos_framework`)
+If you want to have a local cassandra instance automatically installed on master machine - change `INSTALL_CASSANDRA` variable to `true` in `Vagrantfile`.
+
+After starting vagrant `master` machine  should have C* service started, respective keyspace(`dse_mesos`) and table(`dse_mesos_framework`)
 should be created. You can check it with cqlsh utility (available on PATH):
 
 ```

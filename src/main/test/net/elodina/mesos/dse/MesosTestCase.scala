@@ -46,7 +46,7 @@ class MesosTestCase {
     val storageFile: File = Files.createTempFile(classOf[MesosTestCase].getSimpleName, null).toFile
     storageFile.delete()
     Nodes.storage = new FileStorage(storageFile)
-    Nodes.frameworkState.reset()
+    Nodes.reset()
 
     schedulerDriver = new TestSchedulerDriver()
     Scheduler.registered(schedulerDriver, frameworkId(), master())

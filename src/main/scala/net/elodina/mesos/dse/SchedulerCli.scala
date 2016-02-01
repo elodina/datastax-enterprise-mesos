@@ -26,7 +26,7 @@ object SchedulerCli {
     parser.accepts("debug", "Run in debug mode.").withRequiredArg().ofType(classOf[Boolean]).defaultsTo(false)
     parser.accepts("jre", "Path to JRE archive.").withRequiredArg().ofType(classOf[String])
 
-    parser.accepts("namespace", "A grouping label for this framework. Optional.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("namespace", "A grouping label for mesos frameworks. Optional.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
       printLine("Start scheduler \nUsage: scheduler [options]\n")

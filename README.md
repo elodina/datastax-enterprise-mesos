@@ -202,9 +202,6 @@ After that you can run scheduler with the following command:
   # ./dse-mesos.sh scheduler --master zk://master:2181/mesos --debug true --storage cassandra:9042:master \
    --cassandra-keyspace dse_mesos --cassandra-table dse_mesos_framework
   ```
-
-Note: the state table is *not* shared among datastax-enterprise-mesos frameworks, scheduler will delete all
- data in the provided keyspace.tablename as it's meant to be used as a storage for only one framework.
     
 Typical operations
 =================

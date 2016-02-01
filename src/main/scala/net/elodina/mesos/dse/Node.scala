@@ -37,7 +37,6 @@ class Node extends Constrained {
   var id: String = null
   var state: Node.State.Value = Node.State.IDLE
   var cluster: Cluster = Nodes.defaultCluster
-  var clusterId: String = cluster.id
   var stickiness: Node.Stickiness = new Node.Stickiness()
   var runtime: Node.Runtime = null
 
@@ -241,15 +240,7 @@ class Node extends Constrained {
   def fromJson(json: Map[String, Any], expanded: Boolean = false): Unit = {
     id = json("id").asInstanceOf[String]
     state = Node.State.withName(json("state").asInstanceOf[String])
-
-    if (expanded) {
-      cluster = new Cluster(json("cluster").asInstanceOf[Map[String, Any]])
-      clusterId = cluster.id
-    } else {
-      cluster = null
-      clusterId = json("cluster").asInstanceOf[String]
-    }
-
+    cluster = if (expanded) new Cluster(json("cluster").asInstanceOf[Map[String, Any]]) else Nodes.getCluster(json("cluster").asInstanceOf[String])
     stickiness = new Node.Stickiness(json("stickiness").asInstanceOf[Map[String, Any]])
     if (json.contains("runtime")) runtime = new Node.Runtime(json("runtime").asInstanceOf[Map[String, Any]])
 
@@ -312,7 +303,7 @@ class Node extends Constrained {
 
   override def equals(obj: scala.Any): Boolean = {
     if (!obj.isInstanceOf[Node]) false
-    id == obj.asInstanceOf[Node].id
+    else id == obj.asInstanceOf[Node].id
   }
 
   override def toString: String = id

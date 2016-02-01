@@ -21,14 +21,16 @@ import com.datastax.driver.core._
 import net.elodina.mesos.dse.Node.{Reservation, Runtime, Stickiness}
 import net.elodina.mesos.dse.Util.{Period, BindAddress}
 import scala.collection.JavaConverters._
+import scala.collection.mutable.ListBuffer
+import scala.util.Try
 
-class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, stateTable: String) extends Storage {
+class CassandraStorage(port: Int, contactPoints: String, keyspace: String, stateTable: String) extends Storage {
 
   private val tg = new AtomicMonotonicTimestampGenerator
 
   private val session =
     Cluster.builder()
-      .withPort(port).addContactPoints(contactPoints: _*).build().connect(keyspace)
+      .withPort(port).addContactPoints(contactPoints).build().connect(keyspace)
 
   private val SelectPs = session.prepare(CassandraStorage.selectQuery(stateTable))
   private val InsertionPs = session.prepare(CassandraStorage.insertionQuery(stateTable))
@@ -41,7 +43,7 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
 
   private def bindStickiness(boundStatement: BoundStatement, node: Node):BoundStatement = {
     if (node.stickiness != null)
-      boundStatement.setString(7, stringOrNull(node.stickiness.period)).setDate(8, node.stickiness.stopTime).setString(9, node.stickiness.hostname)
+      boundStatement.setString(8, stringOrNull(node.stickiness.period)).setDate(9, node.stickiness.stopTime).setString(10, node.stickiness.hostname)
     else
       boundStatement
   }
@@ -50,8 +52,8 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
     if (node.runtime != null) {
 
       boundStatement
-        .setString(10, node.runtime.taskId).setString(11, node.runtime.executorId).setString(12, node.runtime.slaveId)
-        .setString(13, node.runtime.hostname).setString(14, node.runtime.address).setList(15, if (node.runtime.seeds != null) node.runtime.seeds.asJava else null)
+        .setString(11, node.runtime.taskId).setString(12, node.runtime.executorId).setString(13, node.runtime.slaveId)
+        .setString(14, node.runtime.hostname).setString(15, node.runtime.address).setList(16, if (node.runtime.seeds != null) node.runtime.seeds.asJava else null)
 
       if (node.runtime.reservation != null) {
         val reservationPorts =
@@ -61,32 +63,35 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
           if (node.runtime.reservation.ignoredPorts != null) node.runtime.reservation.ignoredPorts.map(stringOrNull).asJava
           else null
         boundStatement
-          .setDouble(16, node.runtime.reservation.cpus).setInt(17, node.runtime.reservation.mem.toInt).setMap(18, reservationPorts)
-          .setList(19, reservationIgnoredPorts)
+          .setDouble(17, node.runtime.reservation.cpus).setInt(18, node.runtime.reservation.mem.toInt).setMap(19, reservationPorts)
+          .setList(20, reservationIgnoredPorts)
       }
 
-      boundStatement.setMap(20, if (node.runtime.attributes != null) node.runtime.attributes.asJava else null)
+      boundStatement.setMap(21, if (node.runtime.attributes != null) node.runtime.attributes.asJava else null)
     } else boundStatement
   }
 
-  override def save(frameworkState: FrameworkState): Unit = {
+  override def save(): Unit = {
     // go with default - atomic batches
     val batch = new BatchStatement()
 
     val boundStatement = DeletionPs.bind()
-      .setString(1, frameworkState.namespace).setLong(0, tg.next())
+      .setLong(0, tg.next()).setString(1, Nodes.namespace)
 
     batch.add(boundStatement)
 
-    for (cluster <- frameworkState.clusters){
+    for (cluster <- Nodes.clusters){
 
       if (cluster.getNodes.isEmpty) {
         val clusterPorts = cluster.ports.map{case (v, r) => v.toString -> Option(r).map(_.toString).getOrElse("")}.asJava
         val boundStatement =
-          // size + 1 for USING TIMESTAMP part
+          // size + 1 for USING TIMESTAMP clause
           InsertionPs.bind(List.fill(CassandraStorage.Fields.size + 1)(null) :_*)
-          .setString(0, frameworkState.namespace).setString(1, frameworkState.frameworkId).setString(2, cluster.id)
-          .setString(3, stringOrNull(cluster.bindAddress)).setMap[String, String](4, clusterPorts).setLong(34, tg.next())
+          .setString(0, Nodes.namespace).setString(1, Nodes.frameworkId).setString(2, cluster.id)
+          .setString(3, stringOrNull(cluster.bindAddress)).setMap[String, String](4, clusterPorts)
+          // nr_of_nodes set to 0, this will indicate node_id has a stub value, just to avoid null (as node_id is part of PK)
+          .setInt(5, 0).setString(6, "-1")
+          .setLong(35, tg.next())
 
         batch.add(boundStatement)
       } else {
@@ -96,21 +101,22 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
         for (node <- cluster.getNodes) {
           val boundStatement =
             InsertionPs.bind(List.fill(CassandraStorage.Fields.size + 1)(null): _*)
-              .setString(0, frameworkState.namespace).setString(1, frameworkState.frameworkId)
+              .setString(0, Nodes.namespace).setString(1, Nodes.frameworkId)
               // cluster
               .setString(2, cluster.id).setString(3, stringOrNull(cluster.bindAddress)).setMap(4, clusterPorts)
+              .setInt(5, cluster.getNodes.size)
               // node
-              .setString(5, node.id).setString(6, stringOrNull(node.state))
+              .setString(6, node.id).setString(7, stringOrNull(node.state))
 
           bindStickiness(boundStatement, node)
           bindRuntime(boundStatement, node)
 
           boundStatement
             // node
-            .setDouble(21, node.cpu).setInt(22, node.mem.toInt).setBool(23, node.seed).setString(24, node.replaceAddress)
-            .setString(25, node.jvmOptions).setString(26, node.rack).setString(27, node.dc).setString(28, Util.formatConstraints(node.constraints))
-            .setString(29, Util.formatConstraints(node.seedConstraints)).setString(30, node.dataFileDirs).setString(31, node.commitLogDir)
-            .setString(32, node.savedCachesDir).setMap(33, node.cassandraDotYaml.asJava).setLong(34, tg.next())
+            .setDouble(22, node.cpu).setInt(23, node.mem.toInt).setBool(24, node.seed).setString(25, node.replaceAddress)
+            .setString(26, node.jvmOptions).setString(27, node.rack).setString(28, node.dc).setString(29, Util.formatConstraints(node.constraints))
+            .setString(30, Util.formatConstraints(node.seedConstraints)).setString(31, node.dataFileDirs).setString(32, node.commitLogDir)
+            .setString(33, node.savedCachesDir).setMap(34, node.cassandraDotYaml.asJava).setLong(35, tg.next())
 
           batch.add(boundStatement)
         }
@@ -139,7 +145,6 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
       else
         cluster.ports(Node.Port.withName(port)) = new Util.Range(range)
     }
-
 
     cluster
   }
@@ -209,36 +214,50 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
     node
   }
 
-  override def load(): FrameworkState = {
+  override def load(): Boolean = {
     val boundStatement = SelectPs.bind().setString(0, Config.namespace).setConsistencyLevel(ConsistencyLevel.ONE)
 
     val rows = session.execute(boundStatement).all().asScala
+
     if (rows.nonEmpty) {
-      val frameworkId = rows.headOption.map(_.getString("framework_id")).orNull
-      val frameworkState = FrameworkState(Config.namespace, frameworkId)
+      val frameworkId = rows.headOption.map(_.getString("framework_id"))
+        .getOrElse(throw new IllegalStateException(s"FrameworkId is null for namespace ${Config.namespace}"))
+
+      val clusters = new ListBuffer[Cluster]
+      val nodes = new ListBuffer[Node]
 
       for (row <- rows) {
-
         val cluster = extractCluster(row)
+        // due to data model the same cluster appears number of times equals to number of nodes in that cluster
+        if (!clusters.exists(_.id == cluster.id))
+          clusters += cluster
 
-        if (frameworkState.clusters.exists(c => c.id == cluster.id)) {
-          // skip
-        } else {
-          frameworkState.addCluster(cluster)
-
-          val nodeId = row.getString("node_id")
-          if (nodeId == null) {
-            // skip
-          } else {
-            val node = extractNode(row, cluster)
-            frameworkState.addNode(node)
-          }
+        val nrOfNodes = row.getInt("nr_of_nodes")
+        if (nrOfNodes != 0){
+          val node = extractNode(row, cluster)
+          nodes += node
         }
       }
 
-      frameworkState
+      Nodes.namespace = Config.namespace
+      Nodes.frameworkId = frameworkId
+
+      Nodes.clusters.clear()
+      clusters.foreach(Nodes.addCluster)
+
+      Nodes.nodes.clear()
+      nodes.foreach(Nodes.addNode)
+
+      true
     } else {
-      null
+      false
+    }
+  }
+
+  override def close(): Unit = {
+    Try {
+      if (session != null)
+        session.close()
     }
   }
 }
@@ -250,38 +269,39 @@ object CassandraStorage{
     /*2*/"cluster_id",
     /*3*/"cluster_bind_address",
     /*4*/"cluster_ports",
-    /*5*/"node_id",
-    /*6*/"node_state",
-    /*7*/"node_stickiness_period",
-    /*8*/"node_stickiness_stopTime",
-    /*9*/"node_stickiness_hostname",
-    /*10*/"node_runtime_task_id",
-    /*11*/"node_runtime_executor_id",
-    /*12*/"node_runtime_slave_id",
-    /*13*/"node_runtime_hostname",
-    /*14*/"node_runtime_address",
-    /*15*/"node_runtime_seeds",
-    /*16*/"node_runtime_reservation_cpus",
-    /*17*/"node_runtime_reservation_mem",
-    /*18*/"node_runtime_reservation_ports",
-    /*19*/"node_runtime_reservation_ignored_ports",
-    /*20*/"node_runtime_attributes",
-    /*21*/"node_cpu",
-    /*22*/"node_mem",
-    /*23*/"node_seed",
-    /*24*/"node_replace_address",
-    /*25*/"node_jvm_options",
-    /*26*/"node_rack",
-    /*27*/"node_dc",
-    /*28*/"node_constraints",
-    /*29*/"node_seed_constraints",
-    /*30*/"node_data_file_dirs",
-    /*31*/"node_commit_log_dir",
-    /*32*/"node_saved_caches_dir",
-    /*33*/"node_cassandra_dot_yaml"
+    /*5*/"nr_of_nodes",
+    /*6*/"node_id",
+    /*7*/"node_state",
+    /*8*/"node_stickiness_period",
+    /*9*/"node_stickiness_stopTime",
+    /*10*/"node_stickiness_hostname",
+    /*11*/"node_runtime_task_id",
+    /*12*/"node_runtime_executor_id",
+    /*13*/"node_runtime_slave_id",
+    /*14*/"node_runtime_hostname",
+    /*15*/"node_runtime_address",
+    /*16*/"node_runtime_seeds",
+    /*17*/"node_runtime_reservation_cpus",
+    /*18*/"node_runtime_reservation_mem",
+    /*19*/"node_runtime_reservation_ports",
+    /*20*/"node_runtime_reservation_ignored_ports",
+    /*21*/"node_runtime_attributes",
+    /*22*/"node_cpu",
+    /*23*/"node_mem",
+    /*24*/"node_seed",
+    /*25*/"node_replace_address",
+    /*26*/"node_jvm_options",
+    /*27*/"node_rack",
+    /*28*/"node_dc",
+    /*29*/"node_constraints",
+    /*30*/"node_seed_constraints",
+    /*31*/"node_data_file_dirs",
+    /*32*/"node_commit_log_dir",
+    /*33*/"node_saved_caches_dir",
+    /*34*/"node_cassandra_dot_yaml"
   )
 
-  def insertionQuery(table: String) =
+  def insertionQuery(table: String) = 
     s"INSERT INTO $table(${Fields.mkString(",")}) VALUES (${List.fill(Fields.size)("?").mkString(",")}) USING TIMESTAMP ?"
 
   def deleteQuery(table: String) =
