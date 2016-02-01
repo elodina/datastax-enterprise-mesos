@@ -17,7 +17,6 @@
 
 SLAVES=1
 NET_PREFIX="192.168.3."
-CASSANDRA_INSTALL=false
 
 NODES={"master" => NET_PREFIX + "5"}
 (0..SLAVES-1).each do |i| NODES["slave#{i}"] = NET_PREFIX + (6 + i).to_s end
@@ -48,7 +47,7 @@ Vagrant.configure(2) do |config|
     master.vm.network :private_network, ip: NODES["master"]
     master.vm.network :private_network, ip: NODES["master"].sub(".3.", ".4.")
 
-    master.vm.provision "shell", path: "init.sh", args: Array["master", CASSANDRA_INSTALL.to_s]
+    master.vm.provision "shell", path: "init.sh", args: "master"
   end
 
   (0..SLAVES-1).each do |i|
