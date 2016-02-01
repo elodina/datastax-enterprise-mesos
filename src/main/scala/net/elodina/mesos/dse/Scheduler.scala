@@ -43,12 +43,13 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     logger.info(s"Starting scheduler:\n$Config")
 
     Config.resolveDeps()
+    Nodes.namespace = Config.namespace
     Nodes.load()
     HttpServer.start()
 
     val frameworkBuilder = FrameworkInfo.newBuilder()
     frameworkBuilder.setUser(if (Config.user != null) Config.user else "")
-    if (Nodes.frameworkState.frameworkId != null) frameworkBuilder.setId(FrameworkID.newBuilder().setValue(Nodes.frameworkState.frameworkId))
+    if (Nodes.frameworkId != null) frameworkBuilder.setId(FrameworkID.newBuilder().setValue(Nodes.frameworkId))
     frameworkBuilder.setRole(Config.frameworkRole)
 
     frameworkBuilder.setName(Config.frameworkName)
@@ -70,6 +71,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     Runtime.getRuntime.addShutdownHook(new Thread() {
       override def run() {
         HttpServer.stop()
+        if (Nodes.storage != null) Nodes.storage.close()
       }
     })
 
@@ -81,7 +83,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     logger.info("[registered] framework:" + Str.id(id.getValue) + " master:" + Str.master(master))
     checkMesosVersion(master, driver)
 
-    Nodes.frameworkState.frameworkId = id.getValue
+    Nodes.frameworkId = id.getValue
     Nodes.save()
 
     this.driver = driver
@@ -212,7 +214,10 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
       logger.info(s"Finished reconciling of node ${node.id}, task ${node.runtime.taskId}")
 
     node.state = Node.State.RUNNING
-    node.replaceAddress = null
+    // cassandra.replace_address is a one-time option
+    if (node.cassandraJvmOptions != null)
+      node.cassandraJvmOptions = node.cassandraJvmOptions.split(" ").filterNot(s => s.contains("-Dcassandra.replace_address")).mkString(" ")
+
     node.runtime.address = status.getData.toStringUtf8
     node.registerStart(node.runtime.hostname)
   }

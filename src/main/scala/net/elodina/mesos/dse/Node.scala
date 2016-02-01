@@ -37,7 +37,6 @@ class Node extends Constrained {
   var id: String = null
   var state: Node.State.Value = Node.State.IDLE
   var cluster: Cluster = Nodes.defaultCluster
-  var clusterId: String = cluster.id
   var stickiness: Node.Stickiness = new Node.Stickiness()
   var runtime: Node.Runtime = null
 
@@ -45,7 +44,6 @@ class Node extends Constrained {
   var mem: Long = 512
 
   var seed: Boolean = false
-  var replaceAddress: String = null
   var jvmOptions: String = null
 
   var rack: String = "default"
@@ -59,6 +57,7 @@ class Node extends Constrained {
   var savedCachesDir: String = null
 
   var cassandraDotYaml: mutable.Map[String, String] = new mutable.HashMap[String, String]
+  var cassandraJvmOptions: String = null
 
   def this(id: String) = {
     this
@@ -241,15 +240,7 @@ class Node extends Constrained {
   def fromJson(json: Map[String, Any], expanded: Boolean = false): Unit = {
     id = json("id").asInstanceOf[String]
     state = Node.State.withName(json("state").asInstanceOf[String])
-
-    if (expanded) {
-      cluster = new Cluster(json("cluster").asInstanceOf[Map[String, Any]])
-      clusterId = cluster.id
-    } else {
-      cluster = null
-      clusterId = json("cluster").asInstanceOf[String]
-    }
-
+    cluster = if (expanded) new Cluster(json("cluster").asInstanceOf[Map[String, Any]]) else Nodes.getCluster(json("cluster").asInstanceOf[String])
     stickiness = new Node.Stickiness(json("stickiness").asInstanceOf[Map[String, Any]])
     if (json.contains("runtime")) runtime = new Node.Runtime(json("runtime").asInstanceOf[Map[String, Any]])
 
@@ -257,7 +248,6 @@ class Node extends Constrained {
     mem = json("mem").asInstanceOf[Number].longValue()
 
     seed = json("seed").asInstanceOf[Boolean]
-    if (json.contains("replaceAddress")) replaceAddress = json("replaceAddress").asInstanceOf[String]
     if (json.contains("jvmOptions")) jvmOptions = json("jvmOptions").asInstanceOf[String]
 
     rack = json("rack").asInstanceOf[String]
@@ -275,6 +265,8 @@ class Node extends Constrained {
 
     cassandraDotYaml.clear()
     if (json.contains("cassandraDotYaml")) cassandraDotYaml ++= json("cassandraDotYaml").asInstanceOf[Map[String, String]]
+
+    if (json.contains("cassandraJvmOptions")) cassandraJvmOptions = json("cassandraJvmOptions").asInstanceOf[String]
   }
 
   def toJson(expanded: Boolean = false): JSONObject = {
@@ -290,7 +282,6 @@ class Node extends Constrained {
     json("mem") = mem
 
     json("seed") = seed
-    if (replaceAddress != null) json("replaceAddress") = replaceAddress
     if (jvmOptions != null) json("jvmOptions") = jvmOptions
 
     json("rack") = rack
@@ -304,6 +295,7 @@ class Node extends Constrained {
     if (savedCachesDir != null) json("savedCachesDir") = savedCachesDir
 
     if (!cassandraDotYaml.isEmpty) json("cassandraDotYaml") = new JSONObject(cassandraDotYaml.toMap)
+    if (cassandraJvmOptions != null) json("cassandraJvmOptions") = cassandraJvmOptions
 
     new JSONObject(json.toMap)
   }
@@ -312,7 +304,7 @@ class Node extends Constrained {
 
   override def equals(obj: scala.Any): Boolean = {
     if (!obj.isInstanceOf[Node]) false
-    id == obj.asInstanceOf[Node].id
+    else id == obj.asInstanceOf[Node].id
   }
 
   override def toString: String = id

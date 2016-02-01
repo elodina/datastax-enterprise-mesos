@@ -183,13 +183,13 @@ object HttpServer {
 
       var seed: java.lang.Boolean = null
       if (request.getParameter("seed") != null) seed = "true" == request.getParameter("seed")
-      val replaceAddress: String = request.getParameter("replaceAddress")
       val jvmOptions: String = request.getParameter("jvmOptions")
 
       val dataFileDirs = request.getParameter("dataFileDirs")
       val commitLogDir = request.getParameter("commitLogDir")
       val savedCachesDir = request.getParameter("savedCachesDir")
       val cassandraDotYaml = Util.parseMap(request.getParameter("cassandraDotYaml"))
+      val cassandraJvmOptions = request.getParameter("cassandraJvmOptions")
 
       // collect nodes and check existence & state
       val nodes = new ListBuffer[Node]()
@@ -222,7 +222,6 @@ object HttpServer {
         }
 
         if (seed != null) node.seed = seed
-        if (replaceAddress != null) node.replaceAddress = if (replaceAddress != "") replaceAddress else null
         if (jvmOptions != null) node.jvmOptions = if (jvmOptions != "") jvmOptions else null
 
         if (dataFileDirs != null) node.dataFileDirs = if (dataFileDirs != "") dataFileDirs else null
@@ -233,6 +232,8 @@ object HttpServer {
           node.cassandraDotYaml.clear()
           node.cassandraDotYaml ++= cassandraDotYaml
         }
+
+        node.cassandraJvmOptions = if (cassandraJvmOptions != "") cassandraJvmOptions else null
       }
 
       for (node <- nodes) {
