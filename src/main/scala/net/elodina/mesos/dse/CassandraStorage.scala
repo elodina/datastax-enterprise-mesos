@@ -1,4 +1,4 @@
-/**
+/*
  * Licensed to the Apache Software Foundation (ASF) under one
  * or more contributor license agreements.  See the NOTICE file
  * distributed with this work for additional information
@@ -26,6 +26,8 @@ import scala.util.Try
 
 class CassandraStorage(port: Int, contactPoints: String, keyspace: String, stateTable: String) extends Storage {
 
+  import CassandraStorage._
+
   private val tg = new AtomicMonotonicTimestampGenerator
 
   private val session =
@@ -43,7 +45,8 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
 
   private def bindStickiness(boundStatement: BoundStatement, node: Node):BoundStatement = {
     if (node.stickiness != null)
-      boundStatement.setString(8, stringOrNull(node.stickiness.period)).setDate(9, node.stickiness.stopTime).setString(10, node.stickiness.hostname)
+      boundStatement.setString(NodeStickinessPeriod, stringOrNull(node.stickiness.period))
+        .setDate(NodeStickinessStopTime, node.stickiness.stopTime).setString(NodeStickinessHostname, node.stickiness.hostname)
     else
       boundStatement
   }
@@ -52,8 +55,9 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
     if (node.runtime != null) {
 
       boundStatement
-        .setString(11, node.runtime.taskId).setString(12, node.runtime.executorId).setString(13, node.runtime.slaveId)
-        .setString(14, node.runtime.hostname).setString(15, node.runtime.address).setList(16, if (node.runtime.seeds != null) node.runtime.seeds.asJava else null)
+        .setString(NodeRuntimeTaskId, node.runtime.taskId).setString(NodeRuntimeExecutorId, node.runtime.executorId)
+        .setString(NodeRuntimeSlaveId, node.runtime.slaveId).setString(NodeRuntimeHostname, node.runtime.hostname)
+        .setString(NodeRuntimeAddress, node.runtime.address).setList(NodeRuntimeSeeds, if (node.runtime.seeds != null) node.runtime.seeds.asJava else null)
 
       if (node.runtime.reservation != null) {
         val reservationPorts =
@@ -63,11 +67,11 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
           if (node.runtime.reservation.ignoredPorts != null) node.runtime.reservation.ignoredPorts.map(stringOrNull).asJava
           else null
         boundStatement
-          .setDouble(17, node.runtime.reservation.cpus).setInt(18, node.runtime.reservation.mem.toInt).setMap(19, reservationPorts)
-          .setList(20, reservationIgnoredPorts)
+          .setDouble(NodeRuntimeReservationCpus, node.runtime.reservation.cpus).setInt(NodeRuntimeReservationMem, node.runtime.reservation.mem.toInt)
+          .setMap(NodeRuntimeReservationPorts, reservationPorts).setList(NodeRuntimeReservationIgnoredPorts, reservationIgnoredPorts)
       }
 
-      boundStatement.setMap(21, if (node.runtime.attributes != null) node.runtime.attributes.asJava else null)
+      boundStatement.setMap(NodeRuntimeAttributes, if (node.runtime.attributes != null) node.runtime.attributes.asJava else null)
     } else boundStatement
   }
 
@@ -76,7 +80,7 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
     val batch = new BatchStatement()
 
     val boundStatement = DeletionPs.bind()
-      .setLong(0, tg.next()).setString(1, Nodes.namespace)
+      .setLong(UsingTimestamp, tg.next()).setString(Namespace, Nodes.namespace)
 
     batch.add(boundStatement)
 
@@ -87,11 +91,11 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
         val boundStatement =
           // size + 1 for USING TIMESTAMP clause
           InsertionPs.bind(List.fill(CassandraStorage.Fields.size + 1)(null) :_*)
-          .setString(0, Nodes.namespace).setString(1, Nodes.frameworkId).setString(2, cluster.id)
-          .setString(3, stringOrNull(cluster.bindAddress)).setMap[String, String](4, clusterPorts)
+          .setString(Namespace, Nodes.namespace).setString(FrameworkId, Nodes.frameworkId).setString(ClusterId, cluster.id)
+          .setString(ClusterBindAddress, stringOrNull(cluster.bindAddress)).setMap[String, String](ClusterPorts, clusterPorts)
           // nr_of_nodes set to 0, this will indicate node_id has a stub value, just to avoid null (as node_id is part of PK)
-          .setInt(5, 0).setString(6, "-1")
-          .setLong(35, tg.next())
+          .setInt(NrOfNodes, 0).setString(NodeId, "undefined")
+          .setLong(UsingTimestamp, tg.next())
 
         batch.add(boundStatement)
       } else {
@@ -101,22 +105,23 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
         for (node <- cluster.getNodes) {
           val boundStatement =
             InsertionPs.bind(List.fill(CassandraStorage.Fields.size + 1)(null): _*)
-              .setString(0, Nodes.namespace).setString(1, Nodes.frameworkId)
+              .setString(Namespace, Nodes.namespace).setString(FrameworkId, Nodes.frameworkId)
               // cluster
-              .setString(2, cluster.id).setString(3, stringOrNull(cluster.bindAddress)).setMap(4, clusterPorts)
-              .setInt(5, cluster.getNodes.size)
+              .setString(ClusterId, cluster.id).setString(ClusterBindAddress, stringOrNull(cluster.bindAddress)).setMap(ClusterPorts, clusterPorts)
+              .setInt(NrOfNodes, cluster.getNodes.size)
               // node
-              .setString(6, node.id).setString(7, stringOrNull(node.state))
+              .setString(NodeId, node.id).setString(NodeState, stringOrNull(node.state))
 
           bindStickiness(boundStatement, node)
           bindRuntime(boundStatement, node)
 
           boundStatement
             // node
-            .setDouble(22, node.cpu).setInt(23, node.mem.toInt).setBool(24, node.seed).setString(25, node.replaceAddress)
-            .setString(26, node.jvmOptions).setString(27, node.rack).setString(28, node.dc).setString(29, Util.formatConstraints(node.constraints))
-            .setString(30, Util.formatConstraints(node.seedConstraints)).setString(31, node.dataFileDirs).setString(32, node.commitLogDir)
-            .setString(33, node.savedCachesDir).setMap(34, node.cassandraDotYaml.asJava).setLong(35, tg.next())
+            .setDouble(NodeCpu, node.cpu).setInt(NodeMem, node.mem.toInt).setBool(NodeSeed, node.seed)
+            .setString(NodeJvmOptions, node.jvmOptions).setString(NodeRack, node.rack).setString(NodeDc, node.dc).setString(NodeConstraints, Util.formatConstraints(node.constraints))
+            .setString(NodeSeedConstraints, Util.formatConstraints(node.seedConstraints)).setString(NodeDataFileDirs, node.dataFileDirs).setString(NodeCommitLogDir, node.commitLogDir)
+            .setString(NodeSavedCachesDir, node.savedCachesDir).setMap(NodeCassandraDotYaml, node.cassandraDotYaml.asJava).setString(NodeCassandraJvmOptions, node.cassandraJvmOptions)
+            .setLong(UsingTimestamp, tg.next())
 
           batch.add(boundStatement)
         }
@@ -130,14 +135,14 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
   private def extractCluster(row: Row): Cluster = {
     val cluster = new Cluster()
 
-    cluster.id = row.getString("cluster_id")
-    val clusterBindAddress = row.getString("cluster_bind_address")
+    cluster.id = row.getString(ClusterId)
+    val clusterBindAddress = row.getString(ClusterBindAddress)
     if (clusterBindAddress != null)
       cluster.bindAddress = new BindAddress(clusterBindAddress)
 
     cluster.resetPorts
 
-    val clusterPorts = row.getMap("cluster_ports", classOf[String], classOf[String]).asScala
+    val clusterPorts = row.getMap(ClusterPorts, classOf[String], classOf[String]).asScala
     for ((port, range) <- clusterPorts){
       // a workaround since C* doesn't support null values in maps
       if (range == "")
@@ -150,77 +155,77 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
   }
 
   private def reservation(row: Row): Reservation = {
-    val reservationPortMap = row.getMap("node_runtime_reservation_ports", classOf[String], classOf[java.lang.Integer]).asScala
+    val reservationPortMap = row.getMap(NodeRuntimeReservationPorts, classOf[String], classOf[java.lang.Integer]).asScala
     val reservationPorts = reservationPortMap.map { case (p, value) => Node.Port.withName(p) -> value.intValue() }.toMap
 
-    val ignoredPortsList = row.getList("node_runtime_reservation_ignored_ports", classOf[String]).asScala
+    val ignoredPortsList = row.getList(NodeRuntimeReservationIgnoredPorts, classOf[String]).asScala
     val ignoredPorts: List[Node.Port.Value] = ignoredPortsList.map(Node.Port.withName).toList
 
-    new Reservation(cpus = row.getDouble("node_runtime_reservation_cpus"), mem = row.getInt("node_runtime_reservation_mem").toLong,
+    new Reservation(cpus = row.getDouble(NodeRuntimeReservationCpus), mem = row.getInt(NodeRuntimeReservationMem).toLong,
       ports = reservationPorts, ignoredPorts = ignoredPorts)
   }
 
   private def runtime(row: Row): Runtime ={
-    val attributes = row.getMap("node_runtime_attributes", classOf[String], classOf[String]).asScala.toMap
-    val seeds = row.getList("node_runtime_seeds", classOf[String]).asScala.toList
+    val attributes = row.getMap(NodeRuntimeAttributes, classOf[String], classOf[String]).asScala.toMap
+    val seeds = row.getList(NodeRuntimeSeeds, classOf[String]).asScala.toList
 
-    new Runtime(taskId = row.getString("node_runtime_task_id"), executorId = row.getString("node_runtime_executor_id"),
-      slaveId = row.getString("node_runtime_slave_id"), hostname = row.getString("node_runtime_hostname"), seeds = seeds,
+    new Runtime(taskId = row.getString(NodeRuntimeTaskId), executorId = row.getString(NodeRuntimeExecutorId),
+      slaveId = row.getString(NodeRuntimeSlaveId), hostname = row.getString(NodeRuntimeHostname), seeds = seeds,
       reservation = reservation(row), attributes = attributes)
   }
 
   private def stickiness(row: Row): Stickiness = {
-    val stickiness = new Stickiness(new Period(row.getString("node_stickiness_period")))
-    stickiness.stopTime = row.getDate("node_stickiness_stopTime")
-    stickiness.hostname = row.getString("node_stickiness_hostname")
+    val stickiness = new Stickiness(new Period(row.getString(NodeStickinessPeriod)))
+    stickiness.stopTime = row.getDate(NodeStickinessStopTime)
+    stickiness.hostname = row.getString(NodeStickinessHostname)
 
     stickiness
   }
 
   private def extractNode(row: Row, cluster: Cluster): Node = {
-    val node = new Node(row.getString("node_id"))
-    node.state = Node.State.withName(row.getString("node_state"))
+    val node = new Node(row.getString(NodeId))
+    node.state = Node.State.withName(row.getString(NodeState))
     node.cluster = cluster
 
     node.stickiness = stickiness(row)
 
-    val runtimeTaskId = row.getString("node_runtime_task_id")
+    val runtimeTaskId = row.getString(NodeRuntimeTaskId)
     if (runtimeTaskId == null) {
       node.runtime = null
     } else {
       node.runtime = runtime(row)
     }
 
-    node.cpu = row.getDouble("node_cpu")
-    node.mem = row.getInt("node_mem").toLong
-    node.seed = row.getBool("node_seed")
-    node.replaceAddress = row.getString("node_replace_address")
-    node.jvmOptions = row.getString("node_jvm_options")
-    node.rack = row.getString("node_rack")
-    node.dc = row.getString("node_dc")
+    node.cpu = row.getDouble(NodeCpu)
+    node.mem = row.getInt(NodeMem).toLong
+    node.seed = row.getBool(NodeSeed)
+    node.jvmOptions = row.getString(NodeJvmOptions)
+    node.rack = row.getString(NodeRack)
+    node.dc = row.getString(NodeDc)
 
     node.constraints.clear()
-    node.constraints ++= Constraint.parse(row.getString("node_constraints"))
+    node.constraints ++= Constraint.parse(row.getString(NodeConstraints))
     node.seedConstraints.clear()
-    node.seedConstraints ++= Constraint.parse(row.getString("node_seed_constraints"))
+    node.seedConstraints ++= Constraint.parse(row.getString(NodeSeedConstraints))
 
-    node.dataFileDirs = row.getString("node_data_file_dirs")
-    node.commitLogDir = row.getString("node_commit_log_dir")
-    node.savedCachesDir = row.getString("node_saved_caches_dir")
-    node.commitLogDir = row.getString("node_commit_log_dir")
+    node.dataFileDirs = row.getString(NodeDataFileDirs)
+    node.commitLogDir = row.getString(NodeCommitLogDir)
+    node.savedCachesDir = row.getString(NodeSavedCachesDir)
+    node.commitLogDir = row.getString(NodeCommitLogDir)
     node.cassandraDotYaml.clear()
-    node.cassandraDotYaml ++= row.getMap("node_cassandra_dot_yaml", classOf[String], classOf[String]).asScala
+    node.cassandraDotYaml ++= row.getMap(NodeCassandraDotYaml, classOf[String], classOf[String]).asScala
+    node.cassandraJvmOptions = row.getString(NodeCassandraJvmOptions)
 
     node
   }
 
   override def load(): Boolean = {
-    val boundStatement = SelectPs.bind().setString(0, Config.namespace).setConsistencyLevel(ConsistencyLevel.ONE)
+    val boundStatement = SelectPs.bind().setString(Namespace, Config.namespace).setConsistencyLevel(ConsistencyLevel.ONE)
 
     val rows = session.execute(boundStatement).all().asScala
 
     if (rows.nonEmpty) {
-      val frameworkId = rows.headOption.map(_.getString("framework_id"))
+      val frameworkId = rows.headOption.map(_.getString(FrameworkId))
         .getOrElse(throw new IllegalStateException(s"FrameworkId is null for namespace ${Config.namespace}"))
 
       val clusters = new ListBuffer[Cluster]
@@ -232,7 +237,7 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
         if (!clusters.exists(_.id == cluster.id))
           clusters += cluster
 
-        val nrOfNodes = row.getInt("nr_of_nodes")
+        val nrOfNodes = row.getInt(NrOfNodes)
         if (nrOfNodes != 0){
           val node = extractNode(row, cluster)
           nodes += node
@@ -263,50 +268,92 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
 }
 
 object CassandraStorage{
+
+  /* 0*/ val Namespace = "namespace"
+  /* 1*/ val FrameworkId = "framework_id"
+  /* 2*/ val ClusterId = "cluster_id"
+  /* 3*/ val ClusterBindAddress = "cluster_bind_address"
+  /* 4*/ val ClusterPorts = "cluster_ports"
+  /* 5*/ val NrOfNodes = "nr_of_nodes"
+  /* 6*/ val NodeId = "node_id"
+  /* 7*/ val NodeState = "node_state"
+  /* 8*/ val NodeStickinessPeriod = "node_stickiness_period"
+  /* 9*/ val NodeStickinessStopTime = "node_stickiness_stopTime"
+  /*10*/ val NodeStickinessHostname = "node_stickiness_hostname"
+  /*11*/ val NodeRuntimeTaskId = "node_runtime_task_id"
+  /*12*/ val NodeRuntimeExecutorId = "node_runtime_executor_id"
+  /*13*/ val NodeRuntimeSlaveId = "node_runtime_slave_id"
+  /*14*/ val NodeRuntimeHostname = "node_runtime_hostname"
+  /*15*/ val NodeRuntimeAddress = "node_runtime_address"
+  /*16*/ val NodeRuntimeSeeds = "node_runtime_seeds"
+  /*17*/ val NodeRuntimeReservationCpus = "node_runtime_reservation_cpus"
+  /*18*/ val NodeRuntimeReservationMem = "node_runtime_reservation_mem"
+  /*19*/ val NodeRuntimeReservationPorts = "node_runtime_reservation_ports"
+  /*20*/ val NodeRuntimeReservationIgnoredPorts = "node_runtime_reservation_ignored_ports"
+  /*21*/ val NodeRuntimeAttributes = "node_runtime_attributes"
+  /*22*/ val NodeCpu = "node_cpu"
+  /*23*/ val NodeMem = "node_mem"
+  /*24*/ val NodeSeed = "node_seed"
+  /*25*/ val NodeJvmOptions = "node_jvm_options"
+  /*26*/ val NodeRack = "node_rack"
+  /*27*/ val NodeDc = "node_dc"
+  /*28*/ val NodeConstraints = "node_constraints"
+  /*29*/ val NodeSeedConstraints = "node_seed_constraints"
+  /*30*/ val NodeDataFileDirs = "node_data_file_dirs"
+  /*31*/ val NodeCommitLogDir = "node_commit_log_dir"
+  /*32*/ val NodeSavedCachesDir = "node_saved_caches_dir"
+  /*33*/ val NodeCassandraDotYaml = "node_cassandra_dot_yaml"
+  /*34*/ val NodeCassandraJvmOptions = "node_cassandra_jvm_options"
+
+  // not part of the table schema
+  val UsingTimestamp = "using_timestamp"
+
   val Fields = Seq(
-    /*0*/"namespace",
-    /*1*/"framework_id",
-    /*2*/"cluster_id",
-    /*3*/"cluster_bind_address",
-    /*4*/"cluster_ports",
-    /*5*/"nr_of_nodes",
-    /*6*/"node_id",
-    /*7*/"node_state",
-    /*8*/"node_stickiness_period",
-    /*9*/"node_stickiness_stopTime",
-    /*10*/"node_stickiness_hostname",
-    /*11*/"node_runtime_task_id",
-    /*12*/"node_runtime_executor_id",
-    /*13*/"node_runtime_slave_id",
-    /*14*/"node_runtime_hostname",
-    /*15*/"node_runtime_address",
-    /*16*/"node_runtime_seeds",
-    /*17*/"node_runtime_reservation_cpus",
-    /*18*/"node_runtime_reservation_mem",
-    /*19*/"node_runtime_reservation_ports",
-    /*20*/"node_runtime_reservation_ignored_ports",
-    /*21*/"node_runtime_attributes",
-    /*22*/"node_cpu",
-    /*23*/"node_mem",
-    /*24*/"node_seed",
-    /*25*/"node_replace_address",
-    /*26*/"node_jvm_options",
-    /*27*/"node_rack",
-    /*28*/"node_dc",
-    /*29*/"node_constraints",
-    /*30*/"node_seed_constraints",
-    /*31*/"node_data_file_dirs",
-    /*32*/"node_commit_log_dir",
-    /*33*/"node_saved_caches_dir",
-    /*34*/"node_cassandra_dot_yaml"
+    Namespace,
+    FrameworkId,
+    ClusterId,
+    ClusterBindAddress,
+    ClusterPorts,
+    NrOfNodes,
+    NodeId,
+    NodeState,
+    NodeStickinessPeriod,
+    NodeStickinessStopTime,
+    NodeStickinessHostname,
+    NodeRuntimeTaskId,
+    NodeRuntimeExecutorId,
+    NodeRuntimeSlaveId,
+    NodeRuntimeHostname,
+    NodeRuntimeAddress,
+    NodeRuntimeSeeds,
+    NodeRuntimeReservationCpus,
+    NodeRuntimeReservationMem,
+    NodeRuntimeReservationPorts,
+    NodeRuntimeReservationIgnoredPorts,
+    NodeRuntimeAttributes,
+    NodeCpu,
+    NodeMem,
+    NodeSeed,
+    NodeJvmOptions,
+    NodeRack,
+    NodeDc,
+    NodeConstraints,
+    NodeSeedConstraints,
+    NodeDataFileDirs,
+    NodeCommitLogDir,
+    NodeSavedCachesDir,
+    NodeCassandraDotYaml,
+    NodeCassandraJvmOptions
   )
 
-  def insertionQuery(table: String) = 
-    s"INSERT INTO $table(${Fields.mkString(",")}) VALUES (${List.fill(Fields.size)("?").mkString(",")}) USING TIMESTAMP ?"
+  private def `:`(field: String) = ":" + field
+
+  def insertionQuery(table: String) =
+    s"INSERT INTO $table(${Fields.mkString(",")}) VALUES (${Fields.map(`:`).mkString(",")}) USING TIMESTAMP ${`:`(UsingTimestamp)}"
 
   def deleteQuery(table: String) =
-    s"DELETE FROM $table USING TIMESTAMP ? WHERE namespace = ?"
+    s"DELETE FROM $table USING TIMESTAMP ${`:`(UsingTimestamp)} WHERE $Namespace = ${`:`(Namespace)}"
 
   def selectQuery(table: String) =
-    s"SELECT * FROM $table WHERE namespace = ?"
+    s"SELECT * FROM $table WHERE $Namespace = ${`:`(Namespace)}"
 }

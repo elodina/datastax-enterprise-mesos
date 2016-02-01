@@ -29,7 +29,6 @@ CREATE TABLE IF NOT EXISTS dse_mesos_framework(
         node_cpu double,
         node_mem int,
         node_seed boolean,
-        node_replace_address text,
         node_jvm_options text,
         node_rack text,
         node_dc text,
@@ -39,5 +38,6 @@ CREATE TABLE IF NOT EXISTS dse_mesos_framework(
         node_commit_log_dir text,
         node_saved_caches_dir text,
         node_cassandra_dot_yaml map<text, text>,
+        node_cassandra_jvm_options text,
         PRIMARY KEY(namespace, framework_id, cluster_id, node_id)
 );

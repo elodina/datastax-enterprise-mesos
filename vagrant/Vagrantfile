@@ -17,7 +17,7 @@
 
 SLAVES=1
 NET_PREFIX="192.168.3."
-CASSANDRA_INSTALL=true
+CASSANDRA_INSTALL=false
 
 NODES={"master" => NET_PREFIX + "5"}
 (0..SLAVES-1).each do |i| NODES["slave#{i}"] = NET_PREFIX + (6 + i).to_s end

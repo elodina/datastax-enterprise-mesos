@@ -73,7 +73,7 @@ install_cassandra() {
     sed "s/rpc_address:.*/rpc_address: /" /tmp/cass.2.yaml > $CASSANDRA_CFG
 
     service cassandra start
-    sleep 20
+    sleep 30
     cqlsh master -f /vagrant/vagrant/cassandra_schema.cql
 }
 
