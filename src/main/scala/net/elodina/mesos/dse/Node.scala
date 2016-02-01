@@ -304,7 +304,7 @@ class Node extends Constrained {
 
   override def equals(obj: scala.Any): Boolean = {
     if (!obj.isInstanceOf[Node]) false
-    id == obj.asInstanceOf[Node].id
+    else id == obj.asInstanceOf[Node].id
   }
 
   override def toString: String = id

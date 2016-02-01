@@ -47,6 +47,10 @@ object Config {
   var cassandra: File = null
   var jre: File = null
 
+  var namespace = "default"
+  var cassandraKeyspace: String = null
+  var cassandraTable: String = null
+
   def httpServerPort: Int = {
     val port = new URI(api).getPort
     if (port == -1) 80 else port

@@ -43,6 +43,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     logger.info(s"Starting scheduler:\n$Config")
 
     Config.resolveDeps()
+    Nodes.namespace = Config.namespace
     Nodes.load()
     HttpServer.start()
 
@@ -70,6 +71,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     Runtime.getRuntime.addShutdownHook(new Thread() {
       override def run() {
         HttpServer.stop()
+        if (Nodes.storage != null) Nodes.storage.close()
       }
     })
 

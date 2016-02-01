@@ -28,9 +28,10 @@ object Nodes {
   private val logger = Logger.getLogger(this.getClass)
   private[dse] var storage = Nodes.newStorage(Config.storage)
 
+  var namespace: String = null
   var frameworkId: String = null
-  private val clusters: mutable.ListBuffer[Cluster] = new mutable.ListBuffer[Cluster]
-  private val nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]
+  val clusters: mutable.ListBuffer[Cluster] = new mutable.ListBuffer[Cluster]
+  val nodes: mutable.ListBuffer[Node] = new mutable.ListBuffer[Node]
 
   reset()
 
@@ -91,12 +92,16 @@ object Nodes {
         addNode(new Node(nodeJson))
     }
 
+    if (json.contains("namespace"))
+      namespace = json("namespace").asInstanceOf[String]
+
     if (json.contains("frameworkId"))
       frameworkId = json("frameworkId").asInstanceOf[String]
   }
 
   def toJson: JSONObject = {
     val json = new mutable.LinkedHashMap[String, Object]()
+    if (namespace != null) json("namespace") = namespace
     if (frameworkId != null) json("frameworkId") = frameworkId
 
     if (!clusters.isEmpty) {
@@ -112,22 +117,19 @@ object Nodes {
     new JSONObject(json.toMap)
   }
 
-  def save() = storage.save(this.toJson)
+  def save() = storage.save()
 
   def load() {
-    val json = storage.load()
-    if (json == null) {
+    if (!storage.load()) {
       logger.info("No nodes state available")
-      return
     }
-
-    this.fromJson(json)
   }
 
   private[dse] def newStorage(storage: String): Storage = {
-    storage.split(":", 2) match {
+    storage.split(":", 3) match {
       case Array("file", fileName) => FileStorage(new File(fileName))
       case Array("zk", zk) => ZkStorage(zk)
+      case Array("cassandra", port, contactPoints) => new CassandraStorage(port.toInt, contactPoints, Config.cassandraKeyspace, Config.cassandraTable)
       case _ => throw new IllegalArgumentException(s"Unsupported storage: $storage")
     }
   }

@@ -41,6 +41,7 @@ dependencies {
     compile "net.sf.jopt-simple:jopt-simple:4.8"
     compile "log4j:log4j:1.2.16"
     compile "com.101tec:zkclient:0.6"
+    compile 'com.datastax.cassandra:cassandra-driver-core:2.1.8'
     testCompile 'junit:junit:4.12'
 }
 

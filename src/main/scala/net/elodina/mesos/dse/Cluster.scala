@@ -71,7 +71,7 @@ class Cluster {
 
   override def equals(obj: scala.Any): Boolean = {
     if (!obj.isInstanceOf[Cluster]) false
-    id == obj.asInstanceOf[Cluster].id
+    else id == obj.asInstanceOf[Cluster].id
   }
 
   override def toString: String = id

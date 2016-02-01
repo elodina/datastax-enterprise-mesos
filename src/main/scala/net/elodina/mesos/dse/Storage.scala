@@ -26,19 +26,31 @@ import org.I0Itec.zkclient.serialize.BytesPushThroughSerializer
 import scala.util.parsing.json.JSONObject
 
 trait Storage {
-  def save(json: JSONObject)
-  def load(): Map[String, Any]
+  def save()
+
+  /**
+   * Load the state of the framework into Nodes.
+   * @return true if there was a state to load (file/znode existed, db tables weren't empty)
+   */
+  def load(): Boolean
+
+  def close(): Unit = {
+    // default is no-op
+  }
 }
 
 case class FileStorage(file: File) extends Storage {
-  override def save(json: JSONObject) {
+  override def save() {
+    val json = Nodes.toJson
     Util.IO.writeFile(file, json.toString())
   }
 
-  override def load(): Map[String, Any] = {
-    if (!file.exists()) return null
-    val json = Util.IO.readFile(file)
-    Util.parseJsonAsMap(json)
+  override def load(): Boolean = {
+    if (file.exists()) {
+      val json = Util.IO.readFile(file)
+      Nodes.fromJson(Util.parseJsonAsMap(json))
+      true
+    } else false
   }
 }
 
@@ -60,7 +72,8 @@ case class ZkStorage[T](zk: String) extends Storage {
 
   private def zkClient: ZkClient = new ZkClient(zkConnect, 30000, 30000, new BytesPushThroughSerializer)
 
-  override def save(json: JSONObject) {
+  override def save() {
+    val json = Nodes.toJson
     val client = zkClient
     val encoded = json.toString().getBytes("utf-8")
     try {
@@ -73,13 +86,16 @@ case class ZkStorage[T](zk: String) extends Storage {
     }
   }
 
-  override def load(): Map[String, Any] = {
+  override def load(): Boolean = {
     val client = zkClient
     try {
       val bytes: Array[Byte] = client.readData(path, true).asInstanceOf[Array[Byte]]
-      if (bytes == null) return null
+      if (bytes != null) {
+        val map = Util.parseJsonAsMap(new String(bytes, "utf-8"))
+        Nodes.fromJson(map)
+        true
+      } else false
 
-      Util.parseJsonAsMap(new String(bytes, "utf-8"))
     } finally {
       client.close()
     }

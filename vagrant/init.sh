@@ -58,6 +58,25 @@ install_docker() {
     service mesos-slave restart
 }
 
+install_cassandra() {
+    echo "deb http://debian.datastax.com/community stable main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
+    curl -L http://debian.datastax.com/debian/repo_key | sudo apt-key add -
+    apt-get update
+    apt-get install dsc21=2.1.11-1 cassandra=2.1.11 -y --force-yes
+    service cassandra stop
+    rm -rf /var/lib/cassandra/data/system/*
+
+    CASSANDRA_CFG=/etc/cassandra/cassandra.yaml
+    cp $CASSANDRA_CFG ${CASSANDRA_CFG}.bak
+    sed "s/- seeds:.*/- seeds: \"master\"/" $CASSANDRA_CFG > /tmp/cass.1.yaml
+    sed "s/listen_address:.*/listen_address: /" /tmp/cass.1.yaml > /tmp/cass.2.yaml
+    sed "s/rpc_address:.*/rpc_address: /" /tmp/cass.2.yaml > $CASSANDRA_CFG
+
+    service cassandra start
+    sleep 30
+    cqlsh master -f /vagrant/vagrant/cassandra_schema.cql
+}
+
 if [[ $1 != "master" && $1 != "slave" ]]; then
     echo "Usage: $0 master|slave"
     exit 1
@@ -98,6 +117,8 @@ apt-get -qy update
 apt-get install -qy vim zip mc curl wget openjdk-7-jre scala git
 
 install_mesos $mode
-if [ $mode == "master" ]; then install_marathon; fi
+if [ $mode == "master" ]; then
+    install_marathon
+    install_cassandra
+fi
 #install_docker
-
