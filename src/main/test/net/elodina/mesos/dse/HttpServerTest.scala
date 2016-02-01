@@ -102,11 +102,12 @@ class HttpServerTest extends MesosTestCase {
         "constraints" -> "",
         "seedConstraints" -> "",
         "seed" -> "0.0.0.0",
-        "replaceAddress" -> "0.0.0.0",
         "jvmOptions" -> "-Dfile.encoding=UTF8",
         "dataFileDirs" -> "/tmp/datadir",
         "commitLogDir" -> "/tmp/commitlog",
-        "savedCachesDir" -> "/tmp/caches"
+        "savedCachesDir" -> "/tmp/caches",
+        "cassandraDotYaml" -> "num_tokens=312",
+        "cassandraJvmOptions" -> "-Dcassandra.ring_delay=15000, -Dcassandra.replace_address=localhost"
       )
 
       Nodes.reset()

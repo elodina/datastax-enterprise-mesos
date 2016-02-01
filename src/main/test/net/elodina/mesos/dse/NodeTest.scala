@@ -228,7 +228,6 @@ class NodeTest extends MesosTestCase {
     node.mem = 1024
 
     node.seed = true
-    node.replaceAddress = "127.0.0.2"
     node.jvmOptions = "options"
 
     node.rack = "r"
@@ -241,6 +240,7 @@ class NodeTest extends MesosTestCase {
     node.commitLogDir = "logDir"
     node.savedCachesDir = "saveCachesDir"
     node.cassandraDotYaml = new mutable.HashMap() ++= Seq("hinted_handoff_enabled" -> "false", "num_tokens" -> "312")
+    node.cassandraJvmOptions = "-Dcassandra.partitioner=p1 -Dcassandra.ring_delay_ms=100"
 
     read = new Node(Util.parseJsonAsMap("" + node.toJson()))
     assertNodeEquals(read, node)
