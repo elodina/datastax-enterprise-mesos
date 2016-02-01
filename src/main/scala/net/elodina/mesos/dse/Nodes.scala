@@ -92,12 +92,16 @@ object Nodes {
         addNode(new Node(nodeJson))
     }
 
+    if (json.contains("namespace"))
+      namespace = json("namespace").asInstanceOf[String]
+
     if (json.contains("frameworkId"))
       frameworkId = json("frameworkId").asInstanceOf[String]
   }
 
   def toJson: JSONObject = {
     val json = new mutable.LinkedHashMap[String, Object]()
+    if (namespace != null) json("namespace") = namespace
     if (frameworkId != null) json("frameworkId") = frameworkId
 
     if (!clusters.isEmpty) {
