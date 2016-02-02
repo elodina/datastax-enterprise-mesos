@@ -180,6 +180,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
   private def launchTask(node: Node, offer: Offer) {
     node.runtime = new Node.Runtime(node, offer)
     val task = node.newTask()
+    node.modified = false
 
     driver.launchTasks(util.Arrays.asList(offer.getId), util.Arrays.asList(task), Filters.newBuilder().setRefuseSeconds(1).build)
     logger.info(s"Starting node ${node.id} with task ${node.runtime.taskId} for offer ${offer.getId.getValue}")
@@ -238,6 +239,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     val targetState = if (node.state == Node.State.STOPPING) Node.State.IDLE else Node.State.STARTING
     node.state = targetState
     node.runtime = null
+    node.modified = false
     node.registerStop()
   }
 
