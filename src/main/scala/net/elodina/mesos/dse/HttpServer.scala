@@ -28,6 +28,7 @@ import org.eclipse.jetty.util.thread.QueuedThreadPool
 
 import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.collection.mutable.ListBuffer
+import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import net.elodina.mesos.dse.Node.State
 import net.elodina.mesos.dse.Util.{Range, BindAddress, Period}
@@ -117,6 +118,7 @@ object HttpServer {
       else if (uri == "add" || uri == "update") handleAddUpdateNode(uri == "add", request, response)
       else if (uri == "remove") handleRemoveNode(request, response)
       else if (uri == "start" || uri == "stop") handleStartStopNode(uri == "start", request, response)
+      else if (uri == "restart") handleRestartNode(request, response)
       else response.sendError(404, "unsupported method")
     }
     
@@ -197,7 +199,7 @@ object HttpServer {
         val node = Nodes.getNode(id)
         if (add && node != null) throw new HttpError(400, s"node $id exists")
         if (!add && node == null) throw new HttpError(400, s"node $id not exists")
-        if (!add && node.state != Node.State.IDLE) throw new HttpError(400, s"node should be idle")
+        if (!add && node.state != Node.State.IDLE) node.modified = true
         nodes += (if (add) new Node(id) else node)
       }
 
@@ -313,6 +315,67 @@ object HttpServer {
       }
 
       val resultJson = new JSONObject(Map("status" -> status, "nodes" -> new JSONArray(nodesJson.toList)))
+      response.getWriter.println("" + resultJson)
+    }
+
+    def handleRestartNode(request: HttpServletRequest, response: HttpServletResponse) {
+      val expr: String = request.getParameter("node")
+      if (expr == null || expr.isEmpty) throw new HttpError(400, "node required")
+
+      var ids: List[String] = null
+      try { ids = Expr.expandNodes(expr) }
+      catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
+
+      var timeout = Duration("5 minutes")
+      if (request.getParameter("timeout") != null) {
+        try { timeout = Duration(request.getParameter("timeout")) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid timeout") }
+      }
+
+      // check&collect nodes
+      val nodes = new ListBuffer[Node]
+      for (id <- ids) {
+        val node = Nodes.getNode(id)
+        if (node == null) throw new HttpError(400, s"node $id not found")
+        if (node.state != Node.State.RUNNING) throw new HttpError(400, s"node $id should be running")
+        nodes += node
+      }
+
+      def timeoutJson(node: Node, stage: String): JSONObject =
+        new JSONObject(Map("status" -> "timeout", "message" -> s"node ${node.id} timeout on $stage"))
+
+      for (node <- nodes) {
+        // check node is running, because it's state could have changed
+        if (node.state != Node.State.RUNNING) throw new HttpError(400, s"node ${node.id} should be running")
+
+        // stop
+        Scheduler.stopNode(node.id)
+        Nodes.save()
+
+        val begin = System.currentTimeMillis()
+
+        val stopped = node.waitFor(Node.State.IDLE, timeout)
+        if (!stopped) {
+          response.getWriter.println("" + timeoutJson(node, "stop"))
+          return
+        }
+
+        val startTimeout = Duration(Math.max(timeout.toMillis - (System.currentTimeMillis() - begin), 0L), "ms")
+
+        // start
+        node.state = Node.State.STARTING
+        Nodes.save()
+
+        val started = node.waitFor(Node.State.RUNNING, startTimeout)
+        if (!started) {
+          response.getWriter.println("" + timeoutJson(node, "start"))
+          return
+        }
+      }
+
+      val nodesJson = nodes.map(_.toJson(expanded = true))
+
+      val resultJson = new JSONObject(Map("status" -> "restarted", "nodes" -> new JSONArray(nodesJson.toList)))
       response.getWriter.println("" + resultJson)
     }
 

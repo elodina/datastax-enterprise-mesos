@@ -34,6 +34,7 @@ object NodeCli {
       case "add" | "update" => handleAddUpdate(cmd, arg, args)
       case "remove" => handleRemove(arg)
       case "start" | "stop" => handleStartStop(cmd, arg, args)
+      case "restart" => handleRestart(arg, args)
       case _ => throw new Error("unsupported node command " + cmd)
     }
   }
@@ -56,6 +57,8 @@ object NodeCli {
         handleRemove(null, help = true)
       case "start" | "stop" =>
         handleStartStop(cmd, null, null, help = true)
+      case "restart" =>
+        handleRestart(null, null, help = true)
       case _ =>
         throw new Error(s"unsupported node command $cmd")
     }
@@ -247,6 +250,54 @@ object NodeCli {
     }
   }
 
+  def handleRestart(expr: String, args: Array[String], help: Boolean = false): Unit = {
+    val parser = new OptionParser()
+    parser.accepts("timeout", "Time to wait until node restarts. Should be a parsable Scala Duration value. Defaults to 5m.").withRequiredArg().ofType(classOf[String])
+
+    if (help) {
+      printLine(s"Restart node \nUsage: node restart <id> [options]\n")
+      parser.printHelpOn(out)
+
+      printLine()
+      handleGenericOptions(args, help = true)
+      return
+    }
+
+    var options: OptionSet = null
+    try { options = parser.parse(args: _*) }
+    catch {
+      case e: OptionException =>
+        parser.printHelpOn(out)
+        printLine()
+        throw new Cli.Error(e.getMessage)
+    }
+
+    val timeout = options.valueOf("timeout").asInstanceOf[String]
+    val params = new mutable.HashMap[String, String]()
+    params("node") = expr
+    if (timeout != null) params("timeout") = timeout
+
+    var json: Map[String, Any] = null
+    try { json = Cli.sendRequest(s"/node/restart", params.toMap).asInstanceOf[Map[String, Any]] }
+    catch { case e: IOException => throw new Error("" + e) }
+
+    val status = json("status")
+
+    if (status == "timeout") throw new Error(json("message").asInstanceOf[String])
+
+    val nodes = json("nodes").asInstanceOf[List[Any]]
+      .map(n => new Node(n.asInstanceOf[Map[String, Any]], expanded = true))
+
+    var title: String = if (nodes.length > 1) "nodes " else "node "
+    title += status + ":"
+
+    printLine(title)
+    for (node <- nodes) {
+      printNode(node, 1)
+      printLine()
+    }
+  }
+
   def printCmds(): Unit = {
     printLine("Commands:")
     printLine("list       - list nodes", 1)
@@ -255,11 +306,12 @@ object NodeCli {
     printLine("remove     - remove node", 1)
     printLine("start      - start node", 1)
     printLine("stop       - stop node", 1)
+    printLine("restart    - restart node", 1)
   }
 
   private[dse] def printNode(node: Node, indent: Int = 0) {
     printLine(s"id: ${node.id}", indent)
-    printLine(s"state: ${node.state}", indent)
+    printLine(s"state: ${node.state}${if (node.modified) " (modified, needs restart)" else ""}", indent)
 
     printLine(s"topology: ${nodeTopology(node)}", indent)
     printLine(s"resources: ${nodeResources(node)}", indent)
@@ -273,7 +325,7 @@ object NodeCli {
     if (node.dataFileDirs != null) printLine(s"data file dirs: ${node.dataFileDirs}", indent)
     if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent)
     if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent)
-    if (node.cassandraDotYaml != null) printLine(s"cassandra.yaml overrides: ${Util.formatMap(node.cassandraDotYaml)}", indent)
+    if (!node.cassandraDotYaml.isEmpty) printLine(s"cassandra.yaml overrides: ${Util.formatMap(node.cassandraDotYaml)}", indent)
     if (node.cassandraJvmOptions != null) printLine(s"cassandra jvm options: ${node.cassandraJvmOptions}", indent)
 
     printLine(s"stickiness: ${nodeStickiness(node)}", indent)

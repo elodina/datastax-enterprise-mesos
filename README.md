@@ -12,9 +12,11 @@ Datastax Enterprise Mesos Framework
 
 [Typical operations](#typical-operations)
 * [Shutting down framework](#shutting-down-framework)
+* [Rolling restart](#rolling-restart)
 
 [Navigating the CLI](#navigating-the-cli)
-* [Requesting help](#requesting-help)  
+* [Requesting help](#requesting-help)
+* [Restarting nodes](#restarting-nodes)
 
 Description
 -----------
@@ -216,6 +218,65 @@ To shutdown the framework completely (e.g. unregister it in Mesos) you may shoot
 # curl -d frameworkId=20150807-094500-84125888-5050-14187-0005 -X POST http://master:5050/teardown
 ```
 
+Rolling restart
+---------------
+
+You already have running nodes.
+
+```
+# ./dse-mesos.sh node update 0..1 --data-file-dirs /sstable/xvdv,/sstable/xvdw,/sstable/xvdx
+
+nodes updated:
+  id: 0
+  state: running
+  modified: has pending update
+  topology: cluster:default, dc:default, rack:default
+  resources: cpu:0.7, mem:1024
+  seed: true
+  data file dirs: /sstable/xvdv,/sstable/xvdw,/sstable/xvdx
+  commit log dir: /var/lib/cassandra/commitlog
+  ...
+
+  id: 1
+  state: running
+  modified: has pending update
+  topology: cluster:default, dc:default, rack:default
+  resources: cpu:0.7, mem:1024
+  seed: false
+  data file dirs: /sstable/xvdv,/sstable/xvdw,/sstable/xvdx
+  commit log dir: /var/lib/cassandra/commitlog
+  ...
+
+```
+
+Whenever node has none `idle` state (`starting`, `running`, `stopping`, `reconciling`) and you update it,
+`modified` flag will communicate that node `has pending update`, to apply update node has to be stopped.
+
+Nodes will be restarted one by one, scheduler stops node then starts it, same applied to rest of the nodes.
+
+```
+# ./dse-mesos.sh node restart 0..1 --timeout 8min
+nodes restarted:
+  id: 0
+  state: running
+  data file dirs: /sstable/xvdv,/sstable/xvdw,/sstable/xvdx
+  commit log dir: /var/lib/cassandra/commitlog
+  ...
+
+  id: 1
+  state: running
+  data file dirs: /sstable/xvdv,/sstable/xvdw,/sstable/xvdx
+  commit log dir: /var/lib/cassandra/commitlog
+  ...
+```
+
+Some times node could timeout on start or stop, in such case restart halts with notice:
+
+```
+./dse-mesos.sh node restart 0..1 --timeout 8min
+Error: node 1 timeout on start
+```
+
 Navigating the CLI
 ==================
 Requesting help
@@ -235,3 +296,26 @@ Run `help <cmd>` to see details of specific command
 ```
 
 You may also run `./dse-mesos.sh help <cmd> [<cmd>]` to view help of specific command/sub-command.
+
+Restarting nodes
+----------------
+
+```
+# ./dse-mesos.sh help node restart
+Restart node
+Usage: node restart <id> [options]
+
+Option     Description
+------     -----------
+--timeout  Time to wait until node restart.
+             Should be a parsable Scala Duration
+             value. Defaults to 4m.
+
+Generic Options
+Option  Description
+------  -----------
+--api   Binding host:port for http/artifact
+          server. Optional if DM_API env is
+          set.
+
+```

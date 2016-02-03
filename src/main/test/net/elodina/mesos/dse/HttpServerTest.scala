@@ -5,7 +5,7 @@ import org.junit.{Before, Test, After}
 import org.junit.Assert._
 import net.elodina.mesos.dse.Cli.sendRequest
 import java.io._
-
+import org.apache.mesos.Protos.TaskState
 
 class HttpServerTest extends MesosTestCase {
   @Before
@@ -115,6 +115,88 @@ class HttpServerTest extends MesosTestCase {
       val node = Nodes.getNode("1")
       assertEquals(Nodes.getNodes.size, 1)
       assertNodeEquals(node, new Node(response, expanded = true))
+    }
+
+    val nodeUpdate = getJsonResponse("/node/update", _: Map[String, String])
+    // allow update for node in running state
+
+    {
+      val node1 = Nodes.getNode("1")
+      node1.state = Node.State.RUNNING
+      node1.runtime = new Node.Runtime(node1, offer(resources = "cpus:2.0;mem:20480;ports:0..65000"))
+
+      // node could be updated while it is running
+      try { nodeUpdate(Map("node" -> "1", "cpu" -> "2.0")) }
+      catch { case e: IOException => fail(e.getMessage) }
+    }
+
+    // modified flag behaviour
+
+    {
+      schedulerDriver.launchedTasks.clear()
+
+      val node2 = Nodes.addNode(new Node("2"))
+      node2.state = Node.State.IDLE
+      assertEquals("node by default don't has pending update", false, node2.modified)
+
+      // modified flag don't change when node being idle
+      nodeUpdate(parseMap("node=2,cpu=2.0"))
+      assertEquals(false, node2.modified)
+
+      // starting & task running
+      sendRequest("/node/start", parseMap("node=2,timeout=0s"))
+      assertEquals(Node.State.STARTING, node2.state)
+      assertEquals(false, node2.modified)
+
+      nodeUpdate(parseMap("node=2,cpu=1.5,dataFileDirs=/sstable/xvdv"))
+
+      assertEquals(true, node2.modified)
+
+      Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:20480;ports:0..65000", hostname = "slave2"))
+
+      // modified reset for starting when task is launched
+      assertEquals(false, node2.modified)
+      assertEquals(1, schedulerDriver.launchedTasks.size())
+
+      // modification between accepting offer and receiving task status running from executor
+      nodeUpdate(parseMap("node=2;dataFileDirs=/sstable/xvdv,/sstable/xvdw", ';'))
+      assertEquals(true, node2.modified)
+
+      Scheduler.onTaskStarted(node2, taskStatus(node2.runtime.taskId, TaskState.TASK_RUNNING))
+      // still holds modified flag
+      assertEquals(true, node2.modified)
+
+      assertEquals(Node.State.RUNNING, node2.state)
+
+      // running
+      // running then task lost, thus modified reset
+      Scheduler.onTaskStopped(node2, taskStatus(node2.runtime.taskId, TaskState.TASK_LOST))
+      assertEquals(false, node2.modified)
+      assertEquals(Node.State.STARTING, node2.state)
+
+      // running (modified is false) then update
+      Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:20480;ports:0..65000", hostname = "slave2"))
+      Scheduler.onTaskStarted(node2, taskStatus(node2.runtime.taskId, TaskState.TASK_RUNNING))
+      assertEquals(Node.State.RUNNING, node2.state)
+
+      nodeUpdate(parseMap("node=2;dataFileDirs=/sstable/xvdv,/sstable/xvdw,/sstable/xvdx", ';'))
+      assertEquals(true, node2.modified)
+
+      // stopping
+      sendRequest("/node/stop", parseMap("node=2,timeout=0s"))
+      assertEquals(Node.State.STOPPING, node2.state)
+      Scheduler.onTaskStopped(node2, taskStatus(node2.runtime.taskId, TaskState.TASK_FINISHED))
+      assertEquals(false, node2.modified)
+
+      sendRequest("/node/start", parseMap("node=2,timeout=0s"))
+      Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:20480;ports:0..65000", hostname = "slave2"))
+      Scheduler.onTaskStarted(node2, taskStatus(node2.runtime.taskId, TaskState.TASK_RUNNING))
+      assertEquals(Node.State.RUNNING, node2.state)
+      sendRequest("/node/stop", parseMap("node=2,timeout=0s"))
+      nodeUpdate(parseMap("node=2;dataFileDirs=/sstable/xvdv,/sstable/xvdw,/sstable/xvdx,/sstable/xvdz", ';'))
+      assertEquals(true, node2.modified)
+      Scheduler.onTaskStopped(node2, taskStatus(node2.runtime.taskId, TaskState.TASK_FINISHED))
+      assertEquals(false, node2.modified)
     }
   }
 
