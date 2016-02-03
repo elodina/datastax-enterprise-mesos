@@ -46,7 +46,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
     // communicate back to user that node has pending update
     for(modified <- Seq(true, false)) {
       node.modified = modified
-      assertEquals(modified, outputToString { NodeCli.printNode(node, 1) }.contains("modified: has pending update"))
+      assertEquals(modified, outputToString { NodeCli.printNode(node, 1) }.contains("(modified, needs restart)"))
     }
   }
 

@@ -100,7 +100,9 @@ class SchedulerTest extends MesosTestCase {
       Scheduler.onTaskStarted(node, taskStatus(id = "task", state = TaskState.TASK_RUNNING, data = "address"))
       assertEquals("" + state, 0, schedulerDriver.killedTasks.size())
       assertEquals("" + state, Node.State.RUNNING, node.state)
-      assertEquals("" + state, "address", node.runtime.address)
+
+      if (state != Node.State.RECONCILING)
+        assertEquals("" + state, "address", node.runtime.address)
     }
   }
 

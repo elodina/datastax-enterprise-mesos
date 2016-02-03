@@ -326,7 +326,7 @@ object HttpServer {
       try { ids = Expr.expandNodes(expr) }
       catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid node expr") }
 
-      var timeout = Duration("4 minutes")
+      var timeout = Duration("5 minutes")
       if (request.getParameter("timeout") != null) {
         try { timeout = Duration(request.getParameter("timeout")) }
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid timeout") }

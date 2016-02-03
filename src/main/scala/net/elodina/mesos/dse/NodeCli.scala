@@ -252,7 +252,7 @@ object NodeCli {
 
   def handleRestart(expr: String, args: Array[String], help: Boolean = false): Unit = {
     val parser = new OptionParser()
-    parser.accepts("timeout", "Time to wait until node restart. Should be a parsable Scala Duration value. Defaults to 4m.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("timeout", "Time to wait until node restarts. Should be a parsable Scala Duration value. Defaults to 5m.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
       printLine(s"Restart node \nUsage: node restart <id> [options]\n")
@@ -311,8 +311,7 @@ object NodeCli {
 
   private[dse] def printNode(node: Node, indent: Int = 0) {
     printLine(s"id: ${node.id}", indent)
-    printLine(s"state: ${node.state}", indent)
-    if (node.modified) printLine(s"modified: has pending update", indent)
+    printLine(s"state: ${node.state}${if (node.modified) " (modified, needs restart)" else ""}", indent)
 
     printLine(s"topology: ${nodeTopology(node)}", indent)
     printLine(s"resources: ${nodeResources(node)}", indent)
@@ -326,7 +325,7 @@ object NodeCli {
     if (node.dataFileDirs != null) printLine(s"data file dirs: ${node.dataFileDirs}", indent)
     if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent)
     if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent)
-    if (node.cassandraDotYaml != null) printLine(s"cassandra.yaml overrides: ${Util.formatMap(node.cassandraDotYaml)}", indent)
+    if (!node.cassandraDotYaml.isEmpty) printLine(s"cassandra.yaml overrides: ${Util.formatMap(node.cassandraDotYaml)}", indent)
     if (node.cassandraJvmOptions != null) printLine(s"cassandra jvm options: ${node.cassandraJvmOptions}", indent)
 
     printLine(s"stickiness: ${nodeStickiness(node)}", indent)
