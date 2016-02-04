@@ -62,8 +62,10 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
       .redirectOutput(new File(Executor.dir, "cassandra.out"))
       .redirectError(new File(Executor.dir, "cassandra.err"))
 
-    if (node.cassandraJvmOptions != null)
+    if (node.cassandraJvmOptions != null) {
       builder.environment().put("JVM_OPTS", node.cassandraJvmOptions)
+      builder.environment().put("JVM_EXTRA_OPTS", node.cassandraJvmOptions)
+    }
 
     builder.environment().putAll(env)
     builder.start()
