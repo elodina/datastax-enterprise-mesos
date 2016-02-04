@@ -107,6 +107,7 @@ class HttpServerTest extends MesosTestCase {
         "commitLogDir" -> "/tmp/commitlog",
         "savedCachesDir" -> "/tmp/caches",
         "cassandraDotYaml" -> "num_tokens=312",
+        "addressDotYaml" -> "stomp_interface=10.1.2.3",
         "cassandraJvmOptions" -> "-Dcassandra.ring_delay=15000, -Dcassandra.replace_address=localhost"
       )
 
