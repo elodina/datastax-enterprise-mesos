@@ -28,7 +28,6 @@ import org.eclipse.jetty.util.thread.QueuedThreadPool
 
 import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.collection.mutable.ListBuffer
-import scala.collection.mutable
 import scala.concurrent.duration.Duration
 import net.elodina.mesos.dse.Node.State
 import net.elodina.mesos.dse.Util.{Range, BindAddress, Period}
@@ -235,7 +234,7 @@ object HttpServer {
           node.cassandraDotYaml ++= cassandraDotYaml
         }
 
-        node.cassandraJvmOptions = if (cassandraJvmOptions != "") cassandraJvmOptions else null
+        if (cassandraJvmOptions != null) node.cassandraJvmOptions = if (cassandraJvmOptions != "") cassandraJvmOptions else null
       }
 
       for (node <- nodes) {
