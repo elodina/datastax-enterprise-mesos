@@ -147,12 +147,20 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
       Util.IO.replaceInFile(new File(Executor.dseDir, "bin/dse.in.sh"), Map("CASSANDRA_LOG_DIR=.*" -> s"CASSANDRA_LOG_DIR=${Executor.dir}/data/log"))
   }
 
-  private def editCassandraConfigs() {
+  private[dse] def editCassandraConfigs() {
     val confDir = Executor.cassandraConfDir
 
     editCassandraYaml(new File(confDir , "cassandra.yaml"))
     Util.IO.replaceInFile(new File(confDir, "cassandra-rackdc.properties"), Map("dc=.*" -> s"dc=${node.dc}", "rack=.*" -> s"rack=${node.rack}"))
-    Util.IO.replaceInFile(new File(confDir, "cassandra-env.sh"), Map("JMX_PORT=.*" -> s"JMX_PORT=${node.runtime.reservation.ports(Node.Port.JMX)}"))
+    editCassandraEnvSh(new File(confDir, "cassandra-env.sh"))
+  }
+
+  private[dse] def editCassandraEnvSh(file: File) {
+    Util.IO.replaceInFile(file, Map(
+      "JMX_PORT=.*" -> s"JMX_PORT=${node.runtime.reservation.ports(Node.Port.JMX)}",
+      "#MAX_HEAP_SIZE=.*" -> s"MAX_HEAP_SIZE=${node.maxHeap}",
+      "#HEAP_NEWSIZE=.*" -> s"HEAP_NEWSIZE=${node.youngGenHeap}"
+    ))
   }
 
   private def editCassandraYaml(file: File) {
