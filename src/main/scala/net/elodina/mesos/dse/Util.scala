@@ -271,6 +271,93 @@ object Util {
     override def toString: String = _value + _unit
   }
 
+  class Size(s: String) {
+    private var _value: Long = 0
+    private var _unit: String = ""
+    private var _bytes: Long = 0
+    private var _bytesPerUnit: Long = 1L
+
+    import Size._
+
+    parse()
+    private def parse() {
+      if (s.isEmpty) throw new IllegalArgumentException(s)
+
+      var unitIdx = s.length
+      if (s.last.isLetter) {
+        unitIdx -= 1
+        _unit = s.substring(unitIdx)
+      }
+
+      try { _value = java.lang.Long.valueOf(s.substring(0, unitIdx)) }
+      catch { case e: IllegalArgumentException => throw new IllegalArgumentException(s) }
+
+      _bytesPerUnit = _unit match {
+        case ""        => 1L
+        case "k" | "K" => Kilobyte
+        case "m" | "M" => Megabyte
+        case "g" | "G" => Gigabyte
+        case "t" | "T" => Terabyte
+        case _ => throw new IllegalArgumentException(s)
+      }
+
+      _bytes = _value * _bytesPerUnit
+    }
+
+    def value: Long = _value
+    def unit: String = _unit
+    def bytes: Long = _bytes
+    def bytesPerUnit: Long = _bytesPerUnit
+
+    def normalize: Size = unit match {
+      case "t" | "T" => this
+      case _ if value % 1024 == 0 =>
+        unit match {
+          case ""        => new Size((value / 1024L) + "K").normalize
+          case "k" | "K" => new Size((value / 1024L) + "M").normalize
+          case "m" | "M" => new Size((value / 1024L) + "G").normalize
+          case "g" | "G" => new Size((value / 1024L) + "T")
+        }
+      case _ => this
+    }
+
+    override def hashCode(): Int = _bytes.##
+
+    override def toString: String = "" + _value + _unit
+
+    def canEqual(other: Any): Boolean = other.isInstanceOf[Size]
+
+    override def equals(other: Any): Boolean = other match {
+      case that: Size => (that canEqual this) && _bytes == that._bytes
+      case _ => false
+    }
+
+    def toUnit(to: String = ""): Size = {
+      val dstUnit = if (to == null) "" else to
+      val toPerUnit = new Size("0" + dstUnit).bytesPerUnit
+      if (bytesPerUnit < toPerUnit) {
+        new Size((value / (toPerUnit / bytesPerUnit)) + dstUnit)
+      } else if (bytesPerUnit > toPerUnit) {
+        new Size((value * (bytesPerUnit / toPerUnit)) + dstUnit)
+      } else this
+    }
+
+    def toK: Size = toUnit("K")
+    def toM: Size = toUnit("M")
+    def toG: Size = toUnit("G")
+    def toT: Size = toUnit("T")
+    def toB: Size = toUnit("")
+  }
+
+  object Size {
+    val Kilobyte = 1024L
+    val Megabyte = Kilobyte * 1024L
+    val Gigabyte = Megabyte * 1024L
+    val Terabyte = Gigabyte * 1024L
+
+    def apply(s: String): Size = new Size(s)
+  }
+
   class BindAddress(s: String) {
     private val _values: ListBuffer[Value] = new ListBuffer[Value]()
 
