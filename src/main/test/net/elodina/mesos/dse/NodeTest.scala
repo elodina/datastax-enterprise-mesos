@@ -257,6 +257,47 @@ class NodeTest extends MesosTestCase {
     catch { case e: IllegalArgumentException => }
   }
 
+  @Test
+  def Node_maxHeapAndYoungGenHeap: Unit = {
+    val node = Nodes.addNode(new Node("0"))
+    node.mem = 2048 // out of 16G
+    node.cpu = 2.0
+
+    import Math._
+    // max(min(1/2 ram, 1024MB), min(1/4 ram, 8GB))
+    def maxHeapSize(mem: Double): Double = max(min(1.0/2.0 * mem, 1024.0), min(1.0/4.0 * mem, 8 * 1024.0))
+    // min(max_sensible_per_modern_cpu_core * num_cores, 1/4 * heap size)
+    def newHeapSize(heapSizeMb: Double, cpu: Double): Double = min(100.0 * cpu, 1/4.0 * heapSizeMb)
+
+    def checkHeap(jvmOptions: String, expectedMaxHeapSize: String, expectedYoungGenHeapSize: String) = {
+      node.cassandraJvmOptions = jvmOptions
+
+      assertEquals(s"for $jvmOptions expected max heap $expectedMaxHeapSize", expectedMaxHeapSize, "" + node.maxHeap)
+      assertEquals(s"for $jvmOptions expected young gen heap $expectedYoungGenHeapSize", expectedYoungGenHeapSize, "" + node.youngGenHeap)
+    }
+
+    checkHeap(null, "" + maxHeapSize(node.mem).toInt + "M", "" + newHeapSize(maxHeapSize(node.mem), node.cpu).toInt + "M")
+
+    // -XmxN
+    checkHeap("-Xmx1280M", "1280M", "" + newHeapSize(1280, node.cpu).toInt + "M")
+    checkHeap("-Xmx1500m", "1500m", newHeapSize(1500, node.cpu).toInt + "M")
+
+    checkHeap("-Xmx2g", "2g", newHeapSize(2048, node.cpu).toInt + "M")
+    checkHeap("-Xmx2G", "2G", newHeapSize(2048, node.cpu).toInt + "M")
+    checkHeap("-Xmn1g", "" + maxHeapSize(node.mem).toInt + "M", "1g")
+
+    // -XmnN
+    checkHeap("-Xmn128M", "" + maxHeapSize(node.mem).toInt + "M", "128M")
+
+    // -XmxN -XmnN
+    checkHeap("-Xmx2048M -Xmn256M", "2048M", "256M")
+
+    node.mem = 4500 // out of 8g total on server
+    node.cpu = 4.0  // out of 8 cores on server
+    checkHeap(null, "" + maxHeapSize(node.mem).toInt + "M", "" + newHeapSize(maxHeapSize(node.mem), node.cpu).toInt + "M")
+    checkHeap("-Xmx2g", "2g", "" + newHeapSize(2048, node.cpu).toInt + "M")
+  }
+
   // Runtime
   @Test
   def Runtime_toJson_fromJson {
