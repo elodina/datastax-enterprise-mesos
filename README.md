@@ -180,12 +180,13 @@ OpsCenter support
 Ensure your OpsCenter version matches DataStax Enterprise version.
 
 In order to integrate OpsCenter with existing Cassandra cluster you need to have a correct `address.yaml` configuration file.
-This file is automatically created for you by the framework when you start the node. DSE Agent (which is started with the Cassandra instance) will
-monitor the local node and by default put all OpsCenter data to the local Cassandra cluster.
-The only property which needs to be specified is `stomp_interface` - reachable IP address of the opscenterd machine. You can set this property as part
-of `address-yaml-configs` cli option:
- 
- 
+This file is automatically created for you by the framework when you start the node.
+
+DSE Agent (which is started with the Cassandra instance) will monitor the local node and by default
+put all OpsCenter data to the local Cassandra cluster.
+
+The only property which needs to be specified is `stomp_interface` - reachable IP address of the opscenterd machine.
+You can set this property as part of `address-yaml-configs` cli option:
 ```
 # ./dse-mesos.sh node update 0 --address-yaml-configs "stomp_interface=10.1.131.9"
 ```
