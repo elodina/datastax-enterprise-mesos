@@ -32,6 +32,8 @@ import net.elodina.mesos.dse.Node.Reservation
 import java.util.{TimeZone, Date}
 import Util.Period
 import java.text.SimpleDateFormat
+import Math._
+import Util.Size
 
 class Node extends Constrained {
   var id: String = null
@@ -320,6 +322,18 @@ class Node extends Constrained {
   }
 
   override def toString: String = id
+
+  def maxHeap: Size =
+    if (cassandraJvmOptions != null && cassandraJvmOptions.contains("-Xmx"))
+      new Size(cassandraJvmOptions.split(" ").find(_.startsWith("-Xmx")).get.substring(4))
+    else
+      new Size(max(min(0.5 * mem, 1024.0), min(0.25 * mem, 8 * 1024.0)).toLong + "M")
+
+  def youngGen: Size =
+    if (cassandraJvmOptions != null && cassandraJvmOptions.contains("-Xmn"))
+      new Size(cassandraJvmOptions.split(" ").find(_.startsWith("-Xmn")).get.substring(4))
+    else
+      new Size(min(100.0 * cpu, 0.25 * maxHeap.toM.value).toLong + "M")
 }
 
 object Node {

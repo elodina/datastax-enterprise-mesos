@@ -8,7 +8,7 @@ import net.elodina.mesos.dse.Node.{Reservation, Runtime, Stickiness, Port}
 import scala.collection.mutable
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
-import Util.Range
+import net.elodina.mesos.dse.Util.Range
 import java.util.Date
 
 class NodeTest extends MesosTestCase {
@@ -255,6 +255,52 @@ class NodeTest extends MesosTestCase {
 
     try { Node.idFromTaskId("node-id"); fail() }
     catch { case e: IllegalArgumentException => }
+  }
+
+  @Test
+  def Node_maxHeap {
+    def test(mem: Int, expected: String, jvmOpts: String = "") {
+      val node: Node = new Node("0")
+      node.mem = mem
+      node.cassandraJvmOptions = jvmOpts
+      assertEquals(expected, "" + node.maxHeap)
+    }
+
+    test(1024, "512M")
+    test(2048, "1024M")
+    test(4096, "1024M")
+
+    test(8192, "2048M")
+    test(16384, "4096M")
+    test(32768, "8192M")
+
+    test(65536, "8192M")
+
+    // mx specified
+    test(1024, "8G", "-Xmx8G")
+  }
+
+  @Test
+  def Node_youngGen {
+    def test(heap: Int, cpu: Double, expected: String, jvmOpts: String = "") {
+      val node: Node = new Node("0")
+      node.cpu = cpu
+      node.mem = heap
+      node.cassandraJvmOptions = s"$jvmOpts -Xmx${heap}M"
+      assertEquals(expected, "" + node.youngGen)
+    }
+
+    test(1024, 1, "100M")
+    test(1024, 2, "200M")
+    test(1024, 4, "256M")
+
+    test(4096, 1, "100M")
+    test(4096, 2, "200M")
+    test(4096, 8, "800M")
+    test(4096, 16, "1024M")
+
+    // mn specified
+    test(1024, 1, "256M", "-Xmn256M")
   }
 
   // Runtime

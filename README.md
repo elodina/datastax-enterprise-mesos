@@ -13,6 +13,7 @@ DataStax Enterprise Mesos Framework
 [Typical operations](#typical-operations)
 * [Shutting down framework](#shutting-down-framework)
 * [Rolling restart](#rolling-restart)
+* [Memory configuration](#memory-configuration)
 
 [Navigating the CLI](#navigating-the-cli)
 * [Requesting help](#requesting-help)
@@ -293,6 +294,28 @@ Some times node could timeout on start or stop, in such case restart halts with 
 ./dse-mesos.sh node restart 0..1 --timeout 8min
 Error: node 1 timeout on start
 ```
+
+Memory configuration
+--------------------
+
+Given by `--mem` option RAM will be consumed by executor, DSE process, DSE agent.
+DSE process capped by Xmx, however also consumes `offheap` memory. By default
+- Xmx = max(min(1/2 mem, 1024MB), min(1/4 mem, 8GB))
+- Xmn = min(100 * cpu, 1/4 * Xmx)
+
+To override default Xmx and/or Xmn calculation specify it via `--cassandra-jvm-options`, for instance:
+```
+./dse-mesos.sh node update 0 --cassandra-jvm-options "-Xmx1024M"
+```
+in this case `Xmn` will be calculated by default (according to given `Xmx` in `--cassandra-jvm-options`), or override only `Xmn`
+```
+./dse-mesos.sh node update 0 --cassandra-jvm-options "-Xmn100M"
+```
+or both
+```
+./dse-mesos.sh node update 0 --cassandra-jvm-options "-Xmx2048M -Xmn100M"
+```
+`Xmx`, `Xmn` correspond to env variables `MAX_HEAP_SIZE`, `HEAP_NEWSIZE` and will be set in `cassandra-env.sh`
 
 Navigating the CLI
 ==================
