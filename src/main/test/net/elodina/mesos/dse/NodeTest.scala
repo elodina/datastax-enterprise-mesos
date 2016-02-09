@@ -8,7 +8,7 @@ import net.elodina.mesos.dse.Node.{Reservation, Runtime, Stickiness, Port}
 import scala.collection.mutable
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
-import Util.Range
+import net.elodina.mesos.dse.Util.Range
 import java.util.Date
 
 class NodeTest extends MesosTestCase {
@@ -258,44 +258,49 @@ class NodeTest extends MesosTestCase {
   }
 
   @Test
-  def Node_maxHeapAndYoungGenHeap: Unit = {
-    val node = Nodes.addNode(new Node("0"))
-    node.mem = 2048 // out of 16G
-    node.cpu = 2.0
-
-    import Math._
-    // max(min(1/2 ram, 1024MB), min(1/4 ram, 8GB))
-    def maxHeapSize(mem: Double): Double = max(min(1.0/2.0 * mem, 1024.0), min(1.0/4.0 * mem, 8 * 1024.0))
-    // min(max_sensible_per_modern_cpu_core * num_cores, 1/4 * heap size)
-    def newHeapSize(heapSizeMb: Double, cpu: Double): Double = min(100.0 * cpu, 1/4.0 * heapSizeMb)
-
-    def checkHeap(jvmOptions: String, expectedMaxHeapSize: String, expectedYoungGenHeapSize: String) = {
-      node.cassandraJvmOptions = jvmOptions
-
-      assertEquals(s"for $jvmOptions expected max heap $expectedMaxHeapSize", expectedMaxHeapSize, "" + node.maxHeap)
-      assertEquals(s"for $jvmOptions expected young gen heap $expectedYoungGenHeapSize", expectedYoungGenHeapSize, "" + node.youngGenHeap)
+  def Node_maxHeap {
+    def test(mem: Int, expected: String, jvmOpts: String = "") {
+      val node: Node = new Node("0")
+      node.mem = mem
+      node.cassandraJvmOptions = jvmOpts
+      assertEquals(expected, "" + node.maxHeap)
     }
 
-    checkHeap(null, "" + maxHeapSize(node.mem).toInt + "M", "" + newHeapSize(maxHeapSize(node.mem), node.cpu).toInt + "M")
+    test(1024, "512M")
+    test(2048, "1024M")
+    test(4096, "1024M")
 
-    // -XmxN
-    checkHeap("-Xmx1280M", "1280M", "" + newHeapSize(1280, node.cpu).toInt + "M")
-    checkHeap("-Xmx1500m", "1500m", newHeapSize(1500, node.cpu).toInt + "M")
+    test(8192, "2048M")
+    test(16384, "4096M")
+    test(32768, "8192M")
 
-    checkHeap("-Xmx2g", "2g", newHeapSize(2048, node.cpu).toInt + "M")
-    checkHeap("-Xmx2G", "2G", newHeapSize(2048, node.cpu).toInt + "M")
-    checkHeap("-Xmn1g", "" + maxHeapSize(node.mem).toInt + "M", "1g")
+    test(65536, "8192M")
 
-    // -XmnN
-    checkHeap("-Xmn128M", "" + maxHeapSize(node.mem).toInt + "M", "128M")
+    // mx specified
+    test(1024, "8G", "-Xmx8G")
+  }
 
-    // -XmxN -XmnN
-    checkHeap("-Xmx2048M -Xmn256M", "2048M", "256M")
+  @Test
+  def Node_youngGen {
+    def test(heap: Int, cpu: Double, expected: String, jvmOpts: String = "") {
+      val node: Node = new Node("0")
+      node.cpu = cpu
+      node.mem = heap
+      node.cassandraJvmOptions = s"$jvmOpts -Xmx${heap}M"
+      assertEquals(expected, "" + node.youngGen)
+    }
 
-    node.mem = 4500 // out of 8g total on server
-    node.cpu = 4.0  // out of 8 cores on server
-    checkHeap(null, "" + maxHeapSize(node.mem).toInt + "M", "" + newHeapSize(maxHeapSize(node.mem), node.cpu).toInt + "M")
-    checkHeap("-Xmx2g", "2g", "" + newHeapSize(2048, node.cpu).toInt + "M")
+    test(1024, 1, "100M")
+    test(1024, 2, "200M")
+    test(1024, 4, "256M")
+
+    test(4096, 1, "100M")
+    test(4096, 2, "200M")
+    test(4096, 8, "800M")
+    test(4096, 16, "1024M")
+
+    // mn specified
+    test(1024, 1, "256M", "-Xmn256M")
   }
 
   // Runtime

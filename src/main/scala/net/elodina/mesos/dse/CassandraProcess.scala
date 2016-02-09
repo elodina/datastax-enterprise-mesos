@@ -157,7 +157,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
     Util.IO.replaceInFile(file, Map(
       "JMX_PORT=.*" -> s"JMX_PORT=${node.runtime.reservation.ports(Node.Port.JMX)}",
       "#MAX_HEAP_SIZE=.*" -> s"MAX_HEAP_SIZE=${node.maxHeap}",
-      "#HEAP_NEWSIZE=.*" -> s"HEAP_NEWSIZE=${node.youngGenHeap}"
+      "#HEAP_NEWSIZE=.*" -> s"HEAP_NEWSIZE=${node.youngGen}"
     ))
   }
 

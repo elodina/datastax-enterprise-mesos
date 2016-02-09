@@ -45,7 +45,7 @@ class ExecutorTest extends MesosTestCase {
   }
 
   @Test
-  def xmxAndXmn: Unit = {
+  def cassandra_mem_options: Unit = {
     val node = Nodes.addNode(new Node("0"))
     node.mem = 2048 // out of 16G
     node.cpu = 2.0
@@ -72,13 +72,7 @@ class ExecutorTest extends MesosTestCase {
           |JMX_PORT=3001
         """.stripMargin.replaceFirst(" +$", ""))
 
-    import Math._
-    // max(min(1/2 ram, 1024MB), min(1/4 ram, 8GB))
-    def maxHeapSize(mem: Double): Double = max(min(1.0/2.0 * mem, 1024.0), min(1.0/4.0 * mem, 8 * 1024.0))
-    // min(max_sensible_per_modern_cpu_core * num_cores, 1/4 * heap size)
-    def newHeapSize(heapSizeMb: Double, cpu: Double): Double = min(100.0 * cpu, 1/4.0 * heapSizeMb)
-
-    def check(jvmOptions: String, expectedMaxHeapSize: String, expectedYoungGenHeapSize: String) = {
+    def test(jvmOptions: String, expectedMaxHeap: String, expectedYoungGen: String) = {
       resetCassandraEnvSh
 
       node.cassandraJvmOptions = jvmOptions
@@ -86,18 +80,17 @@ class ExecutorTest extends MesosTestCase {
 
       assertEquals(
         s"""
-          |MAX_HEAP_SIZE=${expectedMaxHeapSize}
-          |HEAP_NEWSIZE=${expectedYoungGenHeapSize}
+          |MAX_HEAP_SIZE=$expectedMaxHeap
+          |HEAP_NEWSIZE=$expectedYoungGen
           |JMX_PORT=${node.runtime.reservation.ports(Node.Port.JMX)}
         """.stripMargin.replaceFirst(" +$", ""), Util.IO.readFile(cassandraEnvSh))
     }
 
-    check(null, "" + maxHeapSize(node.mem).toInt + "M", "" + newHeapSize(maxHeapSize(node.mem), node.cpu).toInt + "M")
     // -XmxN
-    check("-Xmx1280M", "1280M", "" + newHeapSize(1280, node.cpu).toInt + "M")
+    test("-Xmx1280M", "1280M", "200M")
     // -XmnN
-    check("-Xmn128M", "" + maxHeapSize(node.mem).toInt + "M", "128M")
+    test("-Xmn128M", "1024M", "128M")
     // -XmxN -XmnN
-    check("-Xmx2048M -Xmn200M", "2048M", "200M")
+    test("-Xmx2048M -Xmn200M", "2048M", "200M")
   }
 }

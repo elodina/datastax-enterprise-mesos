@@ -329,7 +329,7 @@ class Node extends Constrained {
     else
       new Size(max(min(0.5 * mem, 1024.0), min(0.25 * mem, 8 * 1024.0)).toLong + "M")
 
-  def youngGenHeap: Size =
+  def youngGen: Size =
     if (cassandraJvmOptions != null && cassandraJvmOptions.contains("-Xmn"))
       new Size(cassandraJvmOptions.split(" ").find(_.startsWith("-Xmn")).get.substring(4))
     else
