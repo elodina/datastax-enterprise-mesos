@@ -108,6 +108,9 @@ object NodeCli {
     parser.accepts("saved-caches-dir", "Cassandra saved caches dir. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
     parser.accepts("cassandra-yaml-configs", "Comma separated key-value pairs (k1=v1,k2=v2) that override default cassandra.yaml configuration. " +
       "Default configuration file is shipped with the dse tarball. Note: These pairs are not validated by the Scheduler.").withRequiredArg.ofType(classOf[String])
+    parser.accepts("address-yaml-configs", "Comma separated key-value pairs (k1=v1,k2=v2) that add or override default address.yaml configuration. " +
+      "Default configuration file is created by the Executor and points to local node. The bare minimum required for OpsCenter support is the hostname of your OpsCenter. " +
+      "E.g. \"stomp_interface=10.1.2.3\" . Note: These pairs are not validated by the Scheduler.").withRequiredArg.ofType(classOf[String])
     parser.accepts("cassandra-jvm-options", "A string to set JVM_OPTS environment variable. " +
       "E.g. \"-Dcassandra.replace_address=127.0.0.1 -Dcassandra.ring_delay_ms=15000\".").withRequiredArg.ofType(classOf[String])
 
@@ -148,6 +151,7 @@ object NodeCli {
     val commitLogDir = options.valueOf("commit-log-dir").asInstanceOf[String]
     val savedCachesDir = options.valueOf("saved-caches-dir").asInstanceOf[String]
     val cassandraDotYaml = options.valueOf("cassandra-yaml-configs").asInstanceOf[String]
+    val addressDotYaml = options.valueOf("address-yaml-configs").asInstanceOf[String]
     val cassandraJvmOptions = options.valueOf("cassandra-jvm-options").asInstanceOf[String]
 
     val params = new mutable.HashMap[String, String]()
@@ -171,6 +175,7 @@ object NodeCli {
     if (commitLogDir != null) params("commitLogDir") = commitLogDir
     if (savedCachesDir != null) params("savedCachesDir") = savedCachesDir
     if (cassandraDotYaml != null) params("cassandraDotYaml") = cassandraDotYaml
+    if (addressDotYaml != null) params("addressDotYaml") = addressDotYaml
     if (cassandraJvmOptions != null) params("cassandraJvmOptions") = cassandraJvmOptions
 
     var nodesJson: List[Any] = null
@@ -326,6 +331,7 @@ object NodeCli {
     if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent)
     if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent)
     if (!node.cassandraDotYaml.isEmpty) printLine(s"cassandra.yaml overrides: ${Util.formatMap(node.cassandraDotYaml)}", indent)
+    if (!node.addressDotYaml.isEmpty) printLine(s"address.yaml overrides: ${Util.formatMap(node.addressDotYaml)}", indent)
     if (node.cassandraJvmOptions != null) printLine(s"cassandra jvm options: ${node.cassandraJvmOptions}", indent)
 
     printLine(s"stickiness: ${nodeStickiness(node)}", indent)

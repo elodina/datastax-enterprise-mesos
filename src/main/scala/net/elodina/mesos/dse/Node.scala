@@ -57,6 +57,7 @@ class Node extends Constrained {
   var savedCachesDir: String = null
 
   var cassandraDotYaml: mutable.Map[String, String] = new mutable.HashMap[String, String]
+  var addressDotYaml: mutable.Map[String, String] = new mutable.HashMap[String, String]
   var cassandraJvmOptions: String = null
 
   // node has pending update, true when node updated in none idle state, once stopped becomes false
@@ -269,6 +270,9 @@ class Node extends Constrained {
     cassandraDotYaml.clear()
     if (json.contains("cassandraDotYaml")) cassandraDotYaml ++= json("cassandraDotYaml").asInstanceOf[Map[String, String]]
 
+    addressDotYaml.clear()
+    if (json.contains("addressDotYaml")) addressDotYaml ++= json("addressDotYaml").asInstanceOf[Map[String, String]]
+
     if (json.contains("cassandraJvmOptions")) cassandraJvmOptions = json("cassandraJvmOptions").asInstanceOf[String]
 
     modified = json("modified").asInstanceOf[Boolean]
@@ -300,6 +304,7 @@ class Node extends Constrained {
     if (savedCachesDir != null) json("savedCachesDir") = savedCachesDir
 
     if (!cassandraDotYaml.isEmpty) json("cassandraDotYaml") = new JSONObject(cassandraDotYaml.toMap)
+    if (!addressDotYaml.isEmpty) json("addressDotYaml") = new JSONObject(addressDotYaml.toMap)
     if (cassandraJvmOptions != null) json("cassandraJvmOptions") = cassandraJvmOptions
 
     json("modified") = modified

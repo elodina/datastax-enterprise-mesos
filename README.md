@@ -132,7 +132,7 @@ node added:
 
 Key-value pairs specified after `--cassandra-yaml-configs` option will override default cassandra.yaml configuration file that comes with 
 dse distribution. Note that this way you can override only *key-value* configs from casandra.yaml while there are also arrays,
-objects. Also, supplied key-value pairs are "blindly" passed to the Casasndra process, i.e. configs are not validated. 
+objects. Also, supplied key-value pairs are "blindly" passed to the Cassandra process, i.e. configs are not validated. 
 
 Now lets start the task. This call to CLI will block until the task is actually started but will wait no more than a configured timeout. Timeout can be passed via --timeout flag and defaults to 2 minutes. If a timeout of 0s is passed CLI won't wait for tasks to start at all and will reply with "Scheduled tasks ..." message.
 
@@ -174,9 +174,26 @@ And remove:
 # ./dse-mesos.sh node remove 0
 node removed
 ```
-    
+
+OpsCenter support
+-----------------
+Ensure your OpsCenter version matches DataStax Enterprise version.
+
+In order to integrate OpsCenter with existing Cassandra cluster you need to have a correct `address.yaml` configuration file.
+This file is automatically created for you by the framework when you start the node.
+
+DSE Agent (which is started with the Cassandra instance) will monitor the local node and by default
+put all OpsCenter data to the local Cassandra cluster.
+
+The only property which needs to be specified is `stomp_interface` - reachable IP address of the opscenterd machine.
+You can set this property as part of `address-yaml-configs` cli option:
+```
+# ./dse-mesos.sh node update 0 --address-yaml-configs "stomp_interface=10.1.131.9"
+```
+ 
 Using external Cassandra in HA mode 
------------
+-----------------------------------
+
 To run in HA mode (that is tolerate scheduler failures) this framework supports two options for persisting its state:
  
  - zookeeper (`scheduler --storage zk:...`)

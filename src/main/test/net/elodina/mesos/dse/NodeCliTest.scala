@@ -84,6 +84,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
       "--commit-log-dir", "/tmp/commitlog",
       "--saved-caches-dir", "/tmp/caches",
       "--cassandra-yaml-configs", "num_tokens=312,hinted_handoff=false",
+      "--address-yaml-configs", "stomp_interface=11.22.33.44",
       "--cassandra-jvm-options", "-Dcassandra.replace_address=127.0.0.1 -Dcassandra.ring_delay_ms=15000"
     )
     cli(Array("update", "0") ++ options)
@@ -101,6 +102,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
       assertEquals(node.commitLogDir, "/tmp/commitlog")
       assertEquals(node.savedCachesDir, "/tmp/caches")
       assertEquals(node.cassandraDotYaml.toMap, Map("num_tokens" -> "312", "hinted_handoff" -> "false"))
+      assertEquals(node.addressDotYaml.toMap, Map("stomp_interface" -> "11.22.33.44"))
       assertEquals(node.cassandraJvmOptions, "-Dcassandra.replace_address=127.0.0.1 -Dcassandra.ring_delay_ms=15000")
     }
 
