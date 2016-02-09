@@ -70,16 +70,21 @@ case class AgentProcess(node: Node, address: String, env: Map[String, String] = 
     val file = new File(Executor.dseDir, "datastax-agent/conf/address.yaml")
     val cassandraYaml = new File(Executor.cassandraConfDir, "cassandra.yaml")
 
+    val defaultAddressYaml = Map(
+      "cassandra_conf" -> cassandraYaml.getAbsolutePath,
+      "hosts" -> s"""["$address"]""",
+      "local_interface" -> address,
+      "cassandra_port" -> node.runtime.reservation.ports(Node.Port.CQL),
+      "monitored_cassandra_port" -> node.runtime.reservation.ports(Node.Port.CQL),
+      "jmx_port" -> node.runtime.reservation.ports(Node.Port.JMX),
+      "agent_rpc_interface" -> address,
+      "api_port" -> node.runtime.reservation.ports(Node.Port.AGENT)
+    )
+
     val content =
-      s"""
-        |cassandra_conf: ${cassandraYaml.getAbsolutePath}
-        |local_interface: $address
-        |cassandra_port: ${node.runtime.reservation.ports(Node.Port.CQL)}
-        |monitored_cassandra_port: ${node.runtime.reservation.ports(Node.Port.CQL)}
-        |jmx_port: ${node.runtime.reservation.ports(Node.Port.JMX)}
-        |agent_rpc_interface: $address
-        |api_port: ${node.runtime.reservation.ports(Node.Port.AGENT)}
-      """.stripMargin
+      (defaultAddressYaml ++ node.addressDotYaml).map {
+        case (k, v) => s"$k: $v"
+      }.mkString(System.lineSeparator())
 
     Util.IO.writeFile(file, content)
   }

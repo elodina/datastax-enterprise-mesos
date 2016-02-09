@@ -59,9 +59,6 @@ install_docker() {
 }
 
 install_cassandra() {
-    echo "deb http://debian.datastax.com/community stable main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
-    curl -L http://debian.datastax.com/debian/repo_key | sudo apt-key add -
-    apt-get update
     apt-get install dsc21=2.1.11-1 cassandra=2.1.11 -y --force-yes
     service cassandra stop
     rm -rf /var/lib/cassandra/data/system/*
@@ -75,6 +72,11 @@ install_cassandra() {
     service cassandra start
     sleep 30
     cqlsh master -f /vagrant/vagrant/cassandra_schema.cql
+}
+
+install_opscenter() {
+    apt-get install -qy sysstat opscenter=5.2.2
+    service opscenterd start
 }
 
 if [[ $1 != "master" && $1 != "slave" ]]; then
@@ -107,6 +109,10 @@ DISTRO=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
 CODENAME=$(lsb_release -cs)
 echo "deb http://repos.mesosphere.io/${DISTRO} ${CODENAME} main" | tee /etc/apt/sources.list.d/mesosphere.list
 
+# add datastax repo
+echo "deb http://debian.datastax.com/community stable main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
+curl -L http://debian.datastax.com/debian/repo_key | sudo apt-key add -
+
 # add docker repo
 apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 36A1D7869245C8950F966E92D8576A8BA88D21E9
 echo "deb http://get.docker.com/ubuntu docker main" > /etc/apt/sources.list.d/docker.list
@@ -119,6 +125,7 @@ apt-get install -qy vim zip mc curl wget openjdk-7-jre scala git
 install_mesos $mode
 if [ $mode == "master" ]; then
     install_marathon
-    install_cassandra
+#    install_opscenter
+#    install_cassandra
 fi
 #install_docker

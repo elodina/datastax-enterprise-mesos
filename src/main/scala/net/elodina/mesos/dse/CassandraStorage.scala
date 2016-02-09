@@ -120,8 +120,8 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
             .setDouble(NodeCpu, node.cpu).setInt(NodeMem, node.mem.toInt).setBool(NodeSeed, node.seed)
             .setString(NodeJvmOptions, node.jvmOptions).setString(NodeRack, node.rack).setString(NodeDc, node.dc).setString(NodeConstraints, Util.formatConstraints(node.constraints))
             .setString(NodeSeedConstraints, Util.formatConstraints(node.seedConstraints)).setString(NodeDataFileDirs, node.dataFileDirs).setString(NodeCommitLogDir, node.commitLogDir)
-            .setString(NodeSavedCachesDir, node.savedCachesDir).setMap(NodeCassandraDotYaml, node.cassandraDotYaml.asJava).setString(NodeCassandraJvmOptions, node.cassandraJvmOptions)
-            .setBool(NodeModified, node.modified)
+            .setString(NodeSavedCachesDir, node.savedCachesDir).setMap(NodeCassandraDotYaml, node.cassandraDotYaml.asJava).setMap(NodeAddressDotYaml, node.addressDotYaml.asJava)
+            .setString(NodeCassandraJvmOptions, node.cassandraJvmOptions).setBool(NodeModified, node.modified)
             .setLong(UsingTimestamp, tg.next())
 
           batch.add(boundStatement)
@@ -215,6 +215,8 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
     node.commitLogDir = row.getString(NodeCommitLogDir)
     node.cassandraDotYaml.clear()
     node.cassandraDotYaml ++= row.getMap(NodeCassandraDotYaml, classOf[String], classOf[String]).asScala
+    node.addressDotYaml.clear()
+    node.addressDotYaml ++= row.getMap(NodeAddressDotYaml, classOf[String], classOf[String]).asScala
     node.cassandraJvmOptions = row.getString(NodeCassandraJvmOptions)
     node.modified = row.getBool(NodeModified)
 
@@ -305,8 +307,9 @@ object CassandraStorage{
   /*31*/ val NodeCommitLogDir = "node_commit_log_dir"
   /*32*/ val NodeSavedCachesDir = "node_saved_caches_dir"
   /*33*/ val NodeCassandraDotYaml = "node_cassandra_dot_yaml"
-  /*34*/ val NodeCassandraJvmOptions = "node_cassandra_jvm_options"
-  /*35*/ val NodeModified = "node_modified"
+  /*34*/ val NodeAddressDotYaml = "node_address_dot_yaml"
+  /*35*/ val NodeCassandraJvmOptions = "node_cassandra_jvm_options"
+  /*36*/ val NodeModified = "node_modified"
 
   // not part of the table schema
   val UsingTimestamp = "using_timestamp"
@@ -346,6 +349,7 @@ object CassandraStorage{
     NodeCommitLogDir,
     NodeSavedCachesDir,
     NodeCassandraDotYaml,
+    NodeAddressDotYaml,
     NodeCassandraJvmOptions,
     NodeModified
   )
