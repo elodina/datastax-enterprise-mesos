@@ -4,6 +4,7 @@ import org.junit.{Test, Before, After}
 import org.junit.Assert._
 import scala.concurrent.duration._
 import org.apache.mesos.Protos.TaskState
+import scala.collection.JavaConversions._
 
 
 class NodeCliTest extends MesosTestCase with CliTestCase {
@@ -126,7 +127,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
   }
 
   @Test
-  def handleStart() = {
+  def handleStartStop() = {
     assertCliError(Array("start", ""), "node required")
     assertCliError(Array("start", "+"), "invalid node expr")
     assertCliError(Array("start", "0"), "node 0 not found")
@@ -142,16 +143,41 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
     val expectedResponse = "node scheduled to start:\n" + outputToString { NodeCli.printNode(node, 1) } + "\n"
     assertEquals(expectedResponse, actualResponse)
     assertTrue(Nodes.getNodes.forall(_.state == Node.State.STARTING))
+
+    // scheduler disconnected from the master
+    import Node.State._
+    started(node, immediately = true)
+    Scheduler.disconnected(schedulerDriver)
+    assertCliErrorContains("stop 0 --timeout 1s".split(" "), "scheduler disconnected from the master")
+    assertEquals(RUNNING, node.state)
+  }
+
+  def assertCliErrorContains(args: Array[String], str: String) = {
+    try { cli(args); fail() }
+    catch { case e: Cli.Error => assertTrue(s"${args.mkString(" ")} has to contain '$str' in '${e.getMessage}'", e.getMessage.contains(str)) }
+  }
+
+  def stopped(node: Node) = {
+    assertEquals(Node.State.STOPPING, node.state)
+    Scheduler.onTaskStopped(node, taskStatus(node.runtime.taskId, TaskState.TASK_FINISHED))
+    assertEquals(Node.State.IDLE, node.state)
+    assertNull(node.runtime)
+  }
+
+  def started(node: Node, immediately: Boolean = false) = {
+    assertEquals(Node.State.STARTING, node.state)
+    Scheduler.resourceOffers(schedulerDriver, List(offer(resources = "cpus:2.0;mem:20480;ports:0..65000")))
+    def confirm = {
+      Scheduler.onTaskStarted(node, taskStatus(node.runtime.taskId, TaskState.TASK_RUNNING))
+      assertEquals(Node.State.RUNNING, node.state)
+    }
+    if (immediately) confirm
+    else delay("100ms") { confirm }
   }
 
   @Test(timeout = 8000)
   def handleRestart(): Unit = {
     Nodes.reset()
-
-    def assertCliErrorContains(args: Array[String], str: String) = {
-      try { cli(args) }
-      catch { case e: Cli.Error => assertTrue(s"${args.mkString(" ")} has to contain '$str' in '${e.getMessage}'", e.getMessage.contains(str)) }
-    }
 
     // help
     val helpNodeContent = outputToString { Cli.exec("help node".split(" ")) }
@@ -175,30 +201,6 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
     import Node.State._
     for(state <- Seq(IDLE, STARTING, RUNNING, STOPPING, RECONCILING) if state != RUNNING)
       assertCliErrorContains("restart 0".split(" "), "node 0 should be running")
-
-    def delay(duration: String = "100ms")(f: => Unit) = new Thread {
-      override def run(): Unit = {
-        Thread.sleep(Duration(duration).toMillis)
-        f
-      }
-    }.start()
-
-    def stopped(node: Node) = {
-      assertEquals(Node.State.STOPPING, node.state)
-      Scheduler.onTaskStopped(node, taskStatus(node.runtime.taskId, TaskState.TASK_FINISHED))
-      assertEquals(Node.State.IDLE, node.state)
-      assertNull(node.runtime)
-    }
-    def started(node: Node, immediately: Boolean = false) = {
-      assertEquals(Node.State.STARTING, node.state)
-      Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:20480;ports:0..65000"))
-      def confirm = {
-        Scheduler.onTaskStarted(node, taskStatus(node.runtime.taskId, TaskState.TASK_RUNNING))
-        assertEquals(Node.State.RUNNING, node.state)
-      }
-      if (immediately) confirm
-      else delay("100ms") { confirm }
-    }
 
     node0.state = Node.State.RUNNING
     node0.runtime = new Node.Runtime(node0, offer())
@@ -278,7 +280,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
       stopped(node0)
       delay("100ms") {
         started(node0)
-        delay("200ms") {
+        delay("250ms") {
           stopped(node1)
         }
       }
@@ -293,7 +295,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
       stopped(node0)
       delay("100ms") {
         started(node0, immediately = true)
-        delay("100ms") {
+        delay("200ms") {
           stopped(node1)
           delay("100ms") {
             started(node1)
@@ -308,5 +310,10 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
       "\n" +
       outputToString { NodeCli.printNode(node1, 1) } +
       "\n", output)
+
+    // scheduler disconnected from the master
+    Scheduler.disconnected(schedulerDriver)
+    assertCliErrorContains("restart 0..1 --timeout 1s".split(" "), "scheduler disconnected from the master")
+    assertEquals(RUNNING, node0.state)
   }
 }

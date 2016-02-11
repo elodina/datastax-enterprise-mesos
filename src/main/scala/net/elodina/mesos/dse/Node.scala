@@ -37,7 +37,7 @@ import Util.Size
 
 class Node extends Constrained {
   var id: String = null
-  var state: Node.State.Value = Node.State.IDLE
+  @volatile var state: Node.State.Value = Node.State.IDLE
   var cluster: Cluster = Nodes.defaultCluster
   var stickiness: Node.Stickiness = new Node.Stickiness()
   var runtime: Node.Runtime = null
