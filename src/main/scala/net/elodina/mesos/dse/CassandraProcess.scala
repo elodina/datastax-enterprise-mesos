@@ -70,7 +70,8 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
   }
 
   def awaitConsistentState(): Boolean = {
-    while (!stopped) {
+    def exited: Boolean = try { process.exitValue(); true } catch { case e: IllegalThreadStateException => false }
+    while (!stopped && !exited) {
       try {
         val probe = new NodeProbe("localhost", node.runtime.reservation.ports(Node.Port.JMX))
 
