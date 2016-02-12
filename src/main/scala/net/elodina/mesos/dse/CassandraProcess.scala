@@ -69,9 +69,9 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
     builder.start()
   }
 
-  def awaitConsistentState(): Boolean = {
-    def exited: Boolean = try { process.exitValue(); true } catch { case e: IllegalThreadStateException => false }
-    while (!stopped && !exited) {
+  def awaitOperationalState(): Boolean = {
+    var operational = false
+    while (!stopped && running && !operational) {
       try {
         val probe = new NodeProbe("localhost", node.runtime.reservation.ports(Node.Port.JMX))
 
@@ -84,25 +84,34 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
         val operationMode = probe.getOperationMode
 
         if (initialized && joined && !starting) {
-          if (joiningNodes.nonEmpty) logger.info(s"Node is live but there are joining nodes $joiningNodes, waiting...")
-          else if (movingNodes.nonEmpty) logger.info(s"Node is live but there are moving nodes $movingNodes, waiting...")
-          else if (leavingNodes.nonEmpty) logger.info(s"Node is live but there are leaving nodes $leavingNodes, waiting...")
-          else if (operationMode != "NORMAL") logger.info(s"Node is live but its operation mode is $operationMode, waiting...")
+          if (joiningNodes.nonEmpty) logger.info(s"Cassandra process is live but there are joining nodes $joiningNodes, waiting...")
+          else if (movingNodes.nonEmpty) logger.info(s"Cassandra process is live but there are moving nodes $movingNodes, waiting...")
+          else if (leavingNodes.nonEmpty) logger.info(s"Cassandra process is live but there are leaving nodes $leavingNodes, waiting...")
+          else if (operationMode != "NORMAL") logger.info(s"Cassandra process is live but its operation mode is $operationMode, waiting...")
           else {
-            logger.info("Node jumped to normal state")
-            return true
+            logger.info("Cassandra process jumped to normal state")
+            operational = true
           }
-        } else logger.info(s"Node is live but still initializing, joining or starting. Initialized: $initialized, Joined: $joined, Started: ${!starting}. Retrying...")
+        } else logger.info(s"Cassandra process is live but still initializing, joining or starting. Initialized: $initialized, Joined: $joined, Started: ${!starting}. Retrying...")
       } catch {
         case e: IOException =>
-          logger.debug("Failed to connect via JMX, retrying...")
-          logger.trace("", e)
+          logger.info(s"Failed to connect via JMX, retrying: ${e.getMessage}")
       }
 
       Thread.sleep(5000)
     }
 
-    false
+    if (running) logger.info("Cassandra process is running & operational")
+    else logger.info(s"Cassandra process exited: $exitCode")
+
+    running && operational
+  }
+
+  def running: Boolean = exitCode != -1
+
+  def exitCode: Int = {
+    try { process.exitValue(); }
+    catch { case e: IllegalThreadStateException => -1 }
   }
 
   def await(): String = {
@@ -113,7 +122,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
 
   def stop() {
     this.synchronized {
-      if (!stopped) {
+      if (!stopped && running) {
         logger.info(s"Stopping Cassandra process")
 
         stopped = true
