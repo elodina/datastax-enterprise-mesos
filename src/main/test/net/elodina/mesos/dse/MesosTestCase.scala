@@ -33,6 +33,7 @@ import org.apache.log4j.BasicConfigurator
 import com.google.protobuf.ByteString
 import java.io.{PrintStream, ByteArrayOutputStream, File}
 import java.nio.file.Files
+import scala.concurrent.duration.Duration
 
 @Ignore
 class MesosTestCase {
@@ -436,6 +437,28 @@ class MesosTestCase {
     false
   }
 
+  def assertDifference[T: Numeric](expr: => T, difference: T = 1, message: String = "has to change")(action: => Unit): Unit = {
+    import scala.math.Numeric.Implicits._
+    val before = expr
+    action
+    val after = expr
+    assertEquals(message, difference, after - before)
+  }
+
+  def assertNoDifference[T: Numeric](expr: => T, message: String = "don't change")(action: => Unit): Unit = {
+    import scala.math.Numeric.Implicits._
+    val before = expr
+    action
+    val after = expr
+    assertEquals(message, 0, after - before)
+  }
+
+  def delay(duration: String = "100ms")(f: => Unit) = new Thread {
+    override def run(): Unit = {
+      Thread.sleep(Duration(duration).toMillis)
+      f
+    }
+  }.start()
 }
 
 trait CliTestCase{

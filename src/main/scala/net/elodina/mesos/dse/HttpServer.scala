@@ -299,14 +299,20 @@ object HttpServer {
       }
 
       // start|stop nodes
-      for (node <- nodes) {
-        if (start) node.state = Node.State.STARTING
-        else Scheduler.stopNode(node.id)
+      var disconnected = false
+      try {
+        for (node <- nodes) {
+          if (start) node.state = Node.State.STARTING
+          else Scheduler.stopNode(node.id)
+        }
+      } catch {
+        case e: IllegalStateException => disconnected = true
+      } finally {
+        Nodes.save()
       }
-      Nodes.save()
 
       var success: Boolean = true
-      if (timeout.toMillis > 0) {
+      if (!disconnected && timeout.toMillis > 0) {
         val targetState: State.Value = if (start) Node.State.RUNNING else Node.State.IDLE
         success = nodes.forall(_.waitFor(targetState, timeout))
       }
@@ -314,6 +320,7 @@ object HttpServer {
       val nodesJson = nodes.map(_.toJson(expanded = true))
 
       def status: String = {
+        if (disconnected) return "disconnected"
         if (timeout.toMillis == 0) return "scheduled"
         if (!success) return "timeout"
         if (start) "started" else "stopped"
@@ -354,7 +361,13 @@ object HttpServer {
         if (node.state != Node.State.RUNNING) throw new HttpError(400, s"node ${node.id} should be running")
 
         // stop
-        Scheduler.stopNode(node.id)
+        try {
+          Scheduler.stopNode(node.id)
+        } catch {
+          case e: IllegalStateException =>
+            response.getWriter.println("" + new JSONObject(Map("status" -> "disconnected", "message" -> "scheduler disconnected from the master")))
+            return
+        }
         Nodes.save()
 
         val begin = System.currentTimeMillis()

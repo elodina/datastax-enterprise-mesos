@@ -246,6 +246,7 @@ object NodeCli {
       case "started" | "stopped" => title += s"$status:"
       case "scheduled" => title += s"$status to $cmd:"
       case "timeout" => throw new Error(s"$cmd timeout")
+      case "disconnected" => throw new Error("scheduler disconnected from the master")
     }
 
     printLine(title)
@@ -288,7 +289,7 @@ object NodeCli {
 
     val status = json("status")
 
-    if (status == "timeout") throw new Error(json("message").asInstanceOf[String])
+    if (status == "timeout" || status == "disconnected") throw new Error(json("message").asInstanceOf[String])
 
     val nodes = json("nodes").asInstanceOf[List[Any]]
       .map(n => new Node(n.asInstanceOf[Map[String, Any]], expanded = true))

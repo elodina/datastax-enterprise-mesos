@@ -6,6 +6,7 @@ import org.junit.Assert._
 import net.elodina.mesos.dse.Cli.sendRequest
 import java.io._
 import org.apache.mesos.Protos.TaskState
+import scala.collection.JavaConversions._
 
 class HttpServerTest extends MesosTestCase {
   @Before
@@ -241,6 +242,79 @@ class HttpServerTest extends MesosTestCase {
 
     assertTrue(Nodes.getNodes.forall(_.state == Node.State.STARTING))
     assertEquals(response("nodes").asInstanceOf[List[Any]].size, 1)
+  }
+
+  @Test(timeout = 6000)
+  def nodeApiStop: Unit = {
+    val nodeStart = getJsonResponse("/node/start", _: Map[String, String])
+    val nodeStop = getJsonResponse("/node/stop", _: Map[String, String])
+
+    Nodes.reset()
+
+    def stopped(node: Node) = {
+      assertEquals(Node.State.STOPPING, node.state)
+      Scheduler.onTaskStopped(node, taskStatus(node.runtime.taskId, TaskState.TASK_FINISHED))
+      assertEquals(Node.State.IDLE, node.state)
+      assertNull(node.runtime)
+    }
+
+    def started(node: Node, immediately: Boolean = false) = {
+      assertEquals(Node.State.STARTING, node.state)
+      Scheduler.resourceOffers(schedulerDriver, List(offer(resources = "cpus:2.0;mem:20480;ports:0..65000")))
+      def confirm = {
+        Scheduler.onTaskStarted(node, taskStatus(node.runtime.taskId, TaskState.TASK_RUNNING))
+        assertEquals(Node.State.RUNNING, node.state)
+      }
+      if (immediately) confirm
+      else delay("100ms") { confirm }
+    }
+
+    val node0 = Nodes.addNode(new Node("0"))
+    nodeStart(parseMap("node=0,timeout=1s"))
+
+    // no offers or offers that don't have required resource
+    // low cpu
+    Scheduler.acceptOffer(offer(resources = "cpus:0.1;mem:128;ports:0..65000"))
+    // low memory
+    Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:128;ports:0..65000"))
+    // missing ports
+    Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:128;ports:0..1"))
+
+    // for sure response status it timeout
+    nodeStop(parseMap("node=0,timeout=1s"))
+    assertEquals(Node.State.IDLE, node0.state)
+    // kill task sent only when node has runtime
+    assertEquals(0, schedulerDriver.killedTasks.size())
+
+    // has runtime
+    nodeStart(parseMap("node=0,timeout=0s"))
+    started(node0, immediately = true)
+
+    delay("100ms") { stopped(node0) }
+    nodeStop(parseMap("node=0,timeout=1s"))
+
+    // ability to send kill task multiple times
+    nodeStart(parseMap("node=0,timeout=0s"))
+    started(node0, immediately = true)
+
+    assertDifference(schedulerDriver.killedTasks.size(), 3) {
+      nodeStop(parseMap("node=0,timeout=0s"))
+      nodeStop(parseMap("node=0,timeout=0s"))
+      nodeStop(parseMap("node=0,timeout=0s"))
+      stopped(node0)
+    }
+
+    // status is disconnected when trying to stop node while scheduler disconnected from master
+    nodeStart(parseMap("node=0,timeout=1s"))
+    started(node0, immediately = true)
+
+    Scheduler.disconnected(schedulerDriver)
+    val json = nodeStop(parseMap("node=0,timeout=0s")).asInstanceOf[Map[String, Any]]
+    assertEquals("disconnected", json("status").asInstanceOf[String])
+    assertEquals(1, json("nodes").asInstanceOf[List[Map[String, Any]]].size)
+    assertEquals(Node.State.RUNNING, node0.state)
+
+    // what to do when has runtime but not received task on failed/finished/...
   }
 
   @Test
