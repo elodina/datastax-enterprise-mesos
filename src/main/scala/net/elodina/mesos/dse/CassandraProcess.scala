@@ -107,7 +107,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
     running && operational
   }
 
-  def running: Boolean = exitCode != -1
+  def running: Boolean = exitCode == -1
 
   def exitCode: Int = {
     try { process.exitValue(); }
