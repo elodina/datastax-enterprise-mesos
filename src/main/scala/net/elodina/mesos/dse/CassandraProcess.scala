@@ -69,7 +69,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
     builder.start()
   }
 
-  def awaitOperationalState(): Boolean = {
+  def awaitNormalState(): Boolean = {
     var operational = false
     while (!stopped && running && !operational) {
       try {
@@ -101,9 +101,6 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
       Thread.sleep(5000)
     }
 
-    if (running) logger.info("Cassandra process is running & operational")
-    else logger.info(s"Cassandra process exited: $exitCode")
-
     running && operational
   }
 
@@ -116,8 +113,12 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
 
   def await(): String = {
     val code = process.waitFor()
-    if ((code == 0 || code == 143) && stopped) null
-    else s"exitCode=$code"
+    val error = if ((code == 0 || code == 143) && stopped) null else s"exitCode=$code"
+
+    if (error == null) logger.info("Cassandra process finished")
+    else logger.info(s"Cassandra process failed: $error")
+
+    error
   }
 
   def stop() {
