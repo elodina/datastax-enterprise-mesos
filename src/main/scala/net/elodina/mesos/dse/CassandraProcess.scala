@@ -152,8 +152,14 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
   private def redirectCassandraLogs() {
     if (Executor.cassandraDir != null)
       Util.IO.replaceInFile(new File(Executor.cassandraDir, "bin/cassandra"), Map("(.*)-Dcassandra.logdir=\\$CASSANDRA_HOME/logs" -> s"$$1-Dcassandra.logdir=${Executor.dir}/data/log"))
-    else
-      Util.IO.replaceInFile(new File(Executor.dseDir, "bin/dse.in.sh"), Map("CASSANDRA_LOG_DIR=.*" -> s"CASSANDRA_LOG_DIR=${Executor.dir}/data/log"))
+    else {
+      // DSE 4.8.x
+      Util.IO.replaceInFile(new File(Executor.dseDir, "bin/dse.in.sh"), Map("CASSANDRA_LOG_DIR=.*" -> s"CASSANDRA_LOG_DIR=${Executor.dir}/data/log"), ignoreMisses = true)
+
+      // DSE with cassandra 2.0.x
+      val log4jConf = new File(Executor.dseDir, "resources/cassandra/conf/log4j-server.properties")
+      if (log4jConf.exists) Util.IO.replaceInFile(log4jConf, Map("/var/log/cassandra/" -> s"${Executor.dir}/data/log/"), ignoreMisses = true)
+    }
   }
 
   private[dse] def editCassandraConfigs() {
