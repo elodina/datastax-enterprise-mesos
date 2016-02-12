@@ -209,6 +209,7 @@ object NodeCli {
   def handleStartStop(cmd: String, expr: String, args: Array[String], help: Boolean = false): Unit = {
     val parser = new OptionParser()
     parser.accepts("timeout", "Time to wait until node starts. Should be a parsable Scala Duration value. Defaults to 2m.").withRequiredArg().ofType(classOf[String])
+    if (cmd == "stop") parser.accepts("force", "forcibly stop").withOptionalArg().ofType(classOf[String])
 
     if (help) {
       printLine(s"${cmd.capitalize} node \nUsage: node $cmd <id> [options]\n")
@@ -229,9 +230,12 @@ object NodeCli {
     }
 
     val timeout = options.valueOf("timeout").asInstanceOf[String]
+    val force = options.has("force")
+
     val params = new mutable.HashMap[String, String]()
     params("node") = expr
     if (timeout != null) params("timeout") = timeout
+    if (force) params("force") = null
 
     var json: Map[String, Any] = null
     try { json = Cli.sendRequest(s"/node/$cmd", params.toMap).asInstanceOf[Map[String, Any]] }

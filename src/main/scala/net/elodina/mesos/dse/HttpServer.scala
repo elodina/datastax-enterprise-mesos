@@ -288,6 +288,8 @@ object HttpServer {
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid timeout") }
       }
 
+      val force: Boolean = request.getParameter("force") != null
+
       // check&collect nodes
       val nodes = new ListBuffer[Node]
       for (id <- ids) {
@@ -303,7 +305,7 @@ object HttpServer {
       try {
         for (node <- nodes) {
           if (start) node.state = Node.State.STARTING
-          else Scheduler.stopNode(node.id)
+          else Scheduler.stopNode(node.id, force)
         }
       } catch {
         case e: IllegalStateException => disconnected = true

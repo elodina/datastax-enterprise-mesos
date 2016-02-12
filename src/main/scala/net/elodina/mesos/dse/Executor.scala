@@ -117,7 +117,10 @@ object Executor extends org.apache.mesos.Executor {
   }
 
   def frameworkMessage(driver: ExecutorDriver, data: Array[Byte]) {
-    logger.info("[frameworkMessage] " + new String(data))
+    val message = new String(data)
+    logger.info(s"[frameworkMessage] $message")
+
+    if (message == "stop") driver.stop()
   }
 
   def shutdown(driver: ExecutorDriver) {
