@@ -5,6 +5,7 @@ import org.junit.Assert._
 import java.util.Date
 import Scheduler.Reconciler
 import org.apache.mesos.Protos.TaskState
+import scala.collection.JavaConversions._
 
 class SchedulerTest extends MesosTestCase {
   @Test
@@ -133,6 +134,59 @@ class SchedulerTest extends MesosTestCase {
       assertEquals("" + state, Node.State.STARTING, node.state)
       assertNull("" + state, node.runtime)
     }
+  }
+
+  @Test
+  def stopNode: Unit = {
+    import net.elodina.mesos.dse.Node.State._
+    Nodes.reset()
+    // no node, nothing to do
+    Scheduler.stopNode("")
+
+    val node0 = Nodes.addNode(new Node("0"))
+    // node exists but no runtime, thus have to assign state IDLE
+    Scheduler.stopNode("0")
+    assertEquals(Node.State.IDLE, node0.state)
+
+    // for instance node is starting but offers has insufficient resource, perhaps missing ports
+    node0.state = STARTING
+    Scheduler.stopNode(node0.id)
+    // kill task sent only when node has runtime
+    assertEquals(0, schedulerDriver.killedTasks.size())
+    assertEquals(IDLE, node0.state)
+
+    // node has sufficient resources to start
+    node0.state = STARTING
+    Scheduler.resourceOffers(schedulerDriver, List(offer(resources = "cpus:2.0;mem:20480;ports:0..65000")))
+    assertNotNull(node0.runtime)
+    // confirm start by executor
+    Scheduler.onTaskStarted(node0, taskStatus(node0.runtime.taskId, TaskState.TASK_RUNNING))
+    assertEquals(Node.State.RUNNING, node0.state)
+
+    // illegal state exception thrown when scheduler becomes disconnected from the master
+    Scheduler.disconnected(schedulerDriver)
+    try {
+      Scheduler.stopNode(node0.id)
+      fail()
+    } catch {
+      case e: IllegalStateException => assertEquals("scheduler disconnected from the master", e.getMessage)
+    }
+    Scheduler.reregistered(schedulerDriver, master())
+
+    Scheduler.stopNode(node0.id)
+    assertEquals(STOPPING, node0.state)
+    // trigger sending kill task
+    assertEquals(1, schedulerDriver.killedTasks.size())
+    // resourceOffers doesn't trigger set runtime to null
+    assertNotNull(node0.runtime)
+    // ability to sent kill task on each call to stopNode
+    assertDifference(schedulerDriver.killedTasks.size()) {
+      Scheduler.stopNode(node0.id)
+    }
+
+    Scheduler.onTaskStopped(node0, taskStatus(node0.runtime.taskId, TaskState.TASK_FINISHED))
+    assertEquals(Node.State.IDLE, node0.state)
+    assertNull(node0.runtime)
   }
 
   @Test
