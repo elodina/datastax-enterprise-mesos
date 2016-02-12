@@ -245,7 +245,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     node.registerStop()
   }
 
-  def stopNode(id: String): Unit = {
+  def stopNode(id: String, force: Boolean = false): Unit = {
     val node = Nodes.getNode(id)
     if (node == null) return
 
@@ -256,7 +256,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
 
     if (driver == null) throw new IllegalStateException("scheduler disconnected from the master")
 
-    logger.info(s"Killing task ${node.runtime.taskId} of node ${node.id}")
+    logger.info(s"Killing task ${node.runtime.taskId} of node ${node.id}${if (force) " forcibly" else ""}")
     driver.killTask(TaskID.newBuilder().setValue(node.runtime.taskId).build)
 
     node.state = Node.State.STOPPING
