@@ -370,8 +370,8 @@ object NodeCli {
   private def nodeDirs(node: Node): String = {
     var s = ""
     s += "data:" + (if (node.dataFileDirs != null) node.dataFileDirs else "<auto>")
-    s += ", commit-log:" + (if (node.commitLogDir != null) node.commitLogDir else "<auto>")
-    s += ", saved-caches:" + (if (node.savedCachesDir != null) node.savedCachesDir else "<auto>")
+    s += ", commit:" + (if (node.commitLogDir != null) node.commitLogDir else "<auto>")
+    s += ", caches:" + (if (node.savedCachesDir != null) node.savedCachesDir else "<auto>")
     s
   }
 
