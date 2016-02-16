@@ -81,7 +81,6 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
       "--dc", "dc",
       "--seed", "true",
       "--jvm-options", "-Dfile.encoding=UTF8",
-      "--jmx-remote", "true",
       "--data-file-dirs", "/tmp/datadir",
       "--commit-log-dir", "/tmp/commitlog",
       "--saved-caches-dir", "/tmp/caches",
@@ -100,7 +99,6 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
       assertEquals("dc", node.dc)
       assertEquals(true, node.seed)
       assertEquals("-Dfile.encoding=UTF8", node.jvmOptions)
-      assertEquals(true, node.jmxRemote)
       assertEquals("/tmp/datadir", node.dataFileDirs)
       assertEquals("/tmp/commitlog", node.commitLogDir)
       assertEquals("/tmp/caches", node.savedCachesDir)

@@ -49,7 +49,7 @@ class ClusterCliTest extends MesosTestCase with CliTestCase {
     }
 
     {
-      val updateArgs = Array("--bind-address", "2.2.2.2", "--storage-port", "9999", "--jmx-port", "666",
+      val updateArgs = Array("--bind-address", "2.2.2.2", "--jmx-remote", "true", "--storage-port", "9999", "--jmx-port", "666",
         "--cql-port", "777", "--thrift-port", "0000", "--agent-port", "1234"
       )
       val actualResponse = outputToString { cli(Array("update", clusterId) ++ updateArgs) }

@@ -47,7 +47,6 @@ class Node extends Constrained {
 
   var seed: Boolean = false
   var jvmOptions: String = null
-  var jmxRemote: Boolean = false
 
   var rack: String = "default"
   var dc: String = "default"
@@ -256,7 +255,6 @@ class Node extends Constrained {
 
     seed = json("seed").asInstanceOf[Boolean]
     if (json.contains("jvmOptions")) jvmOptions = json("jvmOptions").asInstanceOf[String]
-    if (json.contains("jmxRemote")) jmxRemote = json("jmxRemote").asInstanceOf[Boolean]
 
     rack = json("rack").asInstanceOf[String]
     dc = json("dc").asInstanceOf[String]
@@ -296,7 +294,6 @@ class Node extends Constrained {
 
     json("seed") = seed
     if (jvmOptions != null) json("jvmOptions") = jvmOptions
-    json("jmxRemote") = jmxRemote
 
     json("rack") = rack
     json("dc") = dc

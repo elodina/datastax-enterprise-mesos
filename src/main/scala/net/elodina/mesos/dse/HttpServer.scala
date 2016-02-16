@@ -184,7 +184,6 @@ object HttpServer {
 
       val seed: java.lang.Boolean = if (request.getParameter("seed") != null) request.getParameter("seed") == "true" else null
       val jvmOptions: String = request.getParameter("jvmOptions")
-      val jmxRemote: java.lang.Boolean = if (request.getParameter("jmxRemote") != null) request.getParameter("jmxRemote") == "true" else null
 
       val dataFileDirs = request.getParameter("dataFileDirs")
       val commitLogDir = request.getParameter("commitLogDir")
@@ -225,7 +224,6 @@ object HttpServer {
 
         if (seed != null) node.seed = seed
         if (jvmOptions != null) node.jvmOptions = if (jvmOptions != "") jvmOptions else null
-        if (jmxRemote != null) node.jmxRemote = jmxRemote
 
         if (dataFileDirs != null) node.dataFileDirs = if (dataFileDirs != "") dataFileDirs else null
         if (commitLogDir != null) node.commitLogDir = if (commitLogDir != "") commitLogDir else null
@@ -414,6 +412,8 @@ object HttpServer {
         try { new BindAddress(bindAddress) }
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid bindAddress") }
 
+      val jmxRemote: java.lang.Boolean = if (request.getParameter("jmxRemote") != null) request.getParameter("jmxRemote") == "true" else null
+
       val storagePort: String = request.getParameter("storagePort")
       if (storagePort != null && !storagePort.isEmpty)
         try { new Range(storagePort) }
@@ -449,6 +449,8 @@ object HttpServer {
         cluster = Nodes.addCluster(new Cluster(id))
 
       if (bindAddress != null) cluster.bindAddress = if (bindAddress != "") new BindAddress(bindAddress) else null
+      if (jmxRemote != null) cluster.jmxRemote = jmxRemote
+
       if (storagePort != null) cluster.ports(Node.Port.STORAGE) = if (storagePort != "") new Range(storagePort) else null
       if (jmxPort != null) cluster.ports(Node.Port.JMX) = if (jmxPort != "") new Range(jmxPort) else null
       if (cqlPort != null) cluster.ports(Node.Port.CQL) = if (cqlPort != "") new Range(cqlPort) else null

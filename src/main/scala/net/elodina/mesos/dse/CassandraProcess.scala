@@ -177,7 +177,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
       "#HEAP_NEWSIZE=.*" -> s"HEAP_NEWSIZE=${node.youngGen}"
     ))
 
-    if (node.jmxRemote) Util.IO.replaceInFile(file, Map(
+    if (node.cluster.jmxRemote) Util.IO.replaceInFile(file, Map(
       "LOCAL_JMX=.*" -> "LOCAL_JMX=no",
       "-Dcom.sun.management.jmxremote.authenticate=.*\"" -> "-Dcom.sun.management.jmxremote.authenticate=false\"")
     )

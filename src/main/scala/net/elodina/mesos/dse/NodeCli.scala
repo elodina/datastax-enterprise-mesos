@@ -102,7 +102,6 @@ object NodeCli {
 
     parser.accepts("seed", "Node is a seed node.").withRequiredArg().ofType(classOf[java.lang.Boolean])
     parser.accepts("jvm-options", "JVM options for node executor.").withRequiredArg().ofType(classOf[String])
-    parser.accepts("jmx-remote", "Remote JMX connections enabled.").withRequiredArg().ofType(classOf[java.lang.Boolean])
 
     parser.accepts("data-file-dirs", "Cassandra data file directories separated by comma. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
     parser.accepts("commit-log-dir", "Cassandra commit log dir. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
@@ -147,7 +146,6 @@ object NodeCli {
 
     val seed = options.valueOf("seed").asInstanceOf[java.lang.Boolean]
     val jvmOptions = options.valueOf("jvm-options").asInstanceOf[String]
-    val jmxRemote = options.valueOf("jmx-remote").asInstanceOf[java.lang.Boolean]
 
     val dataFileDirs = options.valueOf("data-file-dirs").asInstanceOf[String]
     val commitLogDir = options.valueOf("commit-log-dir").asInstanceOf[String]
@@ -172,7 +170,6 @@ object NodeCli {
 
     if (seed != null) params("seed") = "" + seed
     if (jvmOptions != null) params("jvmOptions") = jvmOptions
-    if (jmxRemote != null) params("jmxRemote") = "" + jmxRemote
 
     if (dataFileDirs != null) params("dataFileDirs") = dataFileDirs
     if (commitLogDir != null) params("commitLogDir") = commitLogDir
@@ -329,7 +326,6 @@ object NodeCli {
     printLine(s"topology: ${nodeTopology(node)}", indent)
     printLine(s"resources: ${nodeResources(node)}", indent)
     printLine(s"seed: ${node.seed}", indent)
-    printLine(s"jmx-remote: ${node.jmxRemote}", indent)
 
     if (node.jvmOptions != null) printLine(s"jvm-options: ${node.jvmOptions}", indent)
 

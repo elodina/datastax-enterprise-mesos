@@ -28,7 +28,7 @@ import org.junit.Assert._
 import scala.collection.JavaConversions._
 import org.apache.mesos.{ExecutorDriver, SchedulerDriver}
 import java.util
-import org.junit.{Test, Ignore, After, Before}
+import org.junit.{Ignore, After, Before}
 import org.apache.log4j.BasicConfigurator
 import com.google.protobuf.ByteString
 import java.io.{PrintStream, ByteArrayOutputStream, File}
@@ -43,7 +43,7 @@ class MesosTestCase {
   @Before
   def before {
     BasicConfigurator.configure()
-    Scheduler.initLogging();
+    Scheduler.initLogging()
 
     val storageFile: File = Files.createTempFile(classOf[MesosTestCase].getSimpleName, null).toFile
     storageFile.delete()
@@ -387,7 +387,6 @@ class MesosTestCase {
     assertEquals(expected.seed, actual.seed)
 
     assertEquals(expected.jvmOptions, actual.jvmOptions)
-    assertEquals(expected.jmxRemote, actual.jmxRemote)
 
     assertEquals(expected.rack, actual.rack)
     assertEquals(expected.dc, actual.dc)

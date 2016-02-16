@@ -55,6 +55,8 @@ class ClusterTest extends MesosTestCase {
 
     cluster.bindAddress = new BindAddress("192.168.3.*, if:eth1")
     cluster.ports ++= Map(Node.Port.STORAGE -> new Range("100..110"), Node.Port.JMX -> new Range("200..210"))
+    cluster.jmxRemote = true
+
     read = new Cluster(Util.parseJsonAsMap("" + cluster.toJson))
     assertClusterEquals(cluster, read)
   }
@@ -64,6 +66,7 @@ class ClusterTest extends MesosTestCase {
     assertEquals(expected.id, actual.id)
     assertEquals(expected.bindAddress, actual.bindAddress)
     assertEquals(expected.ports, actual.ports)
+    assertEquals(expected.jmxRemote, actual.jmxRemote)
   }
 
   private def checkNulls(expected: Object, actual: Object): Boolean = {
