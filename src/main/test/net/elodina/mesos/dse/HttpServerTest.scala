@@ -69,7 +69,7 @@ class HttpServerTest extends MesosTestCase {
   }
 
   @Test
-  def nodeApiList() = {
+  def node_list() = {
     val nodeId = "0"
     val node = new Node(nodeId)
     Nodes.addNode(node)
@@ -78,7 +78,7 @@ class HttpServerTest extends MesosTestCase {
   }
 
   @Test
-  def nodeApiAddUpdate() = {
+  def node_add_update() = {
     type JsonNodes = List[Map[String, Object]]
     val nodeAdd = getJsonResponse("/node/add", _: Map[String, String])
 
@@ -102,8 +102,9 @@ class HttpServerTest extends MesosTestCase {
         "dc" -> "dc",
         "constraints" -> "",
         "seedConstraints" -> "",
-        "seed" -> "0.0.0.0",
+        "seed" -> "false",
         "jvmOptions" -> "-Dfile.encoding=UTF8",
+        "jmxRemote" -> "true",
         "dataFileDirs" -> "/tmp/datadir",
         "commitLogDir" -> "/tmp/commitlog",
         "savedCachesDir" -> "/tmp/caches",
@@ -203,7 +204,7 @@ class HttpServerTest extends MesosTestCase {
   }
 
   @Test
-  def nodeApiRemove() = {
+  def node_remove() = {
     val nodeRemove = getJsonResponse("/node/remove", _: Map[String, String])
 
     assertErrorResponse(nodeRemove(Map("node" -> "")), 400, "node required")
@@ -224,7 +225,7 @@ class HttpServerTest extends MesosTestCase {
   }
 
   @Test
-  def nodeApiStart() = {
+  def node_start() = {
     val nodeStart = getJsonResponse("/node/start", _: Map[String, String])
 
     assertErrorResponse(nodeStart(Map("node" -> "")), 400, "node required")
@@ -245,7 +246,7 @@ class HttpServerTest extends MesosTestCase {
   }
 
   @Test(timeout = 6000)
-  def nodeApiStop: Unit = {
+  def node_stop: Unit = {
     val nodeStart = getJsonResponse("/node/start", _: Map[String, String])
     val nodeStop = getJsonResponse("/node/stop", _: Map[String, String])
 
@@ -318,7 +319,7 @@ class HttpServerTest extends MesosTestCase {
   }
 
   @Test
-  def clusterApiList() = {
+  def cluster_list() = {
     val response = getJsonResponse("/cluster/list", Map())
 
     assertEquals(List(Map("id" -> "default", "ports" -> Map())),
@@ -326,7 +327,7 @@ class HttpServerTest extends MesosTestCase {
   }
 
   @Test
-  def clusterApiAdd() = {
+  def cluster_add() = {
     def removeCluster(id: String) = {
       Nodes.removeCluster(Nodes.getCluster(id))
       Nodes.save()
@@ -381,7 +382,7 @@ class HttpServerTest extends MesosTestCase {
   }
 
   @Test
-  def clusterApiUpdate() = {
+  def cluster_update() = {
     val updateCluster = getJsonResponse("/cluster/update", _: Map[String, String])
     val clusterId = "test cluster"
     val cluster = new Cluster(clusterId)
@@ -416,7 +417,7 @@ class HttpServerTest extends MesosTestCase {
   }
 
   @Test
-  def clusterApiRemove() = {
+  def cluster_remove() = {
     val removeCluster = getJsonResponse("/cluster/remove", _: Map[String, String])
 
     assertErrorResponse(removeCluster(Map()), 400, "cluster required")

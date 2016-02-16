@@ -182,9 +182,9 @@ object HttpServer {
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid seedConstraints") }
       }
 
-      var seed: java.lang.Boolean = null
-      if (request.getParameter("seed") != null) seed = "true" == request.getParameter("seed")
+      val seed: java.lang.Boolean = if (request.getParameter("seed") != null) request.getParameter("seed") == "true" else null
       val jvmOptions: String = request.getParameter("jvmOptions")
+      val jmxRemote: java.lang.Boolean = if (request.getParameter("jmxRemote") != null) request.getParameter("jmxRemote") == "true" else null
 
       val dataFileDirs = request.getParameter("dataFileDirs")
       val commitLogDir = request.getParameter("commitLogDir")
@@ -225,6 +225,7 @@ object HttpServer {
 
         if (seed != null) node.seed = seed
         if (jvmOptions != null) node.jvmOptions = if (jvmOptions != "") jvmOptions else null
+        if (jmxRemote != null) node.jmxRemote = jmxRemote
 
         if (dataFileDirs != null) node.dataFileDirs = if (dataFileDirs != "") dataFileDirs else null
         if (commitLogDir != null) node.commitLogDir = if (commitLogDir != "") commitLogDir else null

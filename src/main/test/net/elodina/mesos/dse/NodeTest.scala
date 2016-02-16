@@ -229,6 +229,7 @@ class NodeTest extends MesosTestCase {
 
     node.seed = true
     node.jvmOptions = "options"
+    node.jmxRemote = true
 
     node.rack = "r"
     node.dc = "d"

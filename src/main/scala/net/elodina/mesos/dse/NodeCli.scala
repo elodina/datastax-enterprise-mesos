@@ -100,8 +100,9 @@ object NodeCli {
     parser.accepts("constraints", "Constraints (hostname=like:^master$,rack=like:^1.*$).").withRequiredArg().ofType(classOf[String])
     parser.accepts("seed-constraints", "Seed node constraints. Will be evaluated only across seed nodes.").withRequiredArg().ofType(classOf[String])
 
-    parser.accepts("seed", "Flags whether this node is a seed node.").withRequiredArg().ofType(classOf[java.lang.Boolean])
+    parser.accepts("seed", "Node is a seed node.").withRequiredArg().ofType(classOf[java.lang.Boolean])
     parser.accepts("jvm-options", "JVM options for node executor.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("jmx-remote", "Remote JMX connections enabled.").withRequiredArg().ofType(classOf[java.lang.Boolean])
 
     parser.accepts("data-file-dirs", "Cassandra data file directories separated by comma. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
     parser.accepts("commit-log-dir", "Cassandra commit log dir. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
@@ -146,6 +147,7 @@ object NodeCli {
 
     val seed = options.valueOf("seed").asInstanceOf[java.lang.Boolean]
     val jvmOptions = options.valueOf("jvm-options").asInstanceOf[String]
+    val jmxRemote = options.valueOf("jmx-remote").asInstanceOf[java.lang.Boolean]
 
     val dataFileDirs = options.valueOf("data-file-dirs").asInstanceOf[String]
     val commitLogDir = options.valueOf("commit-log-dir").asInstanceOf[String]
@@ -170,6 +172,7 @@ object NodeCli {
 
     if (seed != null) params("seed") = "" + seed
     if (jvmOptions != null) params("jvmOptions") = jvmOptions
+    if (jmxRemote != null) params("jmxRemote") = "" + jmxRemote
 
     if (dataFileDirs != null) params("dataFileDirs") = dataFileDirs
     if (commitLogDir != null) params("commitLogDir") = commitLogDir
@@ -326,15 +329,14 @@ object NodeCli {
     printLine(s"topology: ${nodeTopology(node)}", indent)
     printLine(s"resources: ${nodeResources(node)}", indent)
     printLine(s"seed: ${node.seed}", indent)
+    printLine(s"jmx-remote: ${node.jmxRemote}", indent)
 
     if (node.jvmOptions != null) printLine(s"jvm-options: ${node.jvmOptions}", indent)
 
     if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent)
     if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent)
 
-    if (node.dataFileDirs != null) printLine(s"data file dirs: ${node.dataFileDirs}", indent)
-    if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent)
-    if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent)
+    printLine(s"dirs: ${nodeDirs(node)}", indent)
     if (!node.cassandraDotYaml.isEmpty) printLine(s"cassandra.yaml overrides: ${Util.formatMap(node.cassandraDotYaml)}", indent)
     if (!node.addressDotYaml.isEmpty) printLine(s"address.yaml overrides: ${Util.formatMap(node.addressDotYaml)}", indent)
     if (node.cassandraJvmOptions != null) printLine(s"cassandra jvm options: ${node.cassandraJvmOptions}", indent)
@@ -366,6 +368,14 @@ object NodeCli {
     var s = ""
     s += s"cpu:${node.cpu}"
     s += s", mem:${node.mem}"
+    s
+  }
+
+  private def nodeDirs(node: Node): String = {
+    var s = ""
+    s += "data:" + (if (node.dataFileDirs != null) node.dataFileDirs else "<auto>")
+    s += ", commit-log:" + (if (node.commitLogDir != null) node.commitLogDir else "<auto>")
+    s += ", saved-caches:" + (if (node.savedCachesDir != null) node.savedCachesDir else "<auto>")
     s
   }
 

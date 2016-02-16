@@ -11,21 +11,21 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
   def cli = NodeCli.handle(_: Array[String])
 
   @Before
-  override def before = {
+  override def before {
     super.before
     Nodes.reset()
     HttpServer.start()
   }
 
   @After
-  override def after = {
+  override def after {
     super.after
     Nodes.reset()
     HttpServer.stop()
   }
 
   @Test
-  def handle() = {
+  def handle {
     assertCliError(Array(), "command required")
 
     val argumentRequiredCommands = List("add", "update", "remove", "start", "stop")
@@ -35,7 +35,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
   }
 
   @Test
-  def handleList() = {
+  def handleList {
     assertCliResponse(Array("list"), "no nodes")
 
     val node = new Node("0")
@@ -52,7 +52,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
   }
 
   @Test
-  def handleAddUpdate() = {
+  def handleAddUpdate {
     val node = new Node("0")
     Nodes.addNode(node)
     Nodes.save()
@@ -81,6 +81,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
       "--dc", "dc",
       "--seed", "true",
       "--jvm-options", "-Dfile.encoding=UTF8",
+      "--jmx-remote", "true",
       "--data-file-dirs", "/tmp/datadir",
       "--commit-log-dir", "/tmp/commitlog",
       "--saved-caches-dir", "/tmp/caches",
@@ -92,25 +93,25 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
 
     {
       val node = Nodes.getNode("0")
-      assertEquals(node.cpu, 10.0, 0)
-      assertEquals(node.mem, 10.0, 0)
-      assertEquals(node.stickiness.period.toString, "60m")
-      assertEquals(node.rack, "rack")
-      assertEquals(node.dc, "dc")
-      assertEquals(node.seed, true)
-      assertEquals(node.jvmOptions, "-Dfile.encoding=UTF8")
-      assertEquals(node.dataFileDirs, "/tmp/datadir")
-      assertEquals(node.commitLogDir, "/tmp/commitlog")
-      assertEquals(node.savedCachesDir, "/tmp/caches")
-      assertEquals(node.cassandraDotYaml.toMap, Map("num_tokens" -> "312", "hinted_handoff" -> "false"))
-      assertEquals(node.addressDotYaml.toMap, Map("stomp_interface" -> "11.22.33.44"))
-      assertEquals(node.cassandraJvmOptions, "-Dcassandra.replace_address=127.0.0.1 -Dcassandra.ring_delay_ms=15000")
+      assertEquals(10.0, node.cpu, 0.001)
+      assertEquals(10, node.mem)
+      assertEquals("60m", node.stickiness.period.toString)
+      assertEquals("rack", node.rack)
+      assertEquals("dc", node.dc)
+      assertEquals(true, node.seed)
+      assertEquals("-Dfile.encoding=UTF8", node.jvmOptions)
+      assertEquals(true, node.jmxRemote)
+      assertEquals("/tmp/datadir", node.dataFileDirs)
+      assertEquals("/tmp/commitlog", node.commitLogDir)
+      assertEquals("/tmp/caches", node.savedCachesDir)
+      assertEquals(Map("num_tokens" -> "312", "hinted_handoff" -> "false"), node.cassandraDotYaml.toMap)
+      assertEquals(Map("stomp_interface" -> "11.22.33.44"), node.addressDotYaml.toMap)
+      assertEquals("-Dcassandra.replace_address=127.0.0.1 -Dcassandra.ring_delay_ms=15000", node.cassandraJvmOptions)
     }
-
   }
 
   @Test
-  def handleRemove() = {
+  def handleRemove {
     assertCliError(Array("remove", ""), "node required")
     assertCliError(Array("remove", "+"), "invalid node expr")
     assertCliError(Array("remove", "0"), "node 0 not found")
@@ -127,7 +128,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
   }
 
   @Test
-  def handleStartStop() = {
+  def handleStartStop {
     assertCliError(Array("start", ""), "node required")
     assertCliError(Array("start", "+"), "invalid node expr")
     assertCliError(Array("start", "0"), "node 0 not found")
@@ -176,7 +177,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
   }
 
   @Test(timeout = 8000)
-  def handleRestart(): Unit = {
+  def handleRestart {
     Nodes.reset()
 
     // help

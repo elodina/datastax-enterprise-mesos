@@ -283,7 +283,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     }
   }
 
-  private def initLogging() {
+  private[dse] def initLogging() {
     System.setProperty("org.eclipse.jetty.util.log.class", classOf[JettyLog4jLogger].getName)
 
     BasicConfigurator.resetConfiguration()
@@ -298,9 +298,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     logger.setLevel(if (Config.debug) Level.DEBUG else Level.INFO)
 
     val layout = new PatternLayout("%d [%t] %-5p %c %x - %m%n")
-
-    val appender: Appender = new ConsoleAppender(layout)
-
+    val appender = new ConsoleAppender(layout)
     root.addAppender(appender)
   }
 
