@@ -73,7 +73,10 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
     var operational = false
     while (!stopped && running && !operational) {
       try {
-        val probe = new NodeProbe("localhost", node.runtime.reservation.ports(Node.Port.JMX))
+        val authenticate = node.cluster.jmxUser != null
+        val probe =
+          if (!authenticate) new NodeProbe("localhost", node.runtime.reservation.ports(Node.Port.JMX))
+          else new NodeProbe("localhost", node.runtime.reservation.ports(Node.Port.JMX), node.cluster.jmxUser, node.cluster.jmxPassword)
 
         val initialized = probe.isInitialized
         val joined = probe.isJoined
@@ -171,15 +174,43 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
   }
 
   private[dse] def editCassandraEnvSh(file: File) {
-    Util.IO.replaceInFile(file, Map(
+    val map: mutable.HashMap[String, String] = mutable.HashMap(
       "JMX_PORT=.*" -> s"JMX_PORT=${node.runtime.reservation.ports(Node.Port.JMX)}",
       "#MAX_HEAP_SIZE=.*" -> s"MAX_HEAP_SIZE=${node.maxHeap}",
       "#HEAP_NEWSIZE=.*" -> s"HEAP_NEWSIZE=${node.youngGen}"
-    ))
+    )
 
-    if (node.cluster.jmxRemote) Util.IO.replaceInFile(file, Map(
-      "LOCAL_JMX=.*" -> "LOCAL_JMX=no",
-      "-Dcom.sun.management.jmxremote.authenticate=.*\"" -> "-Dcom.sun.management.jmxremote.authenticate=false\"")
+    if (node.cluster.jmxRemote) {
+      map += "LOCAL_JMX=.*" -> "LOCAL_JMX=no"
+
+      val authenticate = node.cluster.jmxUser != null
+      map += ("-Dcom.sun.management.jmxremote.authenticate=.*\"" -> (s"-Dcom.sun.management.jmxremote.authenticate=$authenticate" + "\""))
+
+      if (authenticate) {
+        val pwdFile = new File(file.getParentFile, "jmxremote.password")
+        val accessFile = new File(file.getParentFile, "jmxremote.access")
+        generaJmxFiles(pwdFile, accessFile)
+
+        map += "-Dcom.sun.management.jmxremote.password.file=.*\"" -> (s"-Dcom.sun.management.jmxremote.password.file=$pwdFile"
+              + s" -Dcom.sun.management.jmxremote.access.file=$accessFile" + "\"")
+      }
+    }
+
+    Util.IO.replaceInFile(file, map.toMap)
+  }
+
+  private def generaJmxFiles(pwdFile: File, accessFile: File) {
+    val user = node.cluster.jmxUser
+    val password = node.cluster.jmxPassword
+
+    Util.IO.writeFile(pwdFile, s"$user $password")
+    Runtime.getRuntime.exec(s"chmod 600 $pwdFile").waitFor()
+
+    Util.IO.writeFile(accessFile,
+      s"""$user   readwrite \\
+         |        create javax.management.monitor.*,javax.management.timer.* \\
+         |        unregister
+         |""".stripMargin
     )
   }
 

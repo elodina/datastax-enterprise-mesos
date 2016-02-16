@@ -413,6 +413,8 @@ object HttpServer {
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid bindAddress") }
 
       val jmxRemote: java.lang.Boolean = if (request.getParameter("jmxRemote") != null) request.getParameter("jmxRemote") == "true" else null
+      val jmxUser: String = request.getParameter("jmxUser")
+      val jmxPassword: String = request.getParameter("jmxPassword")
 
       val storagePort: String = request.getParameter("storagePort")
       if (storagePort != null && !storagePort.isEmpty)
@@ -449,7 +451,10 @@ object HttpServer {
         cluster = Nodes.addCluster(new Cluster(id))
 
       if (bindAddress != null) cluster.bindAddress = if (bindAddress != "") new BindAddress(bindAddress) else null
+
       if (jmxRemote != null) cluster.jmxRemote = jmxRemote
+      if (jmxUser != null) cluster.jmxUser = if (jmxUser != "") jmxUser else null
+      if (jmxPassword != null) cluster.jmxPassword = if (jmxPassword != "") jmxPassword else null
 
       if (storagePort != null) cluster.ports(Node.Port.STORAGE) = if (storagePort != "") new Range(storagePort) else null
       if (jmxPort != null) cluster.ports(Node.Port.JMX) = if (jmxPort != "") new Range(jmxPort) else null
