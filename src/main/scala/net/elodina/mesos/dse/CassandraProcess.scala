@@ -176,6 +176,11 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
       "#MAX_HEAP_SIZE=.*" -> s"MAX_HEAP_SIZE=${node.maxHeap}",
       "#HEAP_NEWSIZE=.*" -> s"HEAP_NEWSIZE=${node.youngGen}"
     ))
+
+    if (node.jmxRemote) Util.IO.replaceInFile(file, Map(
+      "LOCAL_JMX=.*" -> "LOCAL_JMX=no",
+      "-Dcom.sun.management.jmxremote.authenticate=.*\"" -> "-Dcom.sun.management.jmxremote.authenticate=false\"")
+    )
   }
 
   private def editCassandraYaml(file: File) {

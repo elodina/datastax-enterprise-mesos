@@ -52,7 +52,7 @@ class HttpServerTest extends MesosTestCase {
   }
 
   @Test
-  def downloadFileEndpoints() = {
+  def downloads() = {
     val fileEndpoints = List("jar", "dse", "cassandra", "jre")
 
     for(fileEndpoint <- fileEndpoints) {
