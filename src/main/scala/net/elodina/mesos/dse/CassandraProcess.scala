@@ -33,6 +33,7 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.io.Source
 import scala.language.postfixOps
+import java.lang.reflect.UndeclaredThrowableException
 
 case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
@@ -97,7 +98,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
           }
         } else logger.info(s"Cassandra process is live but still initializing, joining or starting. Initialized: $initialized, Joined: $joined, Started: ${!starting}. Retrying...")
       } catch {
-        case e: IOException =>
+        case e @ (_ : IOException | _ : UndeclaredThrowableException /* sometimes thrown */ ) =>
           logger.info(s"Failed to connect via JMX, retrying: ${e.getMessage}")
       }
 
