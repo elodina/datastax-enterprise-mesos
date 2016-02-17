@@ -182,8 +182,7 @@ object HttpServer {
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid seedConstraints") }
       }
 
-      var seed: java.lang.Boolean = null
-      if (request.getParameter("seed") != null) seed = "true" == request.getParameter("seed")
+      val seed: java.lang.Boolean = if (request.getParameter("seed") != null) request.getParameter("seed") == "true" else null
       val jvmOptions: String = request.getParameter("jvmOptions")
 
       val dataFileDirs = request.getParameter("dataFileDirs")
@@ -413,6 +412,10 @@ object HttpServer {
         try { new BindAddress(bindAddress) }
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid bindAddress") }
 
+      val jmxRemote: java.lang.Boolean = if (request.getParameter("jmxRemote") != null) request.getParameter("jmxRemote") == "true" else null
+      val jmxUser: String = request.getParameter("jmxUser")
+      val jmxPassword: String = request.getParameter("jmxPassword")
+
       val storagePort: String = request.getParameter("storagePort")
       if (storagePort != null && !storagePort.isEmpty)
         try { new Range(storagePort) }
@@ -444,10 +447,19 @@ object HttpServer {
       if (!add && cluster == null) throw new HttpError(400, "cluster not found")
       if (!add && cluster.active) throw new HttpError(400, "cluster has active nodes")
 
+      val appliedJmxUser = if (jmxUser == null) cluster.jmxUser else if (jmxUser != "") jmxUser else null
+      val appliedJmxPassword = if (jmxPassword == null) cluster.jmxPassword else if (jmxPassword != "") jmxPassword else null
+      if (appliedJmxUser == null ^ appliedJmxPassword == null) throw new HttpError(400, "jmxUser & jmxPassword should be either both defined or none")
+
       if (add)
         cluster = Nodes.addCluster(new Cluster(id))
 
       if (bindAddress != null) cluster.bindAddress = if (bindAddress != "") new BindAddress(bindAddress) else null
+
+      if (jmxRemote != null) cluster.jmxRemote = jmxRemote
+      if (jmxUser != null) cluster.jmxUser = if (jmxUser != "") jmxUser else null
+      if (jmxPassword != null) cluster.jmxPassword = if (jmxPassword != "") jmxPassword else null
+
       if (storagePort != null) cluster.ports(Node.Port.STORAGE) = if (storagePort != "") new Range(storagePort) else null
       if (jmxPort != null) cluster.ports(Node.Port.JMX) = if (jmxPort != "") new Range(jmxPort) else null
       if (cqlPort != null) cluster.ports(Node.Port.CQL) = if (cqlPort != "") new Range(cqlPort) else null

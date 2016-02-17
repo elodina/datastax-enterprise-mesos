@@ -28,7 +28,7 @@ import org.junit.Assert._
 import scala.collection.JavaConversions._
 import org.apache.mesos.{ExecutorDriver, SchedulerDriver}
 import java.util
-import org.junit.{Test, Ignore, After, Before}
+import org.junit.{Ignore, After, Before}
 import org.apache.log4j.BasicConfigurator
 import com.google.protobuf.ByteString
 import java.io.{PrintStream, ByteArrayOutputStream, File}
@@ -43,6 +43,7 @@ class MesosTestCase {
   @Before
   def before {
     BasicConfigurator.configure()
+    Scheduler.initLogging()
 
     val storageFile: File = Files.createTempFile(classOf[MesosTestCase].getSimpleName, null).toFile
     storageFile.delete()
@@ -54,7 +55,7 @@ class MesosTestCase {
 
     executorDriver = new TestExecutorDriver()
 
-    Config.api = "http://localhost:7000"
+    Config.api = "http://localhost:" + Util.findAvailPort
     Config.dse = new File("dse.tar.gz")
     Config.cassandra = new File("cassandra.tar.gz")
     Config.jar = new File("dse-mesos.jar")
@@ -431,7 +432,7 @@ class MesosTestCase {
   }
 
   private def checkNulls(expected: Object, actual: Object): Boolean = {
-    if (expected == actual) return true
+    if (expected eq actual) return true
     if (expected == null) throw new AssertionError("actual != null")
     if (actual == null) throw new AssertionError("actual == null")
     false
