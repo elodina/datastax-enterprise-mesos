@@ -93,6 +93,7 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
           InsertionPs.bind(List.fill(CassandraStorage.Fields.size + 1)(null) :_*)
           .setString(Namespace, Nodes.namespace).setString(FrameworkId, Nodes.frameworkId).setString(ClusterId, cluster.id)
           .setString(ClusterBindAddress, stringOrNull(cluster.bindAddress)).setMap[String, String](ClusterPorts, clusterPorts)
+          .setBool(ClusterJmxRemote, cluster.jmxRemote).setString(ClusterJmxUser, cluster.jmxUser).setString(ClusterJmxPassword, cluster.jmxPassword)
           // nr_of_nodes set to 0, this will indicate node_id has a stub value, just to avoid null (as node_id is part of PK)
           .setInt(NrOfNodes, 0).setString(NodeId, "undefined")
           .setLong(UsingTimestamp, tg.next())
@@ -108,6 +109,7 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
               .setString(Namespace, Nodes.namespace).setString(FrameworkId, Nodes.frameworkId)
               // cluster
               .setString(ClusterId, cluster.id).setString(ClusterBindAddress, stringOrNull(cluster.bindAddress)).setMap(ClusterPorts, clusterPorts)
+              .setBool(ClusterJmxRemote, cluster.jmxRemote).setString(ClusterJmxUser, cluster.jmxUser).setString(ClusterJmxPassword, cluster.jmxPassword)
               .setInt(NrOfNodes, cluster.getNodes.size)
               // node
               .setString(NodeId, node.id).setString(NodeState, stringOrNull(node.state))
@@ -151,6 +153,10 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
       else
         cluster.ports(Node.Port.withName(port)) = new Util.Range(range)
     }
+
+    cluster.jmxRemote = row.getBool(ClusterJmxRemote)
+    cluster.jmxUser = row.getString(ClusterJmxUser)
+    cluster.jmxPassword = row.getString(ClusterJmxPassword)
 
     cluster
   }
@@ -272,44 +278,46 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
 }
 
 object CassandraStorage{
-
-  /* 0*/ val Namespace = "namespace"
-  /* 1*/ val FrameworkId = "framework_id"
-  /* 2*/ val ClusterId = "cluster_id"
-  /* 3*/ val ClusterBindAddress = "cluster_bind_address"
-  /* 4*/ val ClusterPorts = "cluster_ports"
-  /* 5*/ val NrOfNodes = "nr_of_nodes"
-  /* 6*/ val NodeId = "node_id"
-  /* 7*/ val NodeState = "node_state"
-  /* 8*/ val NodeStickinessPeriod = "node_stickiness_period"
-  /* 9*/ val NodeStickinessStopTime = "node_stickiness_stopTime"
-  /*10*/ val NodeStickinessHostname = "node_stickiness_hostname"
-  /*11*/ val NodeRuntimeTaskId = "node_runtime_task_id"
-  /*12*/ val NodeRuntimeExecutorId = "node_runtime_executor_id"
-  /*13*/ val NodeRuntimeSlaveId = "node_runtime_slave_id"
-  /*14*/ val NodeRuntimeHostname = "node_runtime_hostname"
-  /*15*/ val NodeRuntimeAddress = "node_runtime_address"
-  /*16*/ val NodeRuntimeSeeds = "node_runtime_seeds"
-  /*17*/ val NodeRuntimeReservationCpus = "node_runtime_reservation_cpus"
-  /*18*/ val NodeRuntimeReservationMem = "node_runtime_reservation_mem"
-  /*19*/ val NodeRuntimeReservationPorts = "node_runtime_reservation_ports"
-  /*20*/ val NodeRuntimeReservationIgnoredPorts = "node_runtime_reservation_ignored_ports"
-  /*21*/ val NodeRuntimeAttributes = "node_runtime_attributes"
-  /*22*/ val NodeCpu = "node_cpu"
-  /*23*/ val NodeMem = "node_mem"
-  /*24*/ val NodeSeed = "node_seed"
-  /*25*/ val NodeJvmOptions = "node_jvm_options"
-  /*26*/ val NodeRack = "node_rack"
-  /*27*/ val NodeDc = "node_dc"
-  /*28*/ val NodeConstraints = "node_constraints"
-  /*29*/ val NodeSeedConstraints = "node_seed_constraints"
-  /*30*/ val NodeDataFileDirs = "node_data_file_dirs"
-  /*31*/ val NodeCommitLogDir = "node_commit_log_dir"
-  /*32*/ val NodeSavedCachesDir = "node_saved_caches_dir"
-  /*33*/ val NodeCassandraDotYaml = "node_cassandra_dot_yaml"
-  /*34*/ val NodeAddressDotYaml = "node_address_dot_yaml"
-  /*35*/ val NodeCassandraJvmOptions = "node_cassandra_jvm_options"
-  /*36*/ val NodeModified = "node_modified"
+  val Namespace = "namespace"
+  val FrameworkId = "framework_id"
+  val ClusterId = "cluster_id"
+  val ClusterBindAddress = "cluster_bind_address"
+  val ClusterPorts = "cluster_ports"
+  val ClusterJmxRemote = "cluster_jmx_remote"
+  val ClusterJmxUser = "cluster_jmx_user"
+  val ClusterJmxPassword = "cluster_jmx_password"
+  val NrOfNodes = "nr_of_nodes"
+  val NodeId = "node_id"
+  val NodeState = "node_state"
+  val NodeStickinessPeriod = "node_stickiness_period"
+  val NodeStickinessStopTime = "node_stickiness_stopTime"
+  val NodeStickinessHostname = "node_stickiness_hostname"
+  val NodeRuntimeTaskId = "node_runtime_task_id"
+  val NodeRuntimeExecutorId = "node_runtime_executor_id"
+  val NodeRuntimeSlaveId = "node_runtime_slave_id"
+  val NodeRuntimeHostname = "node_runtime_hostname"
+  val NodeRuntimeAddress = "node_runtime_address"
+  val NodeRuntimeSeeds = "node_runtime_seeds"
+  val NodeRuntimeReservationCpus = "node_runtime_reservation_cpus"
+  val NodeRuntimeReservationMem = "node_runtime_reservation_mem"
+  val NodeRuntimeReservationPorts = "node_runtime_reservation_ports"
+  val NodeRuntimeReservationIgnoredPorts = "node_runtime_reservation_ignored_ports"
+  val NodeRuntimeAttributes = "node_runtime_attributes"
+  val NodeCpu = "node_cpu"
+  val NodeMem = "node_mem"
+  val NodeSeed = "node_seed"
+  val NodeJvmOptions = "node_jvm_options"
+  val NodeRack = "node_rack"
+  val NodeDc = "node_dc"
+  val NodeConstraints = "node_constraints"
+  val NodeSeedConstraints = "node_seed_constraints"
+  val NodeDataFileDirs = "node_data_file_dirs"
+  val NodeCommitLogDir = "node_commit_log_dir"
+  val NodeSavedCachesDir = "node_saved_caches_dir"
+  val NodeCassandraDotYaml = "node_cassandra_dot_yaml"
+  val NodeAddressDotYaml = "node_address_dot_yaml"
+  val NodeCassandraJvmOptions = "node_cassandra_jvm_options"
+  val NodeModified = "node_modified"
 
   // not part of the table schema
   val UsingTimestamp = "using_timestamp"
@@ -320,6 +328,9 @@ object CassandraStorage{
     ClusterId,
     ClusterBindAddress,
     ClusterPorts,
+    ClusterJmxRemote,
+    ClusterJmxUser,
+    ClusterJmxPassword,
     NrOfNodes,
     NodeId,
     NodeState,
