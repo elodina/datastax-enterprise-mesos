@@ -447,12 +447,12 @@ object HttpServer {
       if (!add && cluster == null) throw new HttpError(400, "cluster not found")
       if (!add && cluster.active) throw new HttpError(400, "cluster has active nodes")
 
+      if (add)
+        cluster = Nodes.addCluster(new Cluster(id))
+
       val appliedJmxUser = if (jmxUser == null) cluster.jmxUser else if (jmxUser != "") jmxUser else null
       val appliedJmxPassword = if (jmxPassword == null) cluster.jmxPassword else if (jmxPassword != "") jmxPassword else null
       if (appliedJmxUser == null ^ appliedJmxPassword == null) throw new HttpError(400, "jmxUser & jmxPassword should be either both defined or none")
-
-      if (add)
-        cluster = Nodes.addCluster(new Cluster(id))
 
       if (bindAddress != null) cluster.bindAddress = if (bindAddress != "") new BindAddress(bindAddress) else null
 
