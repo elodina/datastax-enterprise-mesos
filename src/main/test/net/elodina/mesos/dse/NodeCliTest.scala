@@ -1,5 +1,7 @@
 package net.elodina.mesos.dse
 
+import net.elodina.mesos.dse.Node.Failover
+import net.elodina.mesos.dse.Util.Period
 import org.junit.{Test, Before, After}
 import org.junit.Assert._
 import scala.concurrent.duration._
@@ -52,26 +54,28 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
   }
 
   @Test
-  def handleAddUpdate {
-    val node = new Node("0")
-    Nodes.addNode(node)
-    Nodes.save()
-    val defaultAddNodeResponse = "node added:\n" + outputToString { NodeCli.printNode(node, 1) }
-    Nodes.removeNode(node)
-    Nodes.save()
+  def handleAddUpdate() = {
+    {
+      val node = new Node("0")
+      Nodes.addNode(node)
+      Nodes.save()
+      val defaultAddNodeResponse = "node added:\n" + outputToString { NodeCli.printNode(node, 1) }
+      Nodes.removeNode(node)
+      Nodes.save()
 
-    assertCliResponse(Array("add", "0"), defaultAddNodeResponse)
-    assertEquals(Nodes.getNodes.size, 1)
+      assertCliResponse(Array("add", "0"), defaultAddNodeResponse)
+      assertEquals(Nodes.getNodes.size, 1)
 
-    val cluster = new Cluster("test-cluster")
-    val args = Array("update", "0", "--cluster", cluster.id)
+      val cluster = new Cluster("test-cluster")
+      val args = Array("update", "0", "--cluster", cluster.id)
 
-    assertCliError(args, "cluster not found")
+      assertCliError(args, "cluster not found")
 
-    Nodes.addCluster(cluster)
-    Nodes.save()
-    cli(args)
-    assertEquals(cluster.id, Nodes.getNode("0").cluster.id)
+      Nodes.addCluster(cluster)
+      Nodes.save()
+      cli(args)
+      assertEquals(cluster.id, Nodes.getNode("0").cluster.id)
+    }
 
     val options = Array(
       "--cpu", "10",
@@ -90,22 +94,37 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
     )
     cli(Array("update", "0") ++ options)
 
-    {
-      val node = Nodes.getNode("0")
-      assertEquals(10.0, node.cpu, 0.001)
-      assertEquals(10, node.mem)
-      assertEquals("60m", node.stickiness.period.toString)
-      assertEquals("rack", node.rack)
-      assertEquals("dc", node.dc)
-      assertEquals(true, node.seed)
-      assertEquals("-Dfile.encoding=UTF8", node.jvmOptions)
-      assertEquals("/tmp/datadir", node.dataFileDirs)
-      assertEquals("/tmp/commitlog", node.commitLogDir)
-      assertEquals("/tmp/caches", node.savedCachesDir)
-      assertEquals(Map("num_tokens" -> "312", "hinted_handoff" -> "false"), node.cassandraDotYaml.toMap)
-      assertEquals(Map("stomp_interface" -> "11.22.33.44"), node.addressDotYaml.toMap)
-      assertEquals("-Dcassandra.replace_address=127.0.0.1 -Dcassandra.ring_delay_ms=15000", node.cassandraJvmOptions)
-    }
+    val node = Nodes.getNode("0")
+    assertEquals(10.0, node.cpu, 0.001)
+    assertEquals(10, node.mem)
+    assertEquals("60m", node.stickiness.period.toString)
+    assertEquals("rack", node.rack)
+    assertEquals("dc", node.dc)
+    assertEquals(true, node.seed)
+    assertEquals("-Dfile.encoding=UTF8", node.jvmOptions)
+    assertEquals("/tmp/datadir", node.dataFileDirs)
+    assertEquals("/tmp/commitlog", node.commitLogDir)
+    assertEquals("/tmp/caches", node.savedCachesDir)
+    assertEquals(Map("num_tokens" -> "312", "hinted_handoff" -> "false"), node.cassandraDotYaml.toMap)
+    assertEquals(Map("stomp_interface" -> "11.22.33.44"), node.addressDotYaml.toMap)
+    assertEquals("-Dcassandra.replace_address=127.0.0.1 -Dcassandra.ring_delay_ms=15000", node.cassandraJvmOptions)
+
+    val outputAdd1 = outputToString { cli("add 1 --failover-delay 2m --failover-max-delay 25m --failover-max-tries 9".split(" ")) }
+    val node1 = Nodes.getNode("1")
+    assertEquals(new Period("2m"), node1.failover.delay)
+    assertEquals(new Period("25m"), node1.failover.maxDelay)
+    assertEquals(9, node1.failover.maxTries)
+    assert(outputAdd1.contains("node added:"))
+    assert(outputAdd1.contains("delay:2m, max-delay:25m, max-tries:9"))
+
+    cli("update 0 --failover-delay 5m --failover-max-delay 45m --failover-max-tries 7".split(" "))
+    assertEquals(new Period("5m"), node.failover.delay)
+    assertEquals(new Period("45m"), node.failover.maxDelay)
+    assertEquals(7, node.failover.maxTries)
+
+    // reset failover max tries
+    cli("update 0 --failover-max-tries".split(" ") ++ Array(""))
+    assertNull(node.failover.maxTries)
   }
 
   @Test
@@ -257,6 +276,8 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
     assertCliErrorContains("restart 0..1 --timeout 1s".split(" "), "node 1 should be running")
 
     // 1 stop timeout
+    node1.failover.resetFailures()
+
     started(node1)
     node1.waitFor(RUNNING, Duration("200ms"))
 

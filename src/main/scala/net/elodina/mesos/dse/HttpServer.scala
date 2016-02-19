@@ -192,6 +192,21 @@ object HttpServer {
       val addressDotYaml = Util.parseMap(request.getParameter("addressDotYaml"))
       val cassandraJvmOptions = request.getParameter("cassandraJvmOptions")
 
+      var failoverDelay: Period = null
+      if (request.getParameter("failoverDelay") != null)
+	try { failoverDelay = new Period(request.getParameter("failoverDelay")) }
+	catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid failoverDelay") }
+
+      var failoverMaxDelay: Period = null
+      if (request.getParameter("failoverMaxDelay") != null)
+	try { failoverMaxDelay = new Period(request.getParameter("failoverMaxDelay")) }
+	catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid failoverMaxDelay") }
+
+      val failoverMaxTries: String = request.getParameter("failoverMaxTries")
+      if (failoverMaxTries != null && failoverMaxTries != "")
+	try { Integer.valueOf(failoverMaxTries) }
+	catch { case e: NumberFormatException => throw new HttpError(400, "invalid failoverMaxTries") }
+
       // collect nodes and check existence & state
       val nodes = new ListBuffer[Node]()
       for (id <- ids) {
@@ -240,6 +255,10 @@ object HttpServer {
         }
 
         if (cassandraJvmOptions != null) node.cassandraJvmOptions = if (cassandraJvmOptions != "") cassandraJvmOptions else null
+
+	if (failoverDelay != null) node.failover.delay = failoverDelay
+	if (failoverMaxDelay != null) node.failover.maxDelay = failoverMaxDelay
+	if (failoverMaxTries != null) node.failover.maxTries = if (failoverMaxTries != "") Integer.valueOf(failoverMaxTries) else null
       }
 
       for (node <- nodes) {

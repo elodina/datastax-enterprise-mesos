@@ -31,6 +31,13 @@ class SchedulerTest extends MesosTestCase {
     assertEquals(1, schedulerDriver.launchedTasks.size())
     assertEquals(Node.State.STARTING, node.state)
     assertNotNull(node.runtime)
+
+    // failover delay
+    Scheduler.statusUpdate(schedulerDriver, taskStatus(id = node.runtime.taskId, state = TaskState.TASK_FAILED))
+    assertEquals(1, node.failover.failures)
+    assertEquals("no nodes to start", Scheduler.acceptOffer(offer(resources = "cpus:1.0;mem:1024;ports:0..10")))
+
+    assertEquals(null, Scheduler.acceptOffer(offer(resources = "cpus:1.0;mem:1024;ports:0..10"), node.failover.delayExpires))
   }
 
   @Test
@@ -56,11 +63,13 @@ class SchedulerTest extends MesosTestCase {
     Scheduler.onTaskStatus(taskStatus(id = node.runtime.taskId, state = TaskState.TASK_RUNNING))
     assertEquals(Node.State.RUNNING, node.state)
     assertEquals(0, schedulerDriver.killedTasks.size())
+    assertEquals(0, node.failover.failures)
 
     // node failed
     Scheduler.onTaskStatus(taskStatus(id = node.runtime.taskId, state = TaskState.TASK_LOST))
     assertEquals(Node.State.STARTING, node.state)
     assertNull(node.runtime)
+    assertEquals(1, node.failover.failures)
 
     // node stopped
     node.runtime = new Node.Runtime(node, offer())
@@ -68,6 +77,19 @@ class SchedulerTest extends MesosTestCase {
     Scheduler.onTaskStatus(taskStatus(id = node.runtime.taskId, state = TaskState.TASK_FINISHED))
     assertEquals(Node.State.IDLE, node.state)
     assertNull(node.runtime)
+
+    // task state lost, failed, error considered as fail
+    node.failover.resetFailures()
+    for(taskState <- Seq(TaskState.TASK_LOST, TaskState.TASK_FAILED, TaskState.TASK_ERROR)) {
+      // try to start
+      node.runtime = new Node.Runtime(node, offer())
+      node.state = Node.State.STARTING
+
+      assertDifference(node.failover.failures) {
+	Scheduler.onTaskStatus(taskStatus(id = node.runtime.taskId, state = taskState))
+	assertEquals(Node.State.STARTING, node.state)
+      }
+    }
   }
 
   @Test
@@ -98,12 +120,18 @@ class SchedulerTest extends MesosTestCase {
       node.runtime = new Node.Runtime(taskId = "task")
       node.state = state
 
+      node.failover.resetFailures()
+      node.failover.registerFailure(new Date(1))
+
       Scheduler.onTaskStarted(node, taskStatus(id = "task", state = TaskState.TASK_RUNNING, data = "address"))
       assertEquals("" + state, 0, schedulerDriver.killedTasks.size())
       assertEquals("" + state, Node.State.RUNNING, node.state)
 
       if (state != Node.State.RECONCILING)
         assertEquals("" + state, "address", node.runtime.address)
+
+      assertEquals(0, node.failover.failures)
+      assertNull(node.failover.failureTime)
     }
   }
 
@@ -133,6 +161,67 @@ class SchedulerTest extends MesosTestCase {
       Scheduler.onTaskStopped(node, taskStatus(id = "task", state = TaskState.TASK_FAILED))
       assertEquals("" + state, Node.State.STARTING, node.state)
       assertNull("" + state, node.runtime)
+    }
+
+    // failover
+    // register failure when on task update received task status failed, lost, error
+    // when node was in state starting, running
+    for(nodeState <- Seq(Node.State.STARTING, Node.State.RUNNING, Node.State.RECONCILING)) {
+      var ts = 0L
+      var failures = 0
+      node.failover.resetFailures()
+      assertEquals(failures, node.failover.failures)
+
+      for(taskState <- Seq(TaskState.TASK_LOST, TaskState.TASK_FAILED, TaskState.TASK_ERROR)) {
+	ts += 1
+	// try to start
+	node.runtime = new Node.Runtime(node, offer())
+	node.state = nodeState
+	if (node.state == Node.State.RUNNING) node.runtime.address = "slave0"
+
+	Scheduler.onTaskStopped(node, taskStatus(id = node.runtime.taskId, state = taskState), new Date(ts))
+	// when ever failure occurs and max tries not exceeded node state changed to starting
+	assertEquals(Node.State.STARTING, node.state)
+
+	failures += 1
+
+	assertEquals(failures, node.failover.failures)
+	assertEquals(new Date(ts), node.failover.failureTime)
+      }
+    }
+
+    // when node was in status stopping
+    // reset failures when node bas been stopped (task finished or killed)
+    for(taskState <- Seq(TaskState.TASK_LOST, TaskState.TASK_FAILED, TaskState.TASK_ERROR, TaskState.TASK_FINISHED, TaskState.TASK_KILLED)) {
+      node.runtime = new Node.Runtime(node, offer())
+      node.state = Node.State.STOPPING
+
+      Scheduler.onTaskStopped(node, taskStatus(id = node.runtime.taskId, state = taskState))
+      assert(node.idle)
+
+      assertEquals(0, node.failover.failures)
+      assertNull(node.failover.failureTime)
+    }
+
+    // stop node when exceeded max tries
+    for(nodeState <- Seq(Node.State.STARTING, Node.State.RUNNING, Node.State.RECONCILING)) {
+      for(taskState <- Seq(TaskState.TASK_LOST, TaskState.TASK_FAILED, TaskState.TASK_ERROR)) {
+	node.failover.resetFailures()
+	node.failover.registerFailure(new Date(1))
+	node.failover.registerFailure(new Date(2))
+	node.failover.maxTries = 3
+
+	node.runtime = new Node.Runtime(node, offer())
+	node.state = nodeState
+
+	Scheduler.onTaskStopped(node, taskStatus(id = node.runtime.taskId, state = taskState), new Date(5))
+	// when ever failure occurs and max tries exceeded node state changed to idle
+	assert(node.idle)
+
+	assertTrue(node.failover.isMaxTriesExceeded)
+	assertEquals(3, node.failover.failures)
+	assertEquals(new Date(5), node.failover.failureTime)
+      }
     }
   }
 

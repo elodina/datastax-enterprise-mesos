@@ -17,7 +17,7 @@
 
 package net.elodina.mesos.dse
 
-import net.elodina.mesos.dse.Node.{Runtime, Stickiness, Reservation}
+import net.elodina.mesos.dse.Node.{Failover, Runtime, Stickiness, Reservation}
 import org.apache.mesos.Protos.Resource.DiskInfo.Persistence
 import org.apache.mesos.Protos.Resource.{DiskInfo, ReservationInfo}
 import org.apache.mesos.Protos.Volume.Mode
@@ -380,6 +380,7 @@ class MesosTestCase {
     assertEquals(expected.state, actual.state)
     assertEquals(expected.cluster, actual.cluster)
     assertStickinessEquals(expected.stickiness, actual.stickiness)
+    assertFailoverEquals(expected.failover, actual.failover)
     assertRuntimeEquals(expected.runtime, actual.runtime)
 
     assertEquals(expected.cpu, actual.cpu, 0.001)
@@ -414,6 +415,17 @@ class MesosTestCase {
     assertEquals(expected.period, actual.period)
     assertEquals(expected.hostname, actual.hostname)
     assertEquals(expected.stopTime, actual.stopTime)
+  }
+
+  def assertFailoverEquals(expected: Failover, actual: Failover) {
+    if (checkNulls(expected, actual)) return
+
+    assertEquals(expected.delay, actual.delay)
+    assertEquals(expected.maxDelay, actual.maxDelay)
+    assertEquals(expected.maxTries, actual.maxTries)
+
+    assertEquals(expected.failures, actual.failures)
+    assertEquals(expected.failureTime, actual.failureTime)
   }
 
   def assertRuntimeEquals(expected: Runtime, actual: Runtime) {
