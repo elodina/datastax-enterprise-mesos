@@ -246,12 +246,12 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
       if (node.failover.maxTries != null) msg += "/" + node.failover.maxTries
 
       if (!node.failover.isMaxTriesExceeded) {
-	msg += ", waiting " + node.failover.currentDelay
-	msg += ", next start ~ " + Str.dateTime(node.failover.delayExpires)
+        msg += ", waiting " + node.failover.currentDelay
+        msg += ", next start ~ " + Str.dateTime(node.failover.delayExpires)
       } else {
-	node.state = Node.State.STOPPING
-	msg += ", failure limit exceeded"
-	msg += ", stopping node"
+        node.state = Node.State.STOPPING
+        msg += ", failure limit exceeded"
+        msg += ", stopping node"
       }
 
       logger.info(msg)
