@@ -106,7 +106,7 @@ object HttpServer {
       response.setHeader("Content-Disposition", "attachment; filename=\"" + file.getName + "\"")
       Util.IO.copyAndClose(new FileInputStream(file), response.getOutputStream)
     }
-    
+
     def handleNodeApi(request: HttpServletRequest, response: HttpServletResponse) {
       response.setContentType("application/json; charset=utf-8")
       request.setAttribute("jsonResponse", true)
@@ -120,7 +120,7 @@ object HttpServer {
       else if (uri == "restart") handleRestartNode(request, response)
       else response.sendError(404, "unsupported method")
     }
-    
+
     def handleClusterApi(request: HttpServletRequest, response: HttpServletResponse) {
       response.setContentType("application/json; charset=utf-8")
       request.setAttribute("jsonResponse", true)
@@ -192,6 +192,21 @@ object HttpServer {
       val addressDotYaml = Util.parseMap(request.getParameter("addressDotYaml"))
       val cassandraJvmOptions = request.getParameter("cassandraJvmOptions")
 
+      var failoverDelay: Period = null
+      if (request.getParameter("failoverDelay") != null)
+        try { failoverDelay = new Period(request.getParameter("failoverDelay")) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid failoverDelay") }
+
+      var failoverMaxDelay: Period = null
+      if (request.getParameter("failoverMaxDelay") != null)
+        try { failoverMaxDelay = new Period(request.getParameter("failoverMaxDelay")) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid failoverMaxDelay") }
+
+      val failoverMaxTries: String = request.getParameter("failoverMaxTries")
+      if (failoverMaxTries != null && failoverMaxTries != "")
+        try { Integer.valueOf(failoverMaxTries) }
+        catch { case e: NumberFormatException => throw new HttpError(400, "invalid failoverMaxTries") }
+
       // collect nodes and check existence & state
       val nodes = new ListBuffer[Node]()
       for (id <- ids) {
@@ -240,6 +255,10 @@ object HttpServer {
         }
 
         if (cassandraJvmOptions != null) node.cassandraJvmOptions = if (cassandraJvmOptions != "") cassandraJvmOptions else null
+
+        if (failoverDelay != null) node.failover.delay = failoverDelay
+        if (failoverMaxDelay != null) node.failover.maxDelay = failoverMaxDelay
+        if (failoverMaxTries != null) node.failover.maxTries = if (failoverMaxTries != "") Integer.valueOf(failoverMaxTries) else null
       }
 
       for (node <- nodes) {
@@ -303,6 +322,7 @@ object HttpServer {
       var disconnected = false
       try {
         for (node <- nodes) {
+          node.failover.resetFailures()
           if (start) node.state = Node.State.STARTING
           else Scheduler.stopNode(node.id, force)
         }
@@ -361,6 +381,8 @@ object HttpServer {
         // check node is running, because it's state could have changed
         if (node.state != Node.State.RUNNING) throw new HttpError(400, s"node ${node.id} should be running")
 
+        node.failover.resetFailures()
+
         // stop
         try {
           Scheduler.stopNode(node.id)
@@ -402,7 +424,7 @@ object HttpServer {
       val clustersJson = Nodes.getClusters.map(_.toJson)
       response.getWriter.println("" + new JSONArray(clustersJson))
     }
-    
+
     private def handleAddUpdateCluster(add: Boolean, request: HttpServletRequest, response: HttpServletResponse) {
       val id: String = request.getParameter("cluster")
       if (id == null || id.isEmpty) throw new HttpError(400, "cluster required")

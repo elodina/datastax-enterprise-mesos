@@ -65,6 +65,8 @@ class Node extends Constrained {
   // node has pending update, true when node updated in none idle state, once stopped becomes false
   var modified: Boolean = false
 
+  var failover: Node.Failover = new Node.Failover()
+
   def this(id: String) = {
     this
     this.id = id
@@ -182,10 +184,14 @@ class Node extends Constrained {
 
   def registerStart(hostname: String): Unit = {
     stickiness.registerStart(hostname)
+    failover.resetFailures()
   }
 
-  def registerStop(now: Date = new Date()): Unit = {
-    stickiness.registerStop(now)
+  def registerStop(now: Date = new Date(), failed: Boolean = false): Unit = {
+    if (!failed || failover.failures == 0) stickiness.registerStop(now)
+
+    if (failed) failover.registerFailure(now)
+    else failover.resetFailures()
   }
 
   private[dse] def newTask(): TaskInfo = {
@@ -248,6 +254,7 @@ class Node extends Constrained {
     state = Node.State.withName(json("state").asInstanceOf[String])
     cluster = if (expanded) new Cluster(json("cluster").asInstanceOf[Map[String, Any]]) else Nodes.getCluster(json("cluster").asInstanceOf[String])
     stickiness = new Node.Stickiness(json("stickiness").asInstanceOf[Map[String, Any]])
+    if (json.contains("failover")) failover = new Node.Failover(json("failover").asInstanceOf[Map[String, Any]])
     if (json.contains("runtime")) runtime = new Node.Runtime(json("runtime").asInstanceOf[Map[String, Any]])
 
     cpu = json("cpu").asInstanceOf[Number].doubleValue()
@@ -287,6 +294,7 @@ class Node extends Constrained {
     json("state") = "" + state
     json("cluster") = if (expanded) cluster.toJson else cluster.id
     json("stickiness") = stickiness.toJson
+    json("failover") = failover.toJson
     if (runtime != null) json("runtime") = runtime.toJson
 
     json("cpu") = cpu
@@ -590,4 +598,69 @@ object Node {
       new JSONObject(obj.toMap)
     }
   }
+
+  class Failover(var delay: Period = new Period("3m"), var maxDelay: Period = new Period("30m"), var maxTries: Integer = null) {
+
+    @volatile var failures: Int = 0
+    @volatile var failureTime: Date = null
+
+    def this(json: Map[String, Any]) {
+      this
+      fromJson(json)
+    }
+
+    def currentDelay: Period = {
+      if (failures == 0) return new Period("0")
+
+      val multiplier = 1 << (failures - 1)
+      val d = delay.ms * multiplier
+
+      if (d > maxDelay.ms) maxDelay else new Period(delay.value * multiplier + delay.unit)
+    }
+
+    def delayExpires: Date = {
+      if (failures == 0) return new Date(0)
+      new Date(failureTime.getTime + currentDelay.ms)
+    }
+
+    def isWaitingDelay(now: Date = new Date()): Boolean = delayExpires.getTime > now.getTime
+
+    def isMaxTriesExceeded: Boolean = {
+      if (maxTries == null) return false
+      failures >= maxTries
+    }
+
+    def registerFailure(now: Date = new Date()): Unit = {
+      failures += 1
+      failureTime = now
+    }
+
+    def resetFailures(): Unit = {
+      failures = 0
+      failureTime = null
+    }
+
+    def fromJson(node: Map[String, Any]): Unit = {
+      delay = new Period(node("delay").asInstanceOf[String])
+      maxDelay = new Period(node("maxDelay").asInstanceOf[String])
+      if (node.contains("maxTries")) maxTries = node("maxTries").asInstanceOf[Number].intValue()
+
+      if (node.contains("failures")) failures = node("failures").asInstanceOf[Number].intValue()
+      if (node.contains("failureTime")) failureTime = dateTimeFormat.parse(node("failureTime").asInstanceOf[String])
+    }
+
+    def toJson: JSONObject = {
+      val obj = new collection.mutable.LinkedHashMap[String, Any]()
+
+      obj("delay") = "" + delay
+      obj("maxDelay") = "" + maxDelay
+      if (maxTries != null) obj("maxTries") = maxTries
+
+      if (failures != 0) obj("failures") = failures
+      if (failureTime != null) obj("failureTime") = dateTimeFormat.format(failureTime)
+
+      new JSONObject(obj.toMap)
+    }
+  }
+
 }

@@ -18,7 +18,7 @@
 package net.elodina.mesos.dse
 
 import com.datastax.driver.core._
-import net.elodina.mesos.dse.Node.{Reservation, Runtime, Stickiness}
+import net.elodina.mesos.dse.Node.{Failover, Reservation, Runtime, Stickiness}
 import net.elodina.mesos.dse.Util.{Period, BindAddress}
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
@@ -75,6 +75,18 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
     } else boundStatement
   }
 
+  private def bindFailover(boundStatement: BoundStatement, node: Node): BoundStatement = {
+    boundStatement
+      .setString(NodeFailoverDelay, stringOrNull(node.failover.delay))
+      .setString(NodeFailoverMaxDelay, stringOrNull(node.failover.maxDelay))
+      .setInt(NodeFailoverFailures, node.failover.failures)
+      .setDate(NodeFailoverFailureTime, node.failover.failureTime)
+
+    if (node.failover.maxTries != null) boundStatement.setInt(NodeFailoverMaxTries, node.failover.maxTries)
+
+    boundStatement
+  }
+
   override def save(): Unit = {
     // go with default - atomic batches
     val batch = new BatchStatement()
@@ -116,6 +128,7 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
 
           bindStickiness(boundStatement, node)
           bindRuntime(boundStatement, node)
+          bindFailover(boundStatement, node)
 
           boundStatement
             // node
@@ -189,6 +202,17 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
     stickiness
   }
 
+  private def failover(row: Row): Failover = {
+    val failover = new Failover()
+    failover.delay = new Period(row.getString(NodeFailoverDelay))
+    failover.maxDelay = new Period(row.getString(NodeFailoverMaxDelay))
+    if (row.getInt(NodeFailoverMaxTries) != 0) failover.maxTries = row.getInt(NodeFailoverMaxTries)
+    failover.failures = row.getInt(NodeFailoverFailures)
+    if (row.getDate(NodeFailoverFailureTime) != null) failover.failureTime = row.getDate(NodeFailoverFailureTime)
+
+    failover
+  }
+
   private def extractNode(row: Row, cluster: Cluster): Node = {
     val node = new Node(row.getString(NodeId))
     node.state = Node.State.withName(row.getString(NodeState))
@@ -225,6 +249,8 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
     node.addressDotYaml ++= row.getMap(NodeAddressDotYaml, classOf[String], classOf[String]).asScala
     node.cassandraJvmOptions = row.getString(NodeCassandraJvmOptions)
     node.modified = row.getBool(NodeModified)
+
+    node.failover = failover(row)
 
     node
   }
@@ -318,6 +344,11 @@ object CassandraStorage{
   val NodeAddressDotYaml = "node_address_dot_yaml"
   val NodeCassandraJvmOptions = "node_cassandra_jvm_options"
   val NodeModified = "node_modified"
+  val NodeFailoverDelay = "node_failover_delay"
+  val NodeFailoverMaxDelay = "node_failover_max_delay"
+  val NodeFailoverMaxTries = "node_failover_max_tries"
+  val NodeFailoverFailures = "node_failover_failures"
+  val NodeFailoverFailureTime = "node_failover_failure_time"
 
   // not part of the table schema
   val UsingTimestamp = "using_timestamp"
@@ -362,7 +393,12 @@ object CassandraStorage{
     NodeCassandraDotYaml,
     NodeAddressDotYaml,
     NodeCassandraJvmOptions,
-    NodeModified
+    NodeModified,
+    NodeFailoverDelay,
+    NodeFailoverMaxDelay,
+    NodeFailoverMaxTries,
+    NodeFailoverFailures,
+    NodeFailoverFailureTime
   )
 
   private def `:`(field: String) = ":" + field

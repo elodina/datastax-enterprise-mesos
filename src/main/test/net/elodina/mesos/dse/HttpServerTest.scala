@@ -177,7 +177,7 @@ class HttpServerTest extends MesosTestCase {
       assertEquals(Node.State.STARTING, node2.state)
 
       // running (modified is false) then update
-      Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:20480;ports:0..65000", hostname = "slave2"))
+      Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:20480;ports:0..65000", hostname = "slave2"), node2.failover.delayExpires)
       Scheduler.onTaskStarted(node2, taskStatus(node2.runtime.taskId, TaskState.TASK_RUNNING))
       assertEquals(Node.State.RUNNING, node2.state)
 

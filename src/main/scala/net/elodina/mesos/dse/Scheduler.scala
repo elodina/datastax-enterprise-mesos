@@ -147,10 +147,10 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     Nodes.save()
   }
 
-  private[dse] def acceptOffer(offer: Offer): String = {
+  private[dse] def acceptOffer(offer: Offer, now: Date = new Date()): String = {
     if (Reconciler.isReconciling) return "reconciling"
 
-    val nodes: List[Node] = Nodes.getNodes.filter(_.state == Node.State.STARTING)
+    val nodes: List[Node] = Nodes.getNodes.filter(_.state == Node.State.STARTING).filterNot(_.failover.isWaitingDelay(now))
     if (nodes.isEmpty) return "no nodes to start"
 
     val starting = nodes.find(_.runtime != null).getOrElse(null)
@@ -158,7 +158,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
 
     val reasons = new ListBuffer[String]()
     for (node <- nodes.sortBy(!_.seed)) {
-      var reason = node.matches(offer)
+      var reason = node.matches(offer, now)
       if (reason == null) reason = checkSeedConstraints(offer, node).getOrElse(null)
       if (reason == null) reason = checkConstraints(offer, node).getOrElse(null)
 
@@ -225,7 +225,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     node.registerStart(node.runtime.hostname)
   }
 
-  private[dse] def onTaskStopped(node: Node, status: TaskStatus) {
+  private[dse] def onTaskStopped(node: Node, status: TaskStatus, now: Date = new Date()) {
     val sameTask = node != null && node.runtime != null && node.runtime.taskId == status.getTaskId.getValue
     val expectedState = node != null && node.state != Node.State.IDLE
 
@@ -238,11 +238,28 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     if (node.state == Node.State.RECONCILING)
       logger.info(s"Finished reconciling of node ${node.id}, task ${node.runtime.taskId}")
 
-    val targetState = if (node.state == Node.State.STOPPING) Node.State.IDLE else Node.State.STARTING
-    node.state = targetState
+    val failed = node.state != Node.State.STOPPING && status.getState != TaskState.TASK_FINISHED && status.getState != TaskState.TASK_KILLED
+    node.registerStop(now, failed)
+
+    if (failed) {
+      var msg = s"Node ${node.id} failed ${node.failover.failures}"
+      if (node.failover.maxTries != null) msg += "/" + node.failover.maxTries
+
+      if (!node.failover.isMaxTriesExceeded) {
+        msg += ", waiting " + node.failover.currentDelay
+        msg += ", next start ~ " + Str.dateTime(node.failover.delayExpires)
+      } else {
+        node.state = Node.State.STOPPING
+        msg += ", failure limit exceeded"
+        msg += ", stopping node"
+      }
+
+      logger.info(msg)
+    }
+
+    node.state = if (node.state == Node.State.STOPPING) Node.State.IDLE else Node.State.STARTING
     node.runtime = null
     node.modified = false
-    node.registerStop()
   }
 
   def stopNode(id: String, force: Boolean = false): Unit = {
@@ -250,6 +267,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     if (node == null) return
 
     if (node.runtime == null) {
+      node.failover.resetFailures()
       node.state = Node.State.IDLE
       return
     }
