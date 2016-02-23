@@ -27,7 +27,7 @@ install_ssh_keys() {
 
 install_mesos() {
     mode=$1 # master | slave
-    apt-get -qy install mesos=0.25.0*
+    apt-get -qy install mesos=0.27.0*
 
     echo "zk://master:2181/mesos" > /etc/mesos/zk
     echo '10mins' > /etc/mesos-slave/executor_registration_timeout
@@ -43,8 +43,8 @@ install_mesos() {
         apt-get -qy remove zookeeper
     fi
 
-    ln -s /lib/init/upstart-job /etc/init.d/mesos-slave
-    service mesos-slave start
+#    ln -s /lib/init/upstart-job /etc/init.d/mesos-slave
+#    service mesos-slave start
 }
 
 install_marathon() {
@@ -54,11 +54,14 @@ install_marathon() {
 
 install_docker() {
     apt-get install -qy lxc-docker
-    echo 'docker,mesos' > /etc/mesos-slave/containerizers
-    service mesos-slave restart
+#    echo 'docker,mesos' > /etc/mesos-slave/containerizers
+#    service mesos-slave restart
 }
 
 install_cassandra() {
+    echo "deb http://debian.datastax.com/community stable main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
+    curl -L http://debian.datastax.com/debian/repo_key | sudo apt-key add -
+    apt-get update
     apt-get install dsc21=2.1.11-1 cassandra=2.1.11 -y --force-yes
     service cassandra stop
     rm -rf /var/lib/cassandra/data/system/*
@@ -72,11 +75,6 @@ install_cassandra() {
     service cassandra start
     sleep 30
     cqlsh master -f /vagrant/vagrant/cassandra_schema.cql
-}
-
-install_opscenter() {
-    apt-get install -qy sysstat opscenter=5.2.2
-    service opscenterd start
 }
 
 if [[ $1 != "master" && $1 != "slave" ]]; then
@@ -93,8 +91,8 @@ cp .vagrant/hosts /etc/hosts
 install_ssh_keys
 
 # disable ipv6
-echo -e "\nnet.ipv6.conf.all.disable_ipv6 = 1\n" >> /etc/sysctl.conf
-sysctl -p
+# echo -e "\nnet.ipv6.conf.all.disable_ipv6 = 1\n" >> /etc/sysctl.conf
+# sysctl -p
 
 # use apt-proxy if present
 if [ -f ".vagrant/apt-proxy" ]; then
@@ -103,29 +101,37 @@ if [ -f ".vagrant/apt-proxy" ]; then
     echo "Acquire::http::Proxy \"$apt_proxy\";" > /etc/apt/apt.conf.d/90-apt-proxy.conf
 fi
 
+# Install oracle java
+add-apt-repository -y ppa:webupd8team/java
+apt-get -y update
+/bin/echo debconf shared/accepted-oracle-license-v1-1 select true | /usr/bin/debconf-set-selections
+apt-get -y install oracle-java7-installer oracle-java7-set-default
+
 # add mesosphere repo
 apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv E56151BF
 DISTRO=$(lsb_release -is | tr '[:upper:]' '[:lower:]')
 CODENAME=$(lsb_release -cs)
 echo "deb http://repos.mesosphere.io/${DISTRO} ${CODENAME} main" | tee /etc/apt/sources.list.d/mesosphere.list
 
-# add datastax repo
-echo "deb http://debian.datastax.com/community stable main" | sudo tee -a /etc/apt/sources.list.d/cassandra.sources.list
-curl -L http://debian.datastax.com/debian/repo_key | sudo apt-key add -
+# Install docker
+curl -sSL https://get.docker.com/ | sh
+# Add vagrant user so docker is available
+usermod -aG docker vagrant
+sysctl -p
 
-# add docker repo
-apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 36A1D7869245C8950F966E92D8576A8BA88D21E9
-echo "deb http://get.docker.com/ubuntu docker main" > /etc/apt/sources.list.d/docker.list
-
-apt-get -qy update
-
-# install deps
-apt-get install -qy vim zip mc curl wget openjdk-7-jre scala git
+# install etcd
+docker pull quay.io/coreos/etcd:v2.2.0
+export FQDN=`hostname -f`
+mkdir -p /var/etcd
+FQDN=`hostname -f` docker run --detach --name etcd --net host -v /var/etcd:/data quay.io/coreos/etcd:v2.2.0 \
+     --advertise-client-urls "http://${FQDN}:2379,http://${FQDN}:4001" \
+     --listen-client-urls "http://0.0.0.0:2379,http://0.0.0.0:4001" \
+     --data-dir /data
 
 install_mesos $mode
-if [ $mode == "master" ]; then
-    install_marathon
-#    install_opscenter
+
+#if [ $mode == "master" ]; then
+#    install_marathon
 #    install_cassandra
-fi
+#fi
 #install_docker
