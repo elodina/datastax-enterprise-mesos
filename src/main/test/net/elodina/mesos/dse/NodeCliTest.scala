@@ -108,19 +108,18 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
     assertEquals(Map("num_tokens" -> "312", "hinted_handoff" -> "false"), node.cassandraDotYaml.toMap)
     assertEquals(Map("stomp_interface" -> "11.22.33.44"), node.addressDotYaml.toMap)
     assertEquals("-Dcassandra.replace_address=127.0.0.1 -Dcassandra.ring_delay_ms=15000", node.cassandraJvmOptions)
+  }
 
-    val outputAdd1 = outputToString { cli("add 1 --failover-delay 2m --failover-max-delay 25m --failover-max-tries 9".split(" ")) }
-    val node1 = Nodes.getNode("1")
-    assertEquals(new Period("2m"), node1.failover.delay)
-    assertEquals(new Period("25m"), node1.failover.maxDelay)
-    assertEquals(9, node1.failover.maxTries)
-    assert(outputAdd1.contains("node added:"))
-    assert(outputAdd1.contains("delay:2m, max-delay:25m, max-tries:9"))
+  @Test
+  def handleAddUpdate_failover: Unit = {
+    val outputAdd = outputToString { cli("add 0 --cpu 1.0 --mem 1024 --failover-delay 2m --failover-max-delay 25m --failover-max-tries 9".split(" ")) }
+
+    val node = Nodes.getNode("0")
+    assertFailoverEquals(new Failover(new Period("2m"), new Period("25m"), 9), node.failover)
+    assertTrue(outputAdd.contains("delay:2m, max-delay:25m, max-tries:9"))
 
     cli("update 0 --failover-delay 5m --failover-max-delay 45m --failover-max-tries 7".split(" "))
-    assertEquals(new Period("5m"), node.failover.delay)
-    assertEquals(new Period("45m"), node.failover.maxDelay)
-    assertEquals(7, node.failover.maxTries)
+    assertFailoverEquals(new Failover(new Period("5m"), new Period("45m"), 7), node.failover)
 
     // reset failover max tries
     cli("update 0 --failover-max-tries".split(" ") ++ Array(""))
