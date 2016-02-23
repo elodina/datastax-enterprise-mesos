@@ -322,6 +322,7 @@ object HttpServer {
       var disconnected = false
       try {
         for (node <- nodes) {
+          node.failover.resetFailures()
           if (start) node.state = Node.State.STARTING
           else Scheduler.stopNode(node.id, force)
         }
@@ -379,6 +380,8 @@ object HttpServer {
       for (node <- nodes) {
         // check node is running, because it's state could have changed
         if (node.state != Node.State.RUNNING) throw new HttpError(400, s"node ${node.id} should be running")
+
+        node.failover.resetFailures()
 
         // stop
         try {

@@ -267,6 +267,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     if (node == null) return
 
     if (node.runtime == null) {
+      node.failover.resetFailures()
       node.state = Node.State.IDLE
       return
     }
