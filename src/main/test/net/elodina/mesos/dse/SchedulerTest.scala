@@ -163,7 +163,13 @@ class SchedulerTest extends MesosTestCase {
       assertNull("" + state, node.runtime)
     }
 
-    // failover
+  }
+
+  @Test
+  def onTaskStopped_failover {
+    val node = Nodes.addNode(new Node("0"))
+    node.runtime = new Node.Runtime(taskId = "task")
+
     // register failure when on task update received task status failed, lost, error
     // when node was in state starting, running
     for(nodeState <- Seq(Node.State.STARTING, Node.State.RUNNING, Node.State.RECONCILING)) {
