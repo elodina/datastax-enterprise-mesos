@@ -345,12 +345,17 @@ object HttpServer {
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid timeout") }
       }
 
+      def checkState(node: Node) = {
+        if (node.state == Node.State.IDLE) throw new HttpError(400, s"node ${node.id} is idle")
+        if (node.state == Node.State.RECONCILING) throw new HttpError(400, s"node ${node.id} is reconciling")
+      }
+
       // check&collect nodes
       val nodes = new ListBuffer[Node]
       for (id <- ids) {
         val node = Nodes.getNode(id)
         if (node == null) throw new HttpError(400, s"node $id not found")
-        if (node.state != Node.State.RUNNING) throw new HttpError(400, s"node $id should be running")
+        checkState(node)
         nodes += node
       }
 
@@ -358,9 +363,8 @@ object HttpServer {
         new JSONObject(Map("status" -> "timeout", "message" -> s"node ${node.id} timeout on $stage"))
 
       for (node <- nodes) {
-        // check node is running, because it's state could have changed
-        if (node.state != Node.State.RUNNING) throw new HttpError(400, s"node ${node.id} should be running")
-
+        // check node is running, starting, stopping, because it's state could have changed
+        checkState(node)
         // stop
         try {
           Scheduler.stopNode(node.id)
