@@ -219,7 +219,7 @@ To use `cassandra` storage type you need to do some preparations:
 After that you can run scheduler with the following command:
   
   ```
-  # ./dse-mesos.sh scheduler --master zk://master:2181/mesos --debug true --storage cassandra:9042:master \
+  # ./dse-mesos.sh scheduler --master zk://master:2181/mesos --debug true --storage cassandra:9042:192.168.3.5,192.168.3.6 \
    --cassandra-keyspace dse_mesos --cassandra-table dse_mesos_framework
   ```
     

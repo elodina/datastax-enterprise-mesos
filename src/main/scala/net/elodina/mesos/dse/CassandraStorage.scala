@@ -24,7 +24,7 @@ import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
 import scala.util.Try
 
-class CassandraStorage(port: Int, contactPoints: String, keyspace: String, stateTable: String) extends Storage {
+class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, stateTable: String) extends Storage {
 
   import CassandraStorage._
 
@@ -32,7 +32,7 @@ class CassandraStorage(port: Int, contactPoints: String, keyspace: String, state
 
   private val session =
     Cluster.builder()
-      .withPort(port).addContactPoints(contactPoints).build().connect(keyspace)
+      .withPort(port).addContactPoints(contactPoints: _*).build().connect(keyspace)
 
   private val SelectPs = session.prepare(CassandraStorage.selectQuery(stateTable))
   private val InsertionPs = session.prepare(CassandraStorage.insertionQuery(stateTable))
