@@ -129,7 +129,7 @@ object Nodes {
     storage.split(":", 3) match {
       case Array("file", fileName) => FileStorage(new File(fileName))
       case Array("zk", zk) => ZkStorage(zk)
-      case Array("cassandra", port, contactPoints) => new CassandraStorage(port.toInt, contactPoints, Config.cassandraKeyspace, Config.cassandraTable)
+      case Array("cassandra", port, contactPoints) => new CassandraStorage(port.toInt, contactPoints.split(",").map(_.trim), Config.cassandraKeyspace, Config.cassandraTable)
       case _ => throw new IllegalArgumentException(s"Unsupported storage: $storage")
     }
   }
