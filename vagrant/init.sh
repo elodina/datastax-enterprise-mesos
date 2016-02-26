@@ -42,20 +42,11 @@ install_mesos() {
     else
         apt-get -qy remove zookeeper
     fi
-
-#    ln -s /lib/init/upstart-job /etc/init.d/mesos-slave
-#    service mesos-slave start
 }
 
 install_marathon() {
     apt-get install -qy marathon=0.10.0*
     service marathon start
-}
-
-install_docker() {
-    apt-get install -qy lxc-docker
-#    echo 'docker,mesos' > /etc/mesos-slave/containerizers
-#    service mesos-slave restart
 }
 
 install_cassandra() {
@@ -91,8 +82,8 @@ cp .vagrant/hosts /etc/hosts
 install_ssh_keys
 
 # disable ipv6
-# echo -e "\nnet.ipv6.conf.all.disable_ipv6 = 1\n" >> /etc/sysctl.conf
-# sysctl -p
+echo -e "\nnet.ipv6.conf.all.disable_ipv6 = 1\n" >> /etc/sysctl.conf
+sysctl -p
 
 # use apt-proxy if present
 if [ -f ".vagrant/apt-proxy" ]; then
@@ -130,8 +121,12 @@ FQDN=`hostname -f` docker run --detach --name etcd --net host -v /var/etcd:/data
 
 install_mesos $mode
 
-#if [ $mode == "master" ]; then
-#    install_marathon
-#    install_cassandra
-#fi
-#install_docker
+# Run calico-node
+cd /home/vagrant
+wget https://github.com/projectcalico/calico-containers/releases/download/v0.9.0/calicoctl
+chmod +x calicoctl
+ETCD_AUTHORITY=master:4001 ./calicoctl node
+
+# Manually add rule to allow in/out-bound trafic on 192.168.* as calico-mesos plugin creates default profile on eth0 (vagrant nat) interface
+ETCD_AUTHORITY=master:4001 ./calicoctl profile default_slave0 rule add inbound allow from cidr 192.168.0.0/16
+ETCD_AUTHORITY=master:4001 ./calicoctl profile default_slave0 rule add outbound allow to cidr 192.168.0.0/16

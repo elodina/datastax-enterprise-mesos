@@ -33,8 +33,8 @@ cp .vagrant/hosts /etc/hosts
 install_ssh_keys
 
 # disable ipv6
-#echo -e "\nnet.ipv6.conf.all.disable_ipv6 = 1\n" >> /etc/sysctl.conf
-#sysctl -p
+echo -e "\nnet.ipv6.conf.all.disable_ipv6 = 1\n" >> /etc/sysctl.conf
+sysctl -p
 
 # use apt-proxy if present
 if [ -f ".vagrant/apt-proxy" ]; then
