@@ -192,7 +192,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
     else delay("100ms") { confirm }
   }
 
-  @Test(timeout = 8000)
+  @Test(timeout = 9000)
   def handleRestart {
     Nodes.reset()
 
@@ -214,10 +214,12 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
 
     val node0 = Nodes.addNode(new Node("0"))
 
-    // node have to be running
+    // node have to be not in idle and not in reconciling state to be restarted
     import Node.State._
-    for(state <- Seq(IDLE, STARTING, RUNNING, STOPPING, RECONCILING) if state != RUNNING)
-      assertCliErrorContains("restart 0".split(" "), "node 0 should be running")
+    for(state <- Seq(IDLE, RECONCILING)) {
+      node0.state = state
+      assertCliErrorContains("restart 0".split(" "), s"node 0 is $state")
+    }
 
     node0.state = Node.State.RUNNING
     node0.runtime = new Node.Runtime(node0, offer())
@@ -258,7 +260,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
     }
     assertCliErrorContains("restart 0..1 --timeout 500ms".split(" "), "node 0 timeout on start")
 
-    // 0 stop & start ok, but 1 is not running
+    // 0 stop & start ok, but 1 is starting
     started(node0)
     node0.waitFor(RUNNING, Duration("200ms"))
 
@@ -272,13 +274,41 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
         started(node0)
       }
     }
-    assertCliErrorContains("restart 0..1 --timeout 1s".split(" "), "node 1 should be running")
+    assertCliErrorContains("restart 0..1 --timeout 1s".split(" "), "node 1 timeout on start")
+
+    // 0 stop & start ok, but 1 is idle (perhaps reached max tries)
+    delay("100ms") {
+      stopped(node0)
+      delay("100ms") {
+        // something happened with node1 while node0 was about to get starting
+        Scheduler.stopNode(node1.id)
+        assertEquals(IDLE, node1.state)
+
+        started(node0)
+      }
+    }
+    assertCliErrorContains("restart 0..1 --timeout 1s".split(" "), "node 1 is idle")
+
+    // 0 stop & start ok, but 1 is idle (perhaps reached max tries)
+    node1.state = STARTING
+    started(node1, immediately = true)
+
+    delay("100ms") {
+      stopped(node0)
+      delay("100ms") {
+        // something happened with node1 while node0 was has started
+        started(node0, immediately = true)
+
+        node1.state = RECONCILING
+      }
+    }
+    assertCliErrorContains("restart 0..1 --timeout 1s".split(" "), "node 1 is reconciling")
+    Scheduler.onTaskStopped(node1, taskStatus(node1.runtime.taskId, TaskState.TASK_KILLED))
 
     // 1 stop timeout
-    node1.failover.resetFailures()
-
-    started(node1)
-    node1.waitFor(RUNNING, Duration("200ms"))
+    node1.state = STARTING
+    started(node1, immediately = true)
+    assertEquals(RUNNING, node0.state)
 
     delay("100ms") {
       stopped(node0)
