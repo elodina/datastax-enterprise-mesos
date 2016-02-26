@@ -71,7 +71,7 @@ Option (* = required)  Description
                          framework.
 --secret               Secret (password) used to register
                          framework.
---storage              Storage for cluster state. Examples:
+* --storage            Storage for cluster state. Examples:
                          file:dse-mesos.json; zk:master:
                          2181/dse-mesos.
 --user                 Mesos user. Defaults to current system
