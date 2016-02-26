@@ -60,7 +60,7 @@ object SchedulerCli {
     if (options.has("framework-role")) Config.frameworkRole = options.valueOf("framework-role").asInstanceOf[String]
     if (options.has("framework-timeout")) Config.frameworkTimeout = Duration(options.valueOf("framework-timeout").asInstanceOf[String])
 
-    if (options.has("storage")) Config.storage = options.valueOf("storage").asInstanceOf[String]
+    Config.storage = options.valueOf("storage").asInstanceOf[String]
 
     if (Config.storage.startsWith("cassandra")){
       if (!options.has("cassandra-keyspace"))
