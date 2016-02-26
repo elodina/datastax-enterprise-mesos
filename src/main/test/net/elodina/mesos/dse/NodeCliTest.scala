@@ -1,5 +1,7 @@
 package net.elodina.mesos.dse
 
+import net.elodina.mesos.dse.Node.Failover
+import net.elodina.mesos.dse.Util.Period
 import org.junit.{Test, Before, After}
 import org.junit.Assert._
 import scala.concurrent.duration._
@@ -11,21 +13,21 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
   def cli = NodeCli.handle(_: Array[String])
 
   @Before
-  override def before = {
+  override def before {
     super.before
     Nodes.reset()
     HttpServer.start()
   }
 
   @After
-  override def after = {
+  override def after {
     super.after
     Nodes.reset()
     HttpServer.stop()
   }
 
   @Test
-  def handle() = {
+  def handle {
     assertCliError(Array(), "command required")
 
     val argumentRequiredCommands = List("add", "update", "remove", "start", "stop")
@@ -35,7 +37,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
   }
 
   @Test
-  def handleList() = {
+  def handleList {
     assertCliResponse(Array("list"), "no nodes")
 
     val node = new Node("0")
@@ -53,25 +55,27 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
 
   @Test
   def handleAddUpdate() = {
-    val node = new Node("0")
-    Nodes.addNode(node)
-    Nodes.save()
-    val defaultAddNodeResponse = "node added:\n" + outputToString { NodeCli.printNode(node, 1) }
-    Nodes.removeNode(node)
-    Nodes.save()
+    {
+      val node = new Node("0")
+      Nodes.addNode(node)
+      Nodes.save()
+      val defaultAddNodeResponse = "node added:\n" + outputToString { NodeCli.printNode(node, 1) }
+      Nodes.removeNode(node)
+      Nodes.save()
 
-    assertCliResponse(Array("add", "0"), defaultAddNodeResponse)
-    assertEquals(Nodes.getNodes.size, 1)
+      assertCliResponse(Array("add", "0"), defaultAddNodeResponse)
+      assertEquals(Nodes.getNodes.size, 1)
 
-    val cluster = new Cluster("test-cluster")
-    val args = Array("update", "0", "--cluster", cluster.id)
+      val cluster = new Cluster("test-cluster")
+      val args = Array("update", "0", "--cluster", cluster.id)
 
-    assertCliError(args, "cluster not found")
+      assertCliError(args, "cluster not found")
 
-    Nodes.addCluster(cluster)
-    Nodes.save()
-    cli(args)
-    assertEquals(cluster.id, Nodes.getNode("0").cluster.id)
+      Nodes.addCluster(cluster)
+      Nodes.save()
+      cli(args)
+      assertEquals(cluster.id, Nodes.getNode("0").cluster.id)
+    }
 
     val options = Array(
       "--cpu", "10",
@@ -90,27 +94,40 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
     )
     cli(Array("update", "0") ++ options)
 
-    {
-      val node = Nodes.getNode("0")
-      assertEquals(node.cpu, 10.0, 0)
-      assertEquals(node.mem, 10.0, 0)
-      assertEquals(node.stickiness.period.toString, "60m")
-      assertEquals(node.rack, "rack")
-      assertEquals(node.dc, "dc")
-      assertEquals(node.seed, true)
-      assertEquals(node.jvmOptions, "-Dfile.encoding=UTF8")
-      assertEquals(node.dataFileDirs, "/tmp/datadir")
-      assertEquals(node.commitLogDir, "/tmp/commitlog")
-      assertEquals(node.savedCachesDir, "/tmp/caches")
-      assertEquals(node.cassandraDotYaml.toMap, Map("num_tokens" -> "312", "hinted_handoff" -> "false"))
-      assertEquals(node.addressDotYaml.toMap, Map("stomp_interface" -> "11.22.33.44"))
-      assertEquals(node.cassandraJvmOptions, "-Dcassandra.replace_address=127.0.0.1 -Dcassandra.ring_delay_ms=15000")
-    }
-
+    val node = Nodes.getNode("0")
+    assertEquals(10.0, node.cpu, 0.001)
+    assertEquals(10, node.mem)
+    assertEquals("60m", node.stickiness.period.toString)
+    assertEquals("rack", node.rack)
+    assertEquals("dc", node.dc)
+    assertEquals(true, node.seed)
+    assertEquals("-Dfile.encoding=UTF8", node.jvmOptions)
+    assertEquals("/tmp/datadir", node.dataFileDirs)
+    assertEquals("/tmp/commitlog", node.commitLogDir)
+    assertEquals("/tmp/caches", node.savedCachesDir)
+    assertEquals(Map("num_tokens" -> "312", "hinted_handoff" -> "false"), node.cassandraDotYaml.toMap)
+    assertEquals(Map("stomp_interface" -> "11.22.33.44"), node.addressDotYaml.toMap)
+    assertEquals("-Dcassandra.replace_address=127.0.0.1 -Dcassandra.ring_delay_ms=15000", node.cassandraJvmOptions)
   }
 
   @Test
-  def handleRemove() = {
+  def handleAddUpdate_failover: Unit = {
+    val outputAdd = outputToString { cli("add 0 --cpu 1.0 --mem 1024 --failover-delay 2m --failover-max-delay 25m --failover-max-tries 9".split(" ")) }
+
+    val node = Nodes.getNode("0")
+    assertFailoverEquals(new Failover(new Period("2m"), new Period("25m"), 9), node.failover)
+    assertTrue(outputAdd.contains("delay:2m, max-delay:25m, max-tries:9"))
+
+    cli("update 0 --failover-delay 5m --failover-max-delay 45m --failover-max-tries 7".split(" "))
+    assertFailoverEquals(new Failover(new Period("5m"), new Period("45m"), 7), node.failover)
+
+    // reset failover max tries
+    cli("update 0 --failover-max-tries".split(" ") ++ Array(""))
+    assertNull(node.failover.maxTries)
+  }
+
+  @Test
+  def handleRemove {
     assertCliError(Array("remove", ""), "node required")
     assertCliError(Array("remove", "+"), "invalid node expr")
     assertCliError(Array("remove", "0"), "node 0 not found")
@@ -127,7 +144,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
   }
 
   @Test
-  def handleStartStop() = {
+  def handleStartStop {
     assertCliError(Array("start", ""), "node required")
     assertCliError(Array("start", "+"), "invalid node expr")
     assertCliError(Array("start", "0"), "node 0 not found")
@@ -175,8 +192,8 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
     else delay("100ms") { confirm }
   }
 
-  @Test(timeout = 8000)
-  def handleRestart(): Unit = {
+  @Test(timeout = 9000)
+  def handleRestart {
     Nodes.reset()
 
     // help
@@ -197,10 +214,12 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
 
     val node0 = Nodes.addNode(new Node("0"))
 
-    // node have to be running
+    // node have to be not in idle and not in reconciling state to be restarted
     import Node.State._
-    for(state <- Seq(IDLE, STARTING, RUNNING, STOPPING, RECONCILING) if state != RUNNING)
-      assertCliErrorContains("restart 0".split(" "), "node 0 should be running")
+    for(state <- Seq(IDLE, RECONCILING)) {
+      node0.state = state
+      assertCliErrorContains("restart 0".split(" "), s"node 0 is $state")
+    }
 
     node0.state = Node.State.RUNNING
     node0.runtime = new Node.Runtime(node0, offer())
@@ -241,7 +260,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
     }
     assertCliErrorContains("restart 0..1 --timeout 500ms".split(" "), "node 0 timeout on start")
 
-    // 0 stop & start ok, but 1 is not running
+    // 0 stop & start ok, but 1 is starting
     started(node0)
     node0.waitFor(RUNNING, Duration("200ms"))
 
@@ -255,11 +274,41 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
         started(node0)
       }
     }
-    assertCliErrorContains("restart 0..1 --timeout 1s".split(" "), "node 1 should be running")
+    assertCliErrorContains("restart 0..1 --timeout 1s".split(" "), "node 1 timeout on start")
+
+    // 0 stop & start ok, but 1 is idle (perhaps reached max tries)
+    delay("100ms") {
+      stopped(node0)
+      delay("100ms") {
+        // something happened with node1 while node0 was about to get starting
+        Scheduler.stopNode(node1.id)
+        assertEquals(IDLE, node1.state)
+
+        started(node0)
+      }
+    }
+    assertCliErrorContains("restart 0..1 --timeout 1s".split(" "), "node 1 is idle")
+
+    // 0 stop & start ok, but 1 is idle (perhaps reached max tries)
+    node1.state = STARTING
+    started(node1, immediately = true)
+
+    delay("100ms") {
+      stopped(node0)
+      delay("100ms") {
+        // something happened with node1 while node0 was has started
+        started(node0, immediately = true)
+
+        node1.state = RECONCILING
+      }
+    }
+    assertCliErrorContains("restart 0..1 --timeout 1s".split(" "), "node 1 is reconciling")
+    Scheduler.onTaskStopped(node1, taskStatus(node1.runtime.taskId, TaskState.TASK_KILLED))
 
     // 1 stop timeout
-    started(node1)
-    node1.waitFor(RUNNING, Duration("200ms"))
+    node1.state = STARTING
+    started(node1, immediately = true)
+    assertEquals(RUNNING, node0.state)
 
     delay("100ms") {
       stopped(node0)

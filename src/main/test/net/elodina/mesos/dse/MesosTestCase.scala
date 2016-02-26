@@ -17,7 +17,7 @@
 
 package net.elodina.mesos.dse
 
-import net.elodina.mesos.dse.Node.{Runtime, Stickiness, Reservation}
+import net.elodina.mesos.dse.Node.{Failover, Runtime, Stickiness, Reservation}
 import org.apache.mesos.Protos.Resource.DiskInfo.Persistence
 import org.apache.mesos.Protos.Resource.{DiskInfo, ReservationInfo}
 import org.apache.mesos.Protos.Volume.Mode
@@ -28,7 +28,7 @@ import org.junit.Assert._
 import scala.collection.JavaConversions._
 import org.apache.mesos.{ExecutorDriver, SchedulerDriver}
 import java.util
-import org.junit.{Test, Ignore, After, Before}
+import org.junit.{Ignore, After, Before}
 import org.apache.log4j.BasicConfigurator
 import com.google.protobuf.ByteString
 import java.io.{PrintStream, ByteArrayOutputStream, File}
@@ -43,6 +43,7 @@ class MesosTestCase {
   @Before
   def before {
     BasicConfigurator.configure()
+    Scheduler.initLogging()
 
     val storageFile: File = Files.createTempFile(classOf[MesosTestCase].getSimpleName, null).toFile
     storageFile.delete()
@@ -54,7 +55,7 @@ class MesosTestCase {
 
     executorDriver = new TestExecutorDriver()
 
-    Config.api = "http://localhost:7000"
+    Config.api = "http://localhost:" + Util.findAvailPort
     Config.dse = new File("dse.tar.gz")
     Config.cassandra = new File("cassandra.tar.gz")
     Config.jar = new File("dse-mesos.jar")
@@ -379,6 +380,7 @@ class MesosTestCase {
     assertEquals(expected.state, actual.state)
     assertEquals(expected.cluster, actual.cluster)
     assertStickinessEquals(expected.stickiness, actual.stickiness)
+    assertFailoverEquals(expected.failover, actual.failover)
     assertRuntimeEquals(expected.runtime, actual.runtime)
 
     assertEquals(expected.cpu, actual.cpu, 0.001)
@@ -415,6 +417,17 @@ class MesosTestCase {
     assertEquals(expected.stopTime, actual.stopTime)
   }
 
+  def assertFailoverEquals(expected: Failover, actual: Failover) {
+    if (checkNulls(expected, actual)) return
+
+    assertEquals(expected.delay, actual.delay)
+    assertEquals(expected.maxDelay, actual.maxDelay)
+    assertEquals(expected.maxTries, actual.maxTries)
+
+    assertEquals(expected.failures, actual.failures)
+    assertEquals(expected.failureTime, actual.failureTime)
+  }
+
   def assertRuntimeEquals(expected: Runtime, actual: Runtime) {
     if (checkNulls(expected, actual)) return
 
@@ -431,7 +444,7 @@ class MesosTestCase {
   }
 
   private def checkNulls(expected: Object, actual: Object): Boolean = {
-    if (expected == actual) return true
+    if (expected eq actual) return true
     if (expected == null) throw new AssertionError("actual != null")
     if (actual == null) throw new AssertionError("actual == null")
     false

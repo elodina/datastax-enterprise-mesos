@@ -14,6 +14,7 @@ DataStax Enterprise Mesos Framework
 * [Shutting down framework](#shutting-down-framework)
 * [Rolling restart](#rolling-restart)
 * [Memory configuration](#memory-configuration)
+* [Failed node recovery](#failed-node-recovery)
 
 [Navigating the CLI](#navigating-the-cli)
 * [Requesting help](#requesting-help)
@@ -70,7 +71,7 @@ Option (* = required)  Description
                          framework.
 --secret               Secret (password) used to register
                          framework.
---storage              Storage for cluster state. Examples:
+* --storage            Storage for cluster state. Examples:
                          file:dse-mesos.json; zk:master:
                          2181/dse-mesos.
 --user                 Mesos user. Defaults to current system
@@ -316,6 +317,21 @@ or both
 ./dse-mesos.sh node update 0 --cassandra-jvm-options "-Xmx2048M -Xmn100M"
 ```
 `Xmx`, `Xmn` correspond to env variables `MAX_HEAP_SIZE`, `HEAP_NEWSIZE` and will be set in `cassandra-env.sh`
+
+Failed node recovery
+--------------------
+When a node fails, DSE mesos scheduler assumes that the failure is recoverable. The scheduler will try
+to restart the node after waiting failover-delay (i.e. 30s, 2m). The initial waiting delay is equal to failover-delay setting.
+After each consecutive failure this delay is doubled until it reaches failover-max-delay value.
+
+If failover-max-tries is defined and the consecutive failure count exceeds it, the node will be deactivated.
+
+The following failover settings exists:
+```
+--failover-delay     - initial failover delay to wait after failure (option value is required)
+--failover-max-delay - max failover delay (option value is required)
+--failover-max-tries - max failover tries to deactivate broker (to reset to unbound pass --failover-max-tries "")
+```
 
 Navigating the CLI
 ==================

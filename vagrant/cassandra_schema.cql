@@ -9,6 +9,9 @@ CREATE TABLE IF NOT EXISTS dse_mesos_framework(
         cluster_id text,
         cluster_bind_address text,
         cluster_ports map<text, text>,
+        cluster_jmx_remote boolean,
+        cluster_jmx_user text,
+        cluster_jmx_password text,
         nr_of_nodes int,
         node_id text,
         node_state text,
@@ -41,5 +44,10 @@ CREATE TABLE IF NOT EXISTS dse_mesos_framework(
         node_address_dot_yaml map<text, text>,
         node_cassandra_jvm_options text,
         node_modified boolean,
+        node_failover_delay text,
+        node_failover_max_delay text,
+        node_failover_max_tries int,
+        node_failover_failures int,
+        node_failover_failure_time timestamp,
         PRIMARY KEY(namespace, framework_id, cluster_id, node_id)
 );

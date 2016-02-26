@@ -2,6 +2,7 @@ package net.elodina.mesos.dse
 
 import java.io.IOException
 import joptsimple.{OptionException, OptionSet, OptionParser}
+import net.elodina.mesos.dse.Util.Str
 import scala.collection.mutable
 import Cli.{out, printLine, handleGenericOptions, Error}
 
@@ -100,7 +101,7 @@ object NodeCli {
     parser.accepts("constraints", "Constraints (hostname=like:^master$,rack=like:^1.*$).").withRequiredArg().ofType(classOf[String])
     parser.accepts("seed-constraints", "Seed node constraints. Will be evaluated only across seed nodes.").withRequiredArg().ofType(classOf[String])
 
-    parser.accepts("seed", "Flags whether this node is a seed node.").withRequiredArg().ofType(classOf[java.lang.Boolean])
+    parser.accepts("seed", "Node is a seed node.").withRequiredArg().ofType(classOf[java.lang.Boolean])
     parser.accepts("jvm-options", "JVM options for node executor.").withRequiredArg().ofType(classOf[String])
 
     parser.accepts("data-file-dirs", "Cassandra data file directories separated by comma. Defaults to sandbox if not set.").withRequiredArg().ofType(classOf[String])
@@ -113,6 +114,10 @@ object NodeCli {
       "E.g. \"stomp_interface=10.1.2.3\" . Note: These pairs are not validated by the Scheduler.").withRequiredArg.ofType(classOf[String])
     parser.accepts("cassandra-jvm-options", "A string to set JVM_OPTS environment variable. " +
       "E.g. \"-Dcassandra.replace_address=127.0.0.1 -Dcassandra.ring_delay_ms=15000\".").withRequiredArg.ofType(classOf[String])
+
+    parser.accepts("failover-delay", "failover delay (10s, 5m, 3h)").withRequiredArg().ofType(classOf[String])
+    parser.accepts("failover-max-delay", "max failover delay. See failoverDelay.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("failover-max-tries", "max failover tries. Default - none").withRequiredArg().ofType(classOf[String])
 
     if (help) {
       printLine(s"${cmd.capitalize} node \nUsage: node $cmd <id> [options]\n")
@@ -154,6 +159,10 @@ object NodeCli {
     val addressDotYaml = options.valueOf("address-yaml-configs").asInstanceOf[String]
     val cassandraJvmOptions = options.valueOf("cassandra-jvm-options").asInstanceOf[String]
 
+    val failoverDelay = options.valueOf("failover-delay").asInstanceOf[String]
+    val failoverMaxDelay = options.valueOf("failover-max-delay").asInstanceOf[String]
+    val failoverMaxTries = options.valueOf("failover-max-tries").asInstanceOf[String]
+
     val params = new mutable.HashMap[String, String]()
     params("node") = expr
     if (cluster != null) params("cluster") = cluster
@@ -177,6 +186,10 @@ object NodeCli {
     if (cassandraDotYaml != null) params("cassandraDotYaml") = cassandraDotYaml
     if (addressDotYaml != null) params("addressDotYaml") = addressDotYaml
     if (cassandraJvmOptions != null) params("cassandraJvmOptions") = cassandraJvmOptions
+
+    if (failoverDelay != null) params.put("failoverDelay", failoverDelay)
+    if (failoverMaxDelay != null) params.put("failoverMaxDelay", failoverMaxDelay)
+    if (failoverMaxTries != null) params.put("failoverMaxTries", failoverMaxTries)
 
     var nodesJson: List[Any] = null
     try { nodesJson = Cli.sendRequest(s"/node/$cmd", params.toMap).asInstanceOf[List[Any]] }
@@ -321,7 +334,7 @@ object NodeCli {
 
   private[dse] def printNode(node: Node, indent: Int = 0) {
     printLine(s"id: ${node.id}", indent)
-    printLine(s"state: ${node.state}${if (node.modified) " (modified, needs restart)" else ""}", indent)
+    printLine(s"state: ${nodeState(node)}${if (node.modified) " (modified, needs restart)" else ""}", indent)
 
     printLine(s"topology: ${nodeTopology(node)}", indent)
     printLine(s"resources: ${nodeResources(node)}", indent)
@@ -332,15 +345,35 @@ object NodeCli {
     if (node.constraints.nonEmpty) printLine(s"constraints: ${Util.formatConstraints(node.constraints)}", indent)
     if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent)
 
-    if (node.dataFileDirs != null) printLine(s"data file dirs: ${node.dataFileDirs}", indent)
-    if (node.commitLogDir != null) printLine(s"commit log dir: ${node.commitLogDir}", indent)
-    if (node.savedCachesDir != null) printLine(s"saved caches dir: ${node.savedCachesDir}", indent)
+    printLine(s"dirs: ${nodeDirs(node)}", indent)
     if (!node.cassandraDotYaml.isEmpty) printLine(s"cassandra.yaml overrides: ${Util.formatMap(node.cassandraDotYaml)}", indent)
     if (!node.addressDotYaml.isEmpty) printLine(s"address.yaml overrides: ${Util.formatMap(node.addressDotYaml)}", indent)
     if (node.cassandraJvmOptions != null) printLine(s"cassandra jvm options: ${node.cassandraJvmOptions}", indent)
 
+    printLine(s"failover: ${nodeFailover(node)}", indent)
     printLine(s"stickiness: ${nodeStickiness(node)}", indent)
     if (node.runtime != null) printNodeRuntime(node.runtime, indent)
+  }
+
+  private def nodeState(node: Node): String = {
+    if (node.state != Node.State.STARTING) return "" + node.state
+
+    if (node.failover.isWaitingDelay()) {
+      var s = "failed " + node.failover.failures
+      if (node.failover.maxTries != null) s += "/" + node.failover.maxTries
+      s += " " + Str.dateTime(node.failover.failureTime)
+      s += ", next start " + Str.dateTime(node.failover.delayExpires)
+      return s
+    }
+
+    if (node.failover.failures > 0) {
+      var s = "starting " + (node.failover.failures + 1)
+      if (node.failover.maxTries != null) s += "/" + node.failover.maxTries
+      s += ", failed " + Str.dateTime(node.failover.failureTime)
+      return s
+    }
+
+    "" + Node.State.STARTING
   }
 
   private def printNodeRuntime(runtime: Node.Runtime, indent: Int = 0) {
@@ -369,10 +402,25 @@ object NodeCli {
     s
   }
 
+  private def nodeDirs(node: Node): String = {
+    var s = ""
+    s += "data:" + (if (node.dataFileDirs != null) node.dataFileDirs else "<auto>")
+    s += ", commit:" + (if (node.commitLogDir != null) node.commitLogDir else "<auto>")
+    s += ", caches:" + (if (node.savedCachesDir != null) node.savedCachesDir else "<auto>")
+    s
+  }
+
   private def nodeStickiness(node: Node): String = {
     var s = "period:" + node.stickiness.period
     if (node.stickiness.hostname != null) s += ", hostname:" + node.stickiness.hostname
     if (node.stickiness.stopTime != null) s += ", expires:" + Util.Str.dateTime(node.stickiness.expires)
+    s
+  }
+
+  private def nodeFailover(node: Node): String = {
+    var s = "delay:" + node.failover.delay
+    s += ", max-delay:" + node.failover.maxDelay
+    if (node.failover.maxTries != null) s += ", max-tries:" + node.failover.maxTries
     s
   }
 

@@ -3,7 +3,7 @@ package net.elodina.mesos.dse
 import joptsimple.{OptionException, OptionSet, OptionParser}
 import scala.concurrent.duration.Duration
 import java.io.File
-import Cli.{out, printLine, handleGenericOptions}
+import Cli.{out, printLine, handleGenericOptions, Error}
 
 object SchedulerCli {
   def isEnabled: Boolean = System.getenv("DM_NO_SCHEDULER") == null
@@ -20,7 +20,7 @@ object SchedulerCli {
     parser.accepts("framework-role", "Framework role. Defaults to *.").withRequiredArg().ofType(classOf[String])
     parser.accepts("framework-timeout", "Framework failover timeout. Defaults to 30 days.").withRequiredArg().ofType(classOf[String])
 
-    parser.accepts("storage", "Storage for nodes state. Examples: file:dse-mesos.json; zk:master:2181/dse-mesos; cassandra:9042:master.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("storage", "Storage for nodes state. Examples: file:dse-mesos.json; zk:master:2181/dse-mesos; cassandra:9042:master.").withRequiredArg().required().ofType(classOf[String])
     parser.accepts("cassandra-keyspace", "Cassandra keyspace used to find framework state table. Required if storage=cassandra.").withRequiredArg().ofType(classOf[String])
     parser.accepts("cassandra-table", "Cassandra table where framework state to be persisted. Required if storage=cassandra").withRequiredArg().ofType(classOf[String])
     parser.accepts("debug", "Run in debug mode.").withRequiredArg().ofType(classOf[Boolean]).defaultsTo(false)
@@ -60,7 +60,8 @@ object SchedulerCli {
     if (options.has("framework-role")) Config.frameworkRole = options.valueOf("framework-role").asInstanceOf[String]
     if (options.has("framework-timeout")) Config.frameworkTimeout = Duration(options.valueOf("framework-timeout").asInstanceOf[String])
 
-    if (options.has("storage")) Config.storage = options.valueOf("storage").asInstanceOf[String]
+    Config.storage = options.valueOf("storage").asInstanceOf[String]
+
     if (Config.storage.startsWith("cassandra")){
       if (!options.has("cassandra-keyspace"))
         throw new Error("cassandra-keyspace is required if storage=cassandra")

@@ -11,6 +11,10 @@ class Cluster {
   var bindAddress: BindAddress = null
   var ports: mutable.HashMap[Node.Port.Value, Util.Range] = new mutable.HashMap[Node.Port.Value, Util.Range]()
 
+  var jmxRemote: Boolean = false
+  var jmxUser: String = null
+  var jmxPassword: String = null
+
   resetPorts
 
   def this(_id: String) {
@@ -51,6 +55,10 @@ class Cluster {
     resetPorts
     for ((port, range) <- json("ports").asInstanceOf[Map[String, String]])
       ports(Node.Port.withName(port)) = new Util.Range(range)
+
+    if (json.contains("jmxRemote")) jmxRemote = json("jmxRemote").asInstanceOf[Boolean]
+    if (json.contains("jmxUser")) jmxUser = json("jmxUser").asInstanceOf[String]
+    if (json.contains("jmxPassword")) jmxPassword = json("jmxPassword").asInstanceOf[String]
   }
 
   def toJson: JSONObject = {
@@ -63,6 +71,10 @@ class Cluster {
     for ((port, range) <- ports)
       if (range != null) portsJson("" + port) = "" + range
     json("ports") = new JSONObject(portsJson.toMap)
+
+    json("jmxRemote") = jmxRemote
+    if (jmxUser != null) json("jmxUser") = jmxUser
+    if (jmxPassword != null) json("jmxPassword") = jmxPassword
 
     new JSONObject(json.toMap)
   }

@@ -103,8 +103,7 @@ object Executor extends org.apache.mesos.Executor {
       agentProcess.start()
     }
 
-    cassandraProcess.awaitNormalState()
-    driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(task.getTaskId).setData(ByteString.copyFromUtf8(address)).setState(TaskState.TASK_RUNNING).build)
+    if (cassandraProcess.awaitNormalState()) driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(task.getTaskId).setData(ByteString.copyFromUtf8(address)).setState(TaskState.TASK_RUNNING).build)
 
     val error = cassandraProcess.await()
     if (error == null) driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(task.getTaskId).setState(TaskState.TASK_FINISHED).build)

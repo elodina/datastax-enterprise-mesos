@@ -106,7 +106,7 @@ object HttpServer {
       response.setHeader("Content-Disposition", "attachment; filename=\"" + file.getName + "\"")
       Util.IO.copyAndClose(new FileInputStream(file), response.getOutputStream)
     }
-    
+
     def handleNodeApi(request: HttpServletRequest, response: HttpServletResponse) {
       response.setContentType("application/json; charset=utf-8")
       request.setAttribute("jsonResponse", true)
@@ -120,7 +120,7 @@ object HttpServer {
       else if (uri == "restart") handleRestartNode(request, response)
       else response.sendError(404, "unsupported method")
     }
-    
+
     def handleClusterApi(request: HttpServletRequest, response: HttpServletResponse) {
       response.setContentType("application/json; charset=utf-8")
       request.setAttribute("jsonResponse", true)
@@ -182,8 +182,7 @@ object HttpServer {
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid seedConstraints") }
       }
 
-      var seed: java.lang.Boolean = null
-      if (request.getParameter("seed") != null) seed = "true" == request.getParameter("seed")
+      val seed: java.lang.Boolean = if (request.getParameter("seed") != null) request.getParameter("seed") == "true" else null
       val jvmOptions: String = request.getParameter("jvmOptions")
 
       val dataFileDirs = request.getParameter("dataFileDirs")
@@ -192,6 +191,21 @@ object HttpServer {
       val cassandraDotYaml = Util.parseMap(request.getParameter("cassandraDotYaml"))
       val addressDotYaml = Util.parseMap(request.getParameter("addressDotYaml"))
       val cassandraJvmOptions = request.getParameter("cassandraJvmOptions")
+
+      var failoverDelay: Period = null
+      if (request.getParameter("failoverDelay") != null)
+        try { failoverDelay = new Period(request.getParameter("failoverDelay")) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid failoverDelay") }
+
+      var failoverMaxDelay: Period = null
+      if (request.getParameter("failoverMaxDelay") != null)
+        try { failoverMaxDelay = new Period(request.getParameter("failoverMaxDelay")) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid failoverMaxDelay") }
+
+      val failoverMaxTries: String = request.getParameter("failoverMaxTries")
+      if (failoverMaxTries != null && failoverMaxTries != "")
+        try { Integer.valueOf(failoverMaxTries) }
+        catch { case e: NumberFormatException => throw new HttpError(400, "invalid failoverMaxTries") }
 
       // collect nodes and check existence & state
       val nodes = new ListBuffer[Node]()
@@ -241,6 +255,10 @@ object HttpServer {
         }
 
         if (cassandraJvmOptions != null) node.cassandraJvmOptions = if (cassandraJvmOptions != "") cassandraJvmOptions else null
+
+        if (failoverDelay != null) node.failover.delay = failoverDelay
+        if (failoverMaxDelay != null) node.failover.maxDelay = failoverMaxDelay
+        if (failoverMaxTries != null) node.failover.maxTries = if (failoverMaxTries != "") Integer.valueOf(failoverMaxTries) else null
       }
 
       for (node <- nodes) {
@@ -304,6 +322,7 @@ object HttpServer {
       var disconnected = false
       try {
         for (node <- nodes) {
+          node.failover.resetFailures()
           if (start) node.state = Node.State.STARTING
           else Scheduler.stopNode(node.id, force)
         }
@@ -346,12 +365,17 @@ object HttpServer {
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid timeout") }
       }
 
+      def checkState(node: Node) = {
+        if (node.state == Node.State.IDLE) throw new HttpError(400, s"node ${node.id} is idle")
+        if (node.state == Node.State.RECONCILING) throw new HttpError(400, s"node ${node.id} is reconciling")
+      }
+
       // check&collect nodes
       val nodes = new ListBuffer[Node]
       for (id <- ids) {
         val node = Nodes.getNode(id)
         if (node == null) throw new HttpError(400, s"node $id not found")
-        if (node.state != Node.State.RUNNING) throw new HttpError(400, s"node $id should be running")
+        checkState(node)
         nodes += node
       }
 
@@ -359,8 +383,9 @@ object HttpServer {
         new JSONObject(Map("status" -> "timeout", "message" -> s"node ${node.id} timeout on $stage"))
 
       for (node <- nodes) {
-        // check node is running, because it's state could have changed
-        if (node.state != Node.State.RUNNING) throw new HttpError(400, s"node ${node.id} should be running")
+        // check node is running, starting, stopping, because it's state could have changed
+        checkState(node)
+        node.failover.resetFailures()
 
         // stop
         try {
@@ -403,7 +428,7 @@ object HttpServer {
       val clustersJson = Nodes.getClusters.map(_.toJson)
       response.getWriter.println("" + new JSONArray(clustersJson))
     }
-    
+
     private def handleAddUpdateCluster(add: Boolean, request: HttpServletRequest, response: HttpServletResponse) {
       val id: String = request.getParameter("cluster")
       if (id == null || id.isEmpty) throw new HttpError(400, "cluster required")
@@ -412,6 +437,10 @@ object HttpServer {
       if (bindAddress != null && bindAddress != "")
         try { new BindAddress(bindAddress) }
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid bindAddress") }
+
+      val jmxRemote: java.lang.Boolean = if (request.getParameter("jmxRemote") != null) request.getParameter("jmxRemote") == "true" else null
+      val jmxUser: String = request.getParameter("jmxUser")
+      val jmxPassword: String = request.getParameter("jmxPassword")
 
       val storagePort: String = request.getParameter("storagePort")
       if (storagePort != null && !storagePort.isEmpty)
@@ -447,7 +476,16 @@ object HttpServer {
       if (add)
         cluster = Nodes.addCluster(new Cluster(id))
 
+      val appliedJmxUser = if (jmxUser == null) cluster.jmxUser else if (jmxUser != "") jmxUser else null
+      val appliedJmxPassword = if (jmxPassword == null) cluster.jmxPassword else if (jmxPassword != "") jmxPassword else null
+      if (appliedJmxUser == null ^ appliedJmxPassword == null) throw new HttpError(400, "jmxUser & jmxPassword should be either both defined or none")
+
       if (bindAddress != null) cluster.bindAddress = if (bindAddress != "") new BindAddress(bindAddress) else null
+
+      if (jmxRemote != null) cluster.jmxRemote = jmxRemote
+      if (jmxUser != null) cluster.jmxUser = if (jmxUser != "") jmxUser else null
+      if (jmxPassword != null) cluster.jmxPassword = if (jmxPassword != "") jmxPassword else null
+
       if (storagePort != null) cluster.ports(Node.Port.STORAGE) = if (storagePort != "") new Range(storagePort) else null
       if (jmxPort != null) cluster.ports(Node.Port.JMX) = if (jmxPort != "") new Range(jmxPort) else null
       if (cqlPort != null) cluster.ports(Node.Port.CQL) = if (cqlPort != "") new Range(cqlPort) else null
