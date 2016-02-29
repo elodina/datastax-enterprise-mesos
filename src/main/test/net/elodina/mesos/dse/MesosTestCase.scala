@@ -57,7 +57,8 @@ class MesosTestCase {
 
     // Config.api = "http://localhost:" + "44555" //  Util.findAvailPort
     // Config.api = "http://localhost:" + Util.findAvailPort
-    Config.api = "http://127.0.0.1:" + Util.findAvailPort
+    // Config.api = "http://127.0.0.1:" + Util.findAvailPort
+    Config.api = "http://0.0.0.0:" + Util.findAvailPort
     Config.dse = new File("dse.tar.gz")
     Config.cassandra = new File("cassandra.tar.gz")
     Config.jar = new File("dse-mesos.jar")
