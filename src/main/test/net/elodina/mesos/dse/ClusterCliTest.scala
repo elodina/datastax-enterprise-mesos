@@ -59,24 +59,53 @@ class ClusterCliTest extends MesosTestCase with CliTestCase {
     }
   }
 
+  new Thread() {
+    setName("thread-dump-waiter")
+
+    override def run(): Unit = {
+      Thread.sleep(3 * 60 * 1000L)
+      java.lang.management.ManagementFactory.getThreadMXBean().dumpAllThreads(true, true).foreach(println)
+    }
+  }.start()
+
+  new Thread() {
+    val duration = 4 * 60 * 1000L
+    setName(s"system-exit-1-$duration")
+    override def run(): Unit = {
+      Thread.sleep(duration)
+      System.exit(1)
+    }
+  }.start()
+
   @Test
   def handleRemove() = {
+    import java.util.Date
+    println("LOG " + new Date() + " 1 IN handleRemove")
     val cluster = new Cluster("test-cluster")
     Nodes.addCluster(cluster)
+    println("LOG " + new Date() + " 2 IN handleRemove")
 
     assertCliError(Array("remove", ""), "cluster required")
     assertCliError(Array("remove", "nonexistent"), "cluster not found")
     assertCliError(Array("remove", "default"), "can't remove default cluster")
+    println("LOG " + new Date() + " 3 IN handleRemove")
 
     val node = new Node("0")
     node.cluster = cluster
     node.state = Node.State.RUNNING
+    println("LOG " + new Date() + " 4 IN handleRemove")
     Nodes.addNode(node)
+    println("LOG " + new Date() + " 5 IN handleRemove")
     Nodes.save()
+    println("LOG " + new Date() + " 6 IN handleRemove")
     assertCliError(Array("remove", cluster.id), "can't remove cluster with active nodes")
+    println("LOG " + new Date() + " 7 IN handleRemove")
 
     node.state = Node.State.IDLE
+    println("LOG " + new Date() + " 8 IN handleRemove")
     Nodes.save()
+    println("LOG " + new Date() + " 9 IN handleRemove")
     assertCliResponse(Array("remove", cluster.id), "cluster removed")
+    println("LOG " + new Date() + " 10 IN handleRemove")
   }
 }
