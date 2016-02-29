@@ -19,4 +19,10 @@ java:
 - 1.7
 - 1.8
 
-install: ./gradlew jar
+before_install:
+  - cat /etc/hosts
+  - sudo hostname "$(hostname | cut -c1-63)"
+  - sed -e "s/^\\(127\\.0\\.0\\.1.*\\)/\\1 $(hostname | cut -c1-63)/" /etc/hosts | sudo tee /etc/hosts
+  - cat /etc/hosts
+
+install: ./gradlew jar --info --debug --stacktrace
