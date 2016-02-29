@@ -478,7 +478,7 @@ trait CliTestCase{
   def cli: (Array[String]) => Unit
 
   def assertCliError(args: Array[String], msg: String) = {
-    val _ = try{ cli(args) }
+    val _ = try{ cli(args); fail(s"args ($args) has to produce error '$msg'}") }
     catch { case e: Cli.Error => assertTrue(e.getMessage.contains(msg)) }
   }
 

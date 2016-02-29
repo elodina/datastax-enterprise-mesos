@@ -86,9 +86,11 @@ class ClusterCliTest extends MesosTestCase with CliTestCase {
     println("LOG " + new Date() + " 2 IN handleRemove")
 
     assertCliError(Array("remove", ""), "cluster required")
+    println("LOG " + new Date() + " 3.1 IN handleRemove")
     assertCliError(Array("remove", "nonexistent"), "cluster not found")
+    println("LOG " + new Date() + " 3.2 IN handleRemove")
     assertCliError(Array("remove", "default"), "can't remove default cluster")
-    println("LOG " + new Date() + " 3 IN handleRemove")
+    println("LOG " + new Date() + " 3.3 IN handleRemove")
 
     val node = new Node("0")
     node.cluster = cluster
