@@ -1,0 +1,270 @@
+{
+    "AWSTemplateFormatVersion": "2010-09-09",
+    "Description": "Mesos networking template",
+    "Parameters": {
+        "KeyName": {
+            "Description": "SSH Key",
+            "Type": "String",
+            "Default": "reference"
+        },
+        "MesosMasterInstanceType": {
+            "Description": "Mesos Master EC2 instance type",
+            "Type": "String",
+            "Default": "t2.medium",
+            "AllowedValues": [
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "m1.medium",
+                "m1.large",
+                "m1.xlarge",
+                "m2.xlarge",
+                "m2.2xlarge",
+                "m3.medium",
+                "m3.large",
+                "m3.xlarge",
+                "m3.2xlarge",
+                "r3.large",
+                "r3.xlarge",
+                "r3.2xlarge",
+                "c1.medium",
+                "c1.xlarge",
+                "c3.xlarge",
+                "c3.2xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type."
+        },
+        "MesosSlaveInstanceType": {
+            "Description": "Mesos Slave EC2 instance type",
+            "Type": "String",
+            "Default": "t2.medium",
+            "AllowedValues": [
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "m1.medium",
+                "m1.large",
+                "m1.xlarge",
+                "m2.xlarge",
+                "m2.2xlarge",
+                "m3.medium",
+                "m3.large",
+                "m3.xlarge",
+                "m3.2xlarge",
+                "r3.large",
+                "r3.xlarge",
+                "r3.2xlarge",
+                "c1.medium",
+                "c1.xlarge",
+                "c3.xlarge",
+                "c3.2xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type."
+        },                
+        "TestingNodeInstanceType": {
+            "Description": "Testing Node EC2 instance type",
+            "Type": "String",
+            "Default": "t2.medium",
+            "AllowedValues": [
+                "t2.nano",
+                "t2.micro",
+                "t2.small",
+                "t2.medium",
+                "t2.large",
+                "m1.medium",
+                "m1.large",
+                "m1.xlarge",
+                "m2.xlarge",
+                "m2.2xlarge",
+                "m3.medium",
+                "m3.large",
+                "m3.xlarge",
+                "m3.2xlarge",
+                "r3.large",
+                "r3.xlarge",
+                "r3.2xlarge",
+                "c1.medium",
+                "c1.xlarge",
+                "c3.xlarge",
+                "c3.2xlarge"
+            ],
+            "ConstraintDescription": "must be a valid EC2 instance type."
+        },        
+        "NumberOfMesosMasterNodes": {
+            "Description": "Number of Mesos master nodes to be deployed",
+            "Type": "String",
+            "Default": "1"
+        },
+        "NumberOfMesosSlaveNodes": {
+            "Description": "Number of Mesos slave nodes to be deployed",
+            "Type": "String",
+            "Default": "2"
+        },
+        "Virtualization": {
+            "Description": "Virtualization type(hvm or paravirt) of image to be deployed",
+            "Type": "String",
+            "Default": "hvm"
+        },
+        "OS": {
+            "Description": "Ubuntu/CentOs",
+            "Type": "String",
+            "Default": "Centos7Ami",
+            "AllowedValues": [
+                "UbuntuTrustyAmi",
+                "Centos7Ami"
+            ]
+        }
+    },
+    "Mappings": {
+        "UbuntuTrustyAmi": {
+            "us-west-2": {
+                "hvm": "ami-37eab407",
+                "paravirt": "ami-a94e0c99"
+            }
+        },
+        "Centos7Ami": {
+            "us-west-2": {
+                "hvm": "ami-d2c924b2"
+            }
+        }
+    },
+    "Resources": {
+        "DefaultSecurityGroup": {
+            "Type": "AWS::EC2::SecurityGroup",
+            "Properties": {
+                "GroupDescription": "DefaultSecurityGroup",
+                "SecurityGroupIngress": [
+                    {
+                        "IpProtocol": "tcp",
+                        "FromPort": "1",
+                        "ToPort": "65535",
+                        "CidrIp": "0.0.0.0/0"
+                    }
+                ]
+            }
+        },      
+        "LaunchConfigMesosMaster": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "Properties": {
+                "InstanceType": {
+                    "Ref": "MesosMasterInstanceType"
+                },
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "ImageId": {
+                    "Fn::FindInMap": [
+                        {
+                            "Ref": "OS"
+                        },
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        {
+                            "Ref": "Virtualization"
+                        }
+                    ]
+                },
+                "SecurityGroups": [
+                    {
+                        "Ref": "DefaultSecurityGroup"
+                    }
+                ]
+            }
+        },
+        "LaunchConfigMesosSlave": {
+            "Type": "AWS::AutoScaling::LaunchConfiguration",
+            "Properties": {
+                "InstanceType": {
+                    "Ref": "MesosSlaveInstanceType"
+                },
+                "KeyName": {
+                    "Ref": "KeyName"
+                },
+                "ImageId": {
+                    "Fn::FindInMap": [
+                        {
+                            "Ref": "OS"
+                        },
+                        {
+                            "Ref": "AWS::Region"
+                        },
+                        {
+                            "Ref": "Virtualization"
+                        }
+                    ]
+                },
+                "SecurityGroups": [
+                    {
+                        "Ref": "DefaultSecurityGroup"
+                    }
+                ]
+            }
+        },        
+	"InstanceGroupMesosMaster": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+                "AvailabilityZones": [ "us-west-2a" ],
+                "LaunchConfigurationName": {
+                    "Ref": "LaunchConfigMesosMaster"
+                },
+                "DesiredCapacity": {
+                    "Ref": "NumberOfMesosMasterNodes"
+                },
+                "MinSize": {
+                    "Ref": "NumberOfMesosMasterNodes"
+                },
+                "MaxSize": {
+                    "Ref": "NumberOfMesosMasterNodes"
+                }
+            }
+        },
+	"InstanceGroupMesosSlave": {
+            "Type": "AWS::AutoScaling::AutoScalingGroup",
+            "Properties": {
+                "AvailabilityZones": [ "us-west-2a" ],
+                "LaunchConfigurationName": {
+                    "Ref": "LaunchConfigMesosSlave"
+                },
+                "DesiredCapacity": {
+                    "Ref": "NumberOfMesosSlaveNodes"
+                },
+                "MinSize": {
+                    "Ref": "NumberOfMesosSlaveNodes"
+                },
+                "MaxSize": {
+                    "Ref": "NumberOfMesosSlaveNodes"
+                }
+            }
+        },
+    "TestingNodeInstance" : {
+        "Type" : "AWS::EC2::Instance",
+        "Properties" : {
+        "AvailabilityZone": "us-west-2a",
+            "InstanceType" : { "Ref" : "TestingNodeInstanceType" },
+            "KeyName" : { "Ref" : "KeyName" },
+            "SecurityGroups" : [ { "Ref" : "DefaultSecurityGroup" } ],
+            "ImageId": {
+                "Fn::FindInMap": [
+                    {
+                        "Ref": "OS"
+                    },
+                    {
+                        "Ref": "AWS::Region"
+                    },
+                    {
+                        "Ref": "Virtualization"
+                    }
+                ]
+            },
+            "Tags" : [
+                {"Key" : "Name", "Value" : "testing_instance"}
+            ]
+        }
+        }
+    }
+}
