@@ -352,6 +352,17 @@ object HttpServer {
     }
 
     def handleRestartNode(request: HttpServletRequest, response: HttpServletResponse) {
+      val withProgress: Boolean = request.getParameter("progress") != null
+      if (withProgress) response.setHeader("Transfer-Encoding", "chunked")
+      request.getParameter("progress")
+
+      def progress(msg: String) = {
+        if (withProgress) {
+          response.getWriter().write(msg + "\n")
+          response.flushBuffer()
+        }
+      }
+
       val expr: String = request.getParameter("node")
       if (expr == null || expr.isEmpty) throw new HttpError(400, "node required")
 
@@ -384,8 +395,17 @@ object HttpServer {
 
       for (node <- nodes) {
         // check node is running, starting, stopping, because it's state could have changed
-        checkState(node)
+        try {
+          checkState(node)
+        } catch {
+          case e: HttpError if withProgress && node != nodes(0) =>
+            response.getWriter.println("" + new JSONObject(Map("status" -> "error", "message" -> e.getMessage)))
+            return
+        }
+
         node.failover.resetFailures()
+
+        progress(s"stopping node ${node.id} ... ")
 
         // stop
         try {
@@ -405,6 +425,9 @@ object HttpServer {
           return
         }
 
+        progress("done")
+        progress(s"starting node ${node.id} ... ")
+
         val startTimeout = Duration(Math.max(timeout.toMillis - (System.currentTimeMillis() - begin), 0L), "ms")
 
         // start
@@ -416,6 +439,8 @@ object HttpServer {
           response.getWriter.println("" + timeoutJson(node, "start"))
           return
         }
+
+        progress("done")
       }
 
       val nodesJson = nodes.map(_.toJson(expanded = true))

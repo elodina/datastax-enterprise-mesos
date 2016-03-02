@@ -70,7 +70,7 @@ object Cli {
     printLine("cluster          - cluster management commands", 1)
   }
 
-  private[dse] def sendRequest(uri: String, params: Map[String, String], urlPathPrefix: String = "api", parseJson: Boolean = true): Any = {
+  private[dse] def sendRequest(uri: String, params: Map[String, String], urlPathPrefix: String = "api", parseJson: Boolean = true, onChunk: String => Unit = null): Any = {
     def queryString(params: Map[String, String]): String = {
       var s = ""
       for ((name, value) <- params) {
@@ -85,7 +85,7 @@ object Cli {
     val url: String = Config.api + (if (Config.api.endsWith("/")) "" else "/") + urlPathPrefix + uri
 
     val connection: HttpURLConnection = new URL(url).openConnection().asInstanceOf[HttpURLConnection]
-    var response: String = null
+    var response: String = ""
     try {
       connection.setRequestMethod("POST")
       connection.setDoOutput(true)
@@ -95,8 +95,19 @@ object Cli {
       connection.setRequestProperty("Content-Length", "" + data.length)
       connection.getOutputStream.write(data)
 
-      try { response = Source.fromInputStream(connection.getInputStream).getLines().mkString}
-      catch {
+      try {
+        val source = Source.fromInputStream(connection.getInputStream)
+        if (onChunk == null) {
+          response = source.getLines().mkString
+        } else {
+          var accumulate = false
+          source.getLines().foreach { line =>
+            accumulate ||= line.startsWith("{")
+            if (accumulate) response += line
+            else onChunk(line)
+          }
+        }
+      } catch {
         case e: IOException =>
           if (connection.getResponseCode != 200) throw new IOException(connection.getResponseCode + " - " + connection.getResponseMessage)
           else throw e
@@ -111,8 +122,7 @@ object Cli {
       var json: Any = null
       try {
         json = Util.parseJson(response)
-      }
-      catch {
+      } catch {
         case e: IllegalArgumentException => throw new IOException(e)
       }
 
@@ -138,6 +148,8 @@ object Cli {
   }
 
   private[dse] def printLine(s: AnyRef = "", indent: Int = 0) = out.println("  " * indent + s)
+
+  private[dse] def print(s: AnyRef = "", indent: Int = 0) = out.print("  " * indent + s)
 
   private[dse] def handleGenericOptions(args: Array[String], help: Boolean = false): Array[String] = {
     val parser = new joptsimple.OptionParser()
