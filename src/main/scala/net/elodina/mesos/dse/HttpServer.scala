@@ -354,7 +354,6 @@ object HttpServer {
     def handleRestartNode(request: HttpServletRequest, response: HttpServletResponse) {
       val withProgress: Boolean = request.getParameter("progress") != null
       if (withProgress) response.setHeader("Transfer-Encoding", "chunked")
-      request.getParameter("progress")
 
       def progress(msg: String) = {
         if (withProgress) {
