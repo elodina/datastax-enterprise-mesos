@@ -357,7 +357,7 @@ object HttpServer {
 
       def progress(msg: String) = {
         if (withProgress) {
-          response.getWriter().write(msg + "\n")
+          response.getWriter.write(msg + "\n")
           response.flushBuffer()
         }
       }
@@ -397,7 +397,7 @@ object HttpServer {
         try {
           checkState(node)
         } catch {
-          // with progress enabled headers are send when processing first node, thus can't send bad request
+          // with progress enabled headers are sent when processing first node, thus can't send bad request
           case e: HttpError if withProgress && node != nodes(0) =>
             response.getWriter.println("" + new JSONObject(Map("status" -> "error", "message" -> e.getMessage)))
             return
