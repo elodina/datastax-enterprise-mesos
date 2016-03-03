@@ -234,7 +234,8 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
     }
 
     var output = outputToString(cli("restart 0 --timeout 1s".split(" ")))
-    assertEquals("node restarted:\n" + outputToString { NodeCli.printNode(node0, 1) } + "\n", output)
+    assertTrue(output.contains("node restarted:"))
+    assertTrue(output.contains("id: 0"))
 
     // two nodes
     val node1 = Nodes.addNode(new Node("1"))
@@ -354,15 +355,57 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
     }
 
     output = outputToString(cli("restart 0..1 --timeout 1s".split(" ")))
-    assertEquals("nodes restarted:\n" +
-      outputToString { NodeCli.printNode(node0, 1) } +
-      "\n" +
-      outputToString { NodeCli.printNode(node1, 1) } +
-      "\n", output)
+    assertTrue(output.contains("nodes restarted:"))
+    assertTrue(output.contains("id: 0"))
+    assertTrue(output.contains("id: 1"))
 
     // scheduler disconnected from the master
     Scheduler.disconnected(schedulerDriver)
     assertCliErrorContains("restart 0..1 --timeout 1s".split(" "), "scheduler disconnected from the master")
     assertEquals(RUNNING, node0.state)
+  }
+
+  @Test
+  def handleRestart_progress: Unit = {
+    val node0 = Nodes.addNode(new Node("0"))
+
+    node0.state = Node.State.STARTING
+    started(node0, immediately = true)
+
+    val baos = new java.io.ByteArrayOutputStream()
+    val out = new java.io.PrintStream(baos, false)
+
+    def capture(cmd: => Unit) = {
+      out.flush()
+      baos.reset()
+      Cli.out = out
+      try {
+        cmd
+      } finally {
+        Cli.out = System.out
+      }
+      baos.toString
+    }
+
+    def captured = {
+      out.flush()
+      baos.toString
+    }
+
+    delay("450ms") {
+      assertTrue(captured == "stopping node 0 ... ")
+
+      stopped(node0)
+    }
+
+    delay("550ms") {
+      assertTrue(captured == "stopping node 0 ... done\nstarting node 0 ... ")
+
+      started(node0)
+    }
+
+    capture { cli("restart 0 --timeout 1s".split(" ")) }
+
+    assertTrue(captured.startsWith("stopping node 0 ... done\nstarting node 0 ... done\n"))
   }
 }

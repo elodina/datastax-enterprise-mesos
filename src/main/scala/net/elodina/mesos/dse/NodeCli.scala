@@ -297,16 +297,22 @@ object NodeCli {
 
     val timeout = options.valueOf("timeout").asInstanceOf[String]
     val params = new mutable.HashMap[String, String]()
+    params("progress") = ""
     params("node") = expr
     if (timeout != null) params("timeout") = timeout
 
+    def onProgress(msg: String): Unit = {
+      if (msg == "done") printLine(msg)
+      else Cli.print(msg)
+    }
+
     var json: Map[String, Any] = null
-    try { json = Cli.sendRequest(s"/node/restart", params.toMap).asInstanceOf[Map[String, Any]] }
+    try { json = Cli.sendRequest(s"/node/restart", params.toMap, onChunk = onProgress).asInstanceOf[Map[String, Any]] }
     catch { case e: IOException => throw new Error("" + e) }
 
     val status = json("status")
 
-    if (status == "timeout" || status == "disconnected") throw new Error(json("message").asInstanceOf[String])
+    if (status == "timeout" || status == "disconnected" || status == "error") throw new Error(json("message").asInstanceOf[String])
 
     val nodes = json("nodes").asInstanceOf[List[Any]]
       .map(n => new Node(n.asInstanceOf[Map[String, Any]], expanded = true))

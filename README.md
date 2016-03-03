@@ -275,6 +275,10 @@ Nodes will be restarted one by one, scheduler stops node then starts it, same ap
 
 ```
 # ./dse-mesos.sh node restart 0..1 --timeout 8min
+stopping node 0 ... done
+starting node 0 ... done
+stopping node 1 ... done
+starting node 1 ... done
 nodes restarted:
   id: 0
   state: running
@@ -293,7 +297,10 @@ Some times node could timeout on start or stop, in such case restart halts with 
 
 ```
 ./dse-mesos.sh node restart 0..1 --timeout 8min
-Error: node 1 timeout on start
+stopping node 0 ... done
+starting node 0 ... done
+stopping node 1 ... done
+starting node 1 ... Error: node 1 timeout on start
 ```
 
 Memory configuration
