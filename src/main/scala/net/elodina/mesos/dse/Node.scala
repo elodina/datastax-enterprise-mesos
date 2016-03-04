@@ -19,6 +19,7 @@
 package net.elodina.mesos.dse
 
 import com.google.protobuf.ByteString
+import org.apache.mesos.Protos.NetworkInfo.IPAddress
 import org.apache.mesos.Protos._
 
 import scala.collection.JavaConversions._
@@ -182,8 +183,8 @@ class Node extends Constrained {
     port
   }
 
-  def registerStart(hostname: String): Unit = {
-    stickiness.registerStart(hostname)
+  def registerStart(hostname: String, ipAddress: String): Unit = {
+    stickiness.registerStart(hostname, ipAddress)
     failover.resetFailures()
   }
 
@@ -221,7 +222,15 @@ class Node extends Constrained {
       java = "$(find jre* -maxdepth 0 -type d)/bin/java"
     }
 
-    var cmd: String = s"$java -cp ${Config.jar.getName}"
+    var cmd: String = ""
+    if (cluster.ipPerContainerEnabled) {
+      // after container gets ip address from calico it has only one network interface (192.168.* by default)
+      // we need default 127.0.0.1 loopback interface, otherwise DSE JMX server won't be able to bind to 127.0.0.1 and start
+
+      // make sure sudo doesn't require tty - otherwise adding loopback will fail
+      cmd += "sudo ifconfig lo inet 127.0.0.1 netmask 255.0.0.0 up ; ifconfig ; "
+    }
+    cmd += s"$java -cp ${Config.jar.getName}"
     if (jvmOptions != null) cmd += " " + jvmOptions
     if (Config.debug) cmd += " -Ddebug"
     cmd += " net.elodina.mesos.dse.Executor"
@@ -230,11 +239,27 @@ class Node extends Constrained {
       .addUris(CommandInfo.URI.newBuilder().setValue(s"${Config.api}/jar/" + Config.jar.getName).setExtract(false))
       .setValue(cmd)
 
-    ExecutorInfo.newBuilder()
-      .setExecutorId(ExecutorID.newBuilder().setValue(runtime.executorId))
-      .setCommand(commandBuilder)
-      .setName(s"cassandra-$id")
-      .build
+    val executorInfoBuilder =
+      ExecutorInfo.newBuilder()
+        .setExecutorId(ExecutorID.newBuilder().setValue(runtime.executorId))
+        .setCommand(commandBuilder)
+        .setName(s"cassandra-$id")
+
+    if (cluster.ipPerContainerEnabled) {
+      if (stickiness.ipAddress != null) {
+        val networkInfo = NetworkInfo.newBuilder().addIpAddresses(
+          IPAddress.newBuilder().setProtocol(NetworkInfo.Protocol.IPv4).setIpAddress(stickiness.ipAddress))
+
+        executorInfoBuilder.setContainer(ContainerInfo.newBuilder().addNetworkInfos(networkInfo).setType(ContainerInfo.Type.MESOS))
+      } else {
+        val networkInfo = NetworkInfo.newBuilder().addIpAddresses(
+          IPAddress.newBuilder().setProtocol(NetworkInfo.Protocol.IPv4))
+
+        executorInfoBuilder.setContainer(ContainerInfo.newBuilder().addNetworkInfos(networkInfo).setType(ContainerInfo.Type.MESOS))
+      }
+    }
+
+    executorInfoBuilder.build()
   }
 
   def waitFor(state: Node.State.Value, timeout: Duration): Boolean = {
@@ -558,6 +583,8 @@ object Node {
   class Stickiness(_period: Period = new Period("30m")) {
     var period: Period = _period
     @volatile var hostname: String = null
+    // "sticky" ip address that the node gets as part of ip per container support when the task is started
+    @volatile var ipAddress: String = null
     @volatile var stopTime: Date = null
 
     def this(json: Map[String, Any]) {
@@ -567,9 +594,10 @@ object Node {
 
     def expires: Date = if (stopTime != null) new Date(stopTime.getTime + period.ms) else null
 
-    def registerStart(hostname: String): Unit = {
+    def registerStart(hostname: String, ipAddress: String): Unit = {
       this.hostname = hostname
-      stopTime = null
+      this.ipAddress = ipAddress
+      this.stopTime = null
     }
 
     def registerStop(now: Date = new Date()): Unit = {

@@ -62,7 +62,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
 
       credsBuilder = Credential.newBuilder()
         .setPrincipal(Config.principal)
-        .setSecret(ByteString.copyFromUtf8(Config.secret))
+        .setSecret(Config.secret)
     }
 
     val driver = if (credsBuilder == null) new MesosSchedulerDriver(this, frameworkBuilder.build, Config.master)
@@ -222,7 +222,22 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
     if (node.cassandraJvmOptions != null)
       node.cassandraJvmOptions = node.cassandraJvmOptions.split(" ").filterNot(s => s.contains("-Dcassandra.replace_address")).mkString(" ")
 
-    node.registerStart(node.runtime.hostname)
+
+    if (node.cluster.ipPerContainerEnabled) {
+      // if a brand new node is started ask an arbitrary ip for it, otherwise set an ip which it had assigned during the first start
+      val networkInfos = status.getContainerStatus.getNetworkInfosList
+
+      networkInfos.headOption.flatMap(_.getIpAddressesList.headOption) match {
+        case Some(ipAddress) =>
+          node.registerStart(node.runtime.hostname, ipAddress.getIpAddress)
+        case None =>
+          logger.error(s"Task ${status.getTaskId.getValue} status doesn't contain network infos or ip addresses, killing the task")
+          driver.killTask(TaskID.newBuilder().setValue(status.getTaskId.getValue).build())
+      }
+    } else {
+      node.registerStart(node.runtime.hostname, null)
+    }
+
   }
 
   private[dse] def onTaskStopped(node: Node, status: TaskStatus, now: Date = new Date()) {

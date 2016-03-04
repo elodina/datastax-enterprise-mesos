@@ -15,6 +15,8 @@ class Cluster {
   var jmxUser: String = null
   var jmxPassword: String = null
 
+  var ipPerContainerEnabled: Boolean = false
+
   resetPorts
 
   def this(_id: String) {

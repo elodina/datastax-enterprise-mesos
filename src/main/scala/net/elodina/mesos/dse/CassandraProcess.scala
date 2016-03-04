@@ -76,8 +76,8 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
       try {
         val authenticate = node.cluster.jmxUser != null
         val probe =
-          if (!authenticate) new NodeProbe("localhost", node.runtime.reservation.ports(Node.Port.JMX))
-          else new NodeProbe("localhost", node.runtime.reservation.ports(Node.Port.JMX), node.cluster.jmxUser, node.cluster.jmxPassword)
+          if (!authenticate) new NodeProbe("127.0.0.1", node.runtime.reservation.ports(Node.Port.JMX))
+          else new NodeProbe("127.0.0.1", node.runtime.reservation.ports(Node.Port.JMX), node.cluster.jmxUser, node.cluster.jmxPassword)
 
         val initialized = probe.isInitialized
         val joined = probe.isJoined

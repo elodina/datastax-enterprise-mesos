@@ -584,6 +584,9 @@ object Util {
       if (status.getData.size > 0)
         s += " data: " + status.getData.toStringUtf8
 
+      if (status.getContainerStatus.getNetworkInfosCount > 0)
+        s += " networkInfos: [" + networkInfos(status.getContainerStatus.getNetworkInfosList) + "]"
+
       s
     }
 
@@ -592,6 +595,13 @@ object Util {
     def suffix(s: String, maxLen: Int): String = {
       if (s.length <= maxLen) return s
       s.substring(s.length - maxLen)
+    }
+
+    def networkInfos(networkInfos: Seq[NetworkInfo]): String = {
+      def groupsAndIps(ni: NetworkInfo): String =
+        "(groups: %s, ips: %s)".format(ni.getGroupsList, ni.getIpAddressesList.map(ip => ip.getIpAddress))
+
+      networkInfos.map(groupsAndIps).mkString(" , ")
     }
   }
 
