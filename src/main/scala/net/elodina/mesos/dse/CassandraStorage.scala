@@ -46,7 +46,9 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
   private def bindStickiness(boundStatement: BoundStatement, node: Node):BoundStatement = {
     if (node.stickiness != null)
       boundStatement.setString(NodeStickinessPeriod, stringOrNull(node.stickiness.period))
-        .setDate(NodeStickinessStopTime, node.stickiness.stopTime).setString(NodeStickinessHostname, node.stickiness.hostname)
+        .setDate(NodeStickinessStopTime, node.stickiness.stopTime)
+        .setString(NodeStickinessHostname, node.stickiness.hostname)
+        .setString(NodeStickinessIpAddress, node.stickiness.ipAddress)
     else
       boundStatement
   }
@@ -87,6 +89,19 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
     boundStatement
   }
 
+  private def bindCluster(cluster: Cluster): BoundStatement = {
+    // empty string - a workaround since C* doesn't support null values in maps
+    val clusterPorts = cluster.ports.map { case (v, r) => v.toString -> Option(r).map(_.toString).getOrElse("") }.asJava
+
+    // size + 1 for USING TIMESTAMP clause
+    InsertionPs.bind(List.fill(CassandraStorage.Fields.size + 1)(null): _*)
+      .setString(Namespace, Nodes.namespace).setString(FrameworkId, Nodes.frameworkId).setString(ClusterId, cluster.id)
+      .setString(ClusterBindAddress, stringOrNull(cluster.bindAddress)).setMap[String, String](ClusterPorts, clusterPorts)
+      .setBool(ClusterJmxRemote, cluster.jmxRemote).setString(ClusterJmxUser, cluster.jmxUser).setString(ClusterJmxPassword, cluster.jmxPassword)
+      .setBool(ClusterIpPerContainerEnabled, cluster.ipPerContainerEnabled)
+      .setLong(UsingTimestamp, tg.next())
+  }
+
   override def save(): Unit = {
     // go with default - atomic batches
     val batch = new BatchStatement()
@@ -99,32 +114,17 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
     for (cluster <- Nodes.clusters){
 
       if (cluster.getNodes.isEmpty) {
-        val clusterPorts = cluster.ports.map{case (v, r) => v.toString -> Option(r).map(_.toString).getOrElse("")}.asJava
-        val boundStatement =
-          // size + 1 for USING TIMESTAMP clause
-          InsertionPs.bind(List.fill(CassandraStorage.Fields.size + 1)(null) :_*)
-          .setString(Namespace, Nodes.namespace).setString(FrameworkId, Nodes.frameworkId).setString(ClusterId, cluster.id)
-          .setString(ClusterBindAddress, stringOrNull(cluster.bindAddress)).setMap[String, String](ClusterPorts, clusterPorts)
-          .setBool(ClusterJmxRemote, cluster.jmxRemote).setString(ClusterJmxUser, cluster.jmxUser).setString(ClusterJmxPassword, cluster.jmxPassword)
+        val boundStatement = bindCluster(cluster)
           // nr_of_nodes set to 0, this will indicate node_id has a stub value, just to avoid null (as node_id is part of PK)
           .setInt(NrOfNodes, 0).setString(NodeId, "undefined")
-          .setLong(UsingTimestamp, tg.next())
 
         batch.add(boundStatement)
       } else {
-        // a workaround since C* doesn't support null values in maps
-        val clusterPorts = cluster.ports.map { case (v, r) => v.toString -> Option(r).map(_.toString).getOrElse("") }.asJava
-
         for (node <- cluster.getNodes) {
-          val boundStatement =
-            InsertionPs.bind(List.fill(CassandraStorage.Fields.size + 1)(null): _*)
-              .setString(Namespace, Nodes.namespace).setString(FrameworkId, Nodes.frameworkId)
-              // cluster
-              .setString(ClusterId, cluster.id).setString(ClusterBindAddress, stringOrNull(cluster.bindAddress)).setMap(ClusterPorts, clusterPorts)
-              .setBool(ClusterJmxRemote, cluster.jmxRemote).setString(ClusterJmxUser, cluster.jmxUser).setString(ClusterJmxPassword, cluster.jmxPassword)
-              .setInt(NrOfNodes, cluster.getNodes.size)
-              // node
-              .setString(NodeId, node.id).setString(NodeState, stringOrNull(node.state))
+          val boundStatement = bindCluster(cluster)
+            .setInt(NrOfNodes, cluster.getNodes.size)
+            // node
+            .setString(NodeId, node.id).setString(NodeState, stringOrNull(node.state))
 
           bindStickiness(boundStatement, node)
           bindRuntime(boundStatement, node)
@@ -170,6 +170,7 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
     cluster.jmxRemote = row.getBool(ClusterJmxRemote)
     cluster.jmxUser = row.getString(ClusterJmxUser)
     cluster.jmxPassword = row.getString(ClusterJmxPassword)
+    cluster.ipPerContainerEnabled = row.getBool(ClusterIpPerContainerEnabled)
 
     cluster
   }
@@ -198,6 +199,7 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
     val stickiness = new Stickiness(new Period(row.getString(NodeStickinessPeriod)))
     stickiness.stopTime = row.getDate(NodeStickinessStopTime)
     stickiness.hostname = row.getString(NodeStickinessHostname)
+    stickiness.ipAddress = row.getString(NodeStickinessIpAddress)
 
     stickiness
   }
@@ -312,12 +314,14 @@ object CassandraStorage{
   val ClusterJmxRemote = "cluster_jmx_remote"
   val ClusterJmxUser = "cluster_jmx_user"
   val ClusterJmxPassword = "cluster_jmx_password"
+  val ClusterIpPerContainerEnabled = "cluster_ip_per_container_enabled"
   val NrOfNodes = "nr_of_nodes"
   val NodeId = "node_id"
   val NodeState = "node_state"
   val NodeStickinessPeriod = "node_stickiness_period"
   val NodeStickinessStopTime = "node_stickiness_stopTime"
   val NodeStickinessHostname = "node_stickiness_hostname"
+  val NodeStickinessIpAddress = "node_stickiness_ip_address"
   val NodeRuntimeTaskId = "node_runtime_task_id"
   val NodeRuntimeExecutorId = "node_runtime_executor_id"
   val NodeRuntimeSlaveId = "node_runtime_slave_id"
@@ -362,12 +366,14 @@ object CassandraStorage{
     ClusterJmxRemote,
     ClusterJmxUser,
     ClusterJmxPassword,
+    ClusterIpPerContainerEnabled,
     NrOfNodes,
     NodeId,
     NodeState,
     NodeStickinessPeriod,
     NodeStickinessStopTime,
     NodeStickinessHostname,
+    NodeStickinessIpAddress,
     NodeRuntimeTaskId,
     NodeRuntimeExecutorId,
     NodeRuntimeSlaveId,

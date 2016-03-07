@@ -61,6 +61,7 @@ class Cluster {
     if (json.contains("jmxRemote")) jmxRemote = json("jmxRemote").asInstanceOf[Boolean]
     if (json.contains("jmxUser")) jmxUser = json("jmxUser").asInstanceOf[String]
     if (json.contains("jmxPassword")) jmxPassword = json("jmxPassword").asInstanceOf[String]
+    if (json.contains("ipPerContainerEnabled")) ipPerContainerEnabled = json("ipPerContainerEnabled").asInstanceOf[Boolean]
   }
 
   def toJson: JSONObject = {
@@ -77,6 +78,7 @@ class Cluster {
     json("jmxRemote") = jmxRemote
     if (jmxUser != null) json("jmxUser") = jmxUser
     if (jmxPassword != null) json("jmxPassword") = jmxPassword
+    json("ipPerContainerEnabled") = ipPerContainerEnabled
 
     new JSONObject(json.toMap)
   }

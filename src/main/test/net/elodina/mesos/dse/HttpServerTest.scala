@@ -321,7 +321,7 @@ class HttpServerTest extends MesosTestCase {
   def cluster_list() = {
     val response = getJsonResponse("/cluster/list", Map())
 
-    assertEquals(List(Map("id" -> "default", "ports" -> Map(), "jmxRemote" -> false)),
+    assertEquals(List(Map("id" -> "default", "ports" -> Map(), "jmxRemote" -> false, "ipPerContainerEnabled" -> false)),
       response.asInstanceOf[List[Map[String, Any]]])
   }
 
@@ -339,7 +339,7 @@ class HttpServerTest extends MesosTestCase {
 
     {
       val response = addCluster(Map("cluster" -> clusterId))
-      assertEquals(Map("id" -> clusterId, "ports" -> Map(), "jmxRemote" -> false), response)
+      assertEquals(Map("id" -> clusterId, "ports" -> Map(), "jmxRemote" -> false, "ipPerContainerEnabled" -> false), response)
     }
 
     // bind address
@@ -354,7 +354,7 @@ class HttpServerTest extends MesosTestCase {
     val correctBindAddress = "0.0.0.0"
     removeCluster(clusterId)
     assertEquals(
-      Map("id" -> clusterId, "bindAddress" -> correctBindAddress, "ports" -> Map(), "jmxRemote" -> false),
+      Map("id" -> clusterId, "bindAddress" -> correctBindAddress, "ports" -> Map(), "jmxRemote" -> false, "ipPerContainerEnabled" -> false),
       addCluster(Map("cluster" -> clusterId, "bindAddress" -> correctBindAddress)))
 
     // map of tested ports, format:
@@ -373,7 +373,7 @@ class HttpServerTest extends MesosTestCase {
         addCluster(Map(portName -> wrong, "cluster" -> clusterId)), 400, s"invalid $portName")
 
       assertEquals(
-        Map("id" -> clusterId, "ports" -> Map(propName -> correct), "jmxRemote" -> false),
+        Map("id" -> clusterId, "ports" -> Map(propName -> correct), "jmxRemote" -> false, "ipPerContainerEnabled" -> false),
         addCluster(Map(portName -> correct, "cluster" -> clusterId)))
     }
 

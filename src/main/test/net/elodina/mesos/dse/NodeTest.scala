@@ -38,7 +38,7 @@ class NodeTest extends MesosTestCase {
     assertEquals(null, node.matches(offer(hostname = host0, resources = resources), new Date(0)))
     assertEquals(null, node.matches(offer(hostname = host1, resources = resources), new Date(0)))
 
-    node.registerStart(host0)
+    node.registerStart(host0, null)
     node.registerStop(new Date(0))
 
     assertEquals(null, node.matches(offer(hostname = host0, resources = resources), new Date(0)))
@@ -326,7 +326,7 @@ class NodeTest extends MesosTestCase {
     assertTrue(stickiness.allowsHostname("host0", new Date(0)))
     assertTrue(stickiness.allowsHostname("host1", new Date(0)))
 
-    stickiness.registerStart("host0")
+    stickiness.registerStart("host0", null)
     stickiness.registerStop(new Date(0))
     assertTrue(stickiness.allowsHostname("host0", new Date(0)))
     assertFalse(stickiness.allowsHostname("host1", new Date(0)))
@@ -338,16 +338,27 @@ class NodeTest extends MesosTestCase {
     val stickiness = new Stickiness()
     assertNull(stickiness.hostname)
     assertNull(stickiness.stopTime)
+    assertNull(stickiness.ipAddress)
 
-    stickiness.registerStart("host")
+    stickiness.registerStart("host", "192.168.0.5")
     assertEquals("host", stickiness.hostname)
+    assertEquals("192.168.0.5", stickiness.ipAddress)
     assertNull(stickiness.stopTime)
 
     stickiness.registerStop(new Date(0))
     assertEquals("host", stickiness.hostname)
     assertEquals(new Date(0), stickiness.stopTime)
 
-    stickiness.registerStart("host1")
+    stickiness.registerStart("host", null)
+    assertEquals("host", stickiness.hostname)
+    assertNull("192.168.0.5", stickiness.ipAddress)
+    assertNull(stickiness.stopTime)
+
+    stickiness.registerStop(new Date(0))
+    assertEquals("host", stickiness.hostname)
+    assertEquals(new Date(0), stickiness.stopTime)
+
+    stickiness.registerStart("host1", null)
     assertEquals("host1", stickiness.hostname)
     assertNull(stickiness.stopTime)
   }
@@ -355,7 +366,7 @@ class NodeTest extends MesosTestCase {
   @Test
   def Stickiness_toJson_fromJson {
     val stickiness = new Stickiness()
-    stickiness.registerStart("localhost")
+    stickiness.registerStart("localhost", null)
     stickiness.registerStop(new Date(0))
 
     val read: Stickiness = new Stickiness()

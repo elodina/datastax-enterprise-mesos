@@ -248,7 +248,7 @@ class Node extends Constrained {
     if (cluster.ipPerContainerEnabled) {
       if (stickiness.ipAddress != null) {
         val networkInfo = NetworkInfo.newBuilder().addIpAddresses(
-          IPAddress.newBuilder().setProtocol(NetworkInfo.Protocol.IPv4).setIpAddress(stickiness.ipAddress))
+          IPAddress.newBuilder().setIpAddress(stickiness.ipAddress))
 
         executorInfoBuilder.setContainer(ContainerInfo.newBuilder().addNetworkInfos(networkInfo).setType(ContainerInfo.Type.MESOS))
       } else {
@@ -614,6 +614,7 @@ object Node {
       period = new Period(json("period").asInstanceOf[String])
       if (json.contains("stopTime")) stopTime = dateTimeFormat.parse(json("stopTime").asInstanceOf[String])
       if (json.contains("hostname")) hostname = json("hostname").asInstanceOf[String]
+      if (json.contains("ipAddress")) ipAddress = json("ipAddress").asInstanceOf[String]
     }
 
     def toJson: JSONObject = {
@@ -622,6 +623,7 @@ object Node {
       obj("period") = "" + period
       if (stopTime != null) obj("stopTime") = dateTimeFormat.format(stopTime)
       if (hostname != null) obj("hostname") = hostname
+      if (ipAddress != null) obj("ipAddress") = ipAddress
 
       new JSONObject(obj.toMap)
     }

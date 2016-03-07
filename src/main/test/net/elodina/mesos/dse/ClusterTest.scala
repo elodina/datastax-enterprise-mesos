@@ -59,6 +59,7 @@ class ClusterTest extends MesosTestCase {
     cluster.jmxRemote = true
     cluster.jmxUser = "user"
     cluster.jmxPassword = "password"
+    cluster.ipPerContainerEnabled = true
 
     read = new Cluster(Util.parseJsonAsMap("" + cluster.toJson))
     assertClusterEquals(cluster, read)
