@@ -83,6 +83,8 @@ object ClusterCli {
     parser.accepts("jmx-user", "JMX user. Default - none.").withRequiredArg().ofType(classOf[String])
     parser.accepts("jmx-password", "JMX password. Default - none.").withRequiredArg().ofType(classOf[String])
 
+    parser.accepts("ip-per-container-enabled", "All nodes will be started within mesos container and have IP assigned.").withRequiredArg().ofType(classOf[java.lang.Boolean])
+
     parser.accepts("storage-port", "Inter-node port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("jmx-port", "JMX monitoring port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("cql-port", "CQL port.").withRequiredArg().ofType(classOf[String])
@@ -113,6 +115,8 @@ object ClusterCli {
     val jmxUser = options.valueOf("jmx-user").asInstanceOf[String]
     val jmxPassword = options.valueOf("jmx-password").asInstanceOf[String]
 
+    val ipPerContainerEnabled = options.valueOf("ip-per-container-enabled").asInstanceOf[java.lang.Boolean]
+
     val storagePort = options.valueOf("storage-port").asInstanceOf[String]
     val jmxPort = options.valueOf("jmx-port").asInstanceOf[String]
     val cqlPort = options.valueOf("cql-port").asInstanceOf[String]
@@ -126,6 +130,8 @@ object ClusterCli {
     if (jmxRemote != null) params("jmxRemote") = "" + jmxRemote
     if (jmxUser != null) params("jmxUser") = jmxUser
     if (jmxPassword != null) params("jmxPassword") = jmxPassword
+
+    if (ipPerContainerEnabled != null) params("ipPerContainerEnabled") = "" + ipPerContainerEnabled
 
     if (storagePort != null) params("storagePort") = storagePort
     if (jmxPort != null) params("jmxPort") = jmxPort
@@ -171,6 +177,7 @@ object ClusterCli {
     printLine("id: " + cluster.id, indent)
     printLine("bind-address: " + (if (cluster.bindAddress != null) cluster.bindAddress else "<auto>"), indent)
     printLine(s"jmx: ${jmxSettings(cluster)}", indent)
+    printLine(s"ip per container: ${cluster.ipPerContainerEnabled}", indent)
     printLine(s"ports: ${clusterPorts(cluster)}", indent)
   }
 

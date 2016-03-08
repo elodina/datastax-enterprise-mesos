@@ -419,6 +419,7 @@ object NodeCli {
   private def nodeStickiness(node: Node): String = {
     var s = "period:" + node.stickiness.period
     if (node.stickiness.hostname != null) s += ", hostname:" + node.stickiness.hostname
+    if (node.stickiness.ipAddress != null) s += ", ip:" + node.stickiness.ipAddress
     if (node.stickiness.stopTime != null) s += ", expires:" + Util.Str.dateTime(node.stickiness.expires)
     s
   }

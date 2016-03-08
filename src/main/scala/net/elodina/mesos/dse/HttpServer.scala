@@ -467,6 +467,8 @@ object HttpServer {
       val jmxUser: String = request.getParameter("jmxUser")
       val jmxPassword: String = request.getParameter("jmxPassword")
 
+      val ipPerContainerEnabled: java.lang.Boolean = if (request.getParameter("ipPerContainerEnabled") != null) request.getParameter("ipPerContainerEnabled") == "true" else null
+
       val storagePort: String = request.getParameter("storagePort")
       if (storagePort != null && !storagePort.isEmpty)
         try { new Range(storagePort) }
@@ -510,6 +512,8 @@ object HttpServer {
       if (jmxRemote != null) cluster.jmxRemote = jmxRemote
       if (jmxUser != null) cluster.jmxUser = if (jmxUser != "") jmxUser else null
       if (jmxPassword != null) cluster.jmxPassword = if (jmxPassword != "") jmxPassword else null
+
+      if (ipPerContainerEnabled != null) cluster.ipPerContainerEnabled = ipPerContainerEnabled
 
       if (storagePort != null) cluster.ports(Node.Port.STORAGE) = if (storagePort != "") new Range(storagePort) else null
       if (jmxPort != null) cluster.ports(Node.Port.JMX) = if (jmxPort != "") new Range(jmxPort) else null
