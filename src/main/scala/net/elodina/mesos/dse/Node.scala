@@ -228,7 +228,7 @@ class Node extends Constrained {
       // we need default 127.0.0.1 loopback interface, otherwise DSE JMX server won't be able to bind to 127.0.0.1 and start
 
       // make sure sudo doesn't require tty - otherwise adding loopback will fail
-      cmd += "sudo ifconfig lo inet 127.0.0.1 netmask 255.0.0.0 up ; ifconfig ; "
+      cmd += "sudo ifconfig lo inet 127.0.0.1 netmask 255.0.0.0 up ; ifconfig ;"
     }
     cmd += s"$java -cp ${Config.jar.getName}"
     if (jvmOptions != null) cmd += " " + jvmOptions
@@ -248,12 +248,12 @@ class Node extends Constrained {
     if (cluster.ipPerContainerEnabled) {
       if (stickiness.ipAddress != null) {
         val networkInfo = NetworkInfo.newBuilder().addIpAddresses(
-          IPAddress.newBuilder().setIpAddress(stickiness.ipAddress))
+          IPAddress.newBuilder().setIpAddress(stickiness.ipAddress)).addGroups(cluster.id)
 
         executorInfoBuilder.setContainer(ContainerInfo.newBuilder().addNetworkInfos(networkInfo).setType(ContainerInfo.Type.MESOS))
       } else {
         val networkInfo = NetworkInfo.newBuilder().addIpAddresses(
-          IPAddress.newBuilder().setProtocol(NetworkInfo.Protocol.IPv4))
+          IPAddress.newBuilder().setProtocol(NetworkInfo.Protocol.IPv4)).addGroups(cluster.id)
 
         executorInfoBuilder.setContainer(ContainerInfo.newBuilder().addNetworkInfos(networkInfo).setType(ContainerInfo.Type.MESOS))
       }
