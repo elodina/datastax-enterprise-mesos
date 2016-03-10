@@ -15,6 +15,7 @@ DataStax Enterprise Mesos Framework
 * [Rolling restart](#rolling-restart)
 * [Memory configuration](#memory-configuration)
 * [Failed node recovery](#failed-node-recovery)
+* [Ip per container support](#ip-per-container-support)
 
 [Navigating the CLI](#navigating-the-cli)
 * [Requesting help](#requesting-help)
@@ -339,6 +340,32 @@ The following failover settings exists:
 --failover-max-delay - max failover delay (option value is required)
 --failover-max-tries - max failover tries to deactivate broker (to reset to unbound pass --failover-max-tries "")
 ```
+
+Ip per container support
+-----------------------
+DataStax-Enterprise-mesos supports 0.27 mesos-networking feature enabling IP per node allocation.
+This means each node may be started in a container (by mesos containerizer) and get its own IP address. This way it is 
+possible to start multiple DSE nodes per machine - each will get it's ip and thus there will be no port conflicts.
+
+Mesos-networking (and DataStax-Enterprise-mesos) does not rely on any concrete IPAM and network isolator implementation 
+providing a pluggable interface instead. You need to follow corresponding instructions to setup everything required for 
+your virtual networking provider (DataStax-Enterprise-mesos uses Project Calico for testing purposes).
+ 
+IP per container allocation can be enabled per cluster - use cluster-level option `ip-per-container-enabled`. 
+Note: after container is started it will get two interfaces - virtual IP (e.g. 192.168.0.4) and default loopback (127.0.0.1); 
+by default nodes will bind to slave hostname (e.g. `slave0.us-west2`) which is incorrect. Instead you need nodes to bind to virtual IP - 
+use `bind-address` option for that.
+
+Example:
+```
+# ./dse-mesos.sh cluster add my_cluster --ip-per-container-enabled true --bind-address 192.168.*
+# ./dse-mesos.sh node add 0 --cluster my_cluster 
+```
+
+Caveats:
+- If you run cluster on AWS disable "Source/Dest check" on each machine
+- Ensure sudo on slave machines doesn't require tty
+
 
 Navigating the CLI
 ==================

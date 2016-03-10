@@ -83,7 +83,7 @@ object ClusterCli {
     parser.accepts("jmx-user", "JMX user. Default - none.").withRequiredArg().ofType(classOf[String])
     parser.accepts("jmx-password", "JMX password. Default - none.").withRequiredArg().ofType(classOf[String])
 
-    parser.accepts("ip-per-container-enabled", "All nodes will be started within mesos container and have IP assigned.").withRequiredArg().ofType(classOf[java.lang.Boolean])
+    parser.accepts("ip-per-container-enabled", "All nodes will be started in mesos container and have virtual IP allocated. Use with '--bind-address'.").withRequiredArg().ofType(classOf[java.lang.Boolean])
 
     parser.accepts("storage-port", "Inter-node port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("jmx-port", "JMX monitoring port.").withRequiredArg().ofType(classOf[String])
