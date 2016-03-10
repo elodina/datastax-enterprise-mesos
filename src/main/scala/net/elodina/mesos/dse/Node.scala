@@ -116,37 +116,51 @@ class Node extends Constrained {
     if (memResource != null) reservedMem = Math.min(memResource.getScalar.getValue.toLong, mem)
 
     // ports
+    val portsOffer = offer.getResourcesList.toList.find(_.getName == "ports")
+      .map(_.getRanges.getRangeList.map(r => new Util.Range(r.getBegin.toInt, r.getEnd.toInt)).sortBy(_.start)).orNull
+
     var reservedPorts = new mutable.HashMap[Node.Port.Value, Int]
-    reservedPorts ++= reservePorts(offer)
-
-    // ignore storage/agent port reservation for collocated instances
+    // ignore storage/agent port reservation for collocated instances if ipPerContainer disable for this cluster
     var ignoredPorts = new ListBuffer[Node.Port.Value]
-    val collocatedNode = cluster.getNodes.find(n => n.runtime != null && n.runtime.hostname == offer.getHostname).getOrElse(null)
 
-    def ignorePortIfRequired(port: Node.Port.Value) {
-      if (reservedPorts(port) != -1 || collocatedNode == null) return
-      ignoredPorts += port
+    if (cluster.ipPerContainerEnabled) {
+      // we still need to fill Reservation object, follow the rules about Storage, Agent ports. We treat ipPerContainer
+      // case as if we are trying to match offer that has all ports available
+      val defaultRange = new Range(5000, 32000)
 
-      val value: Int = collocatedNode.runtime.reservation.ports(port)
-      reservedPorts += (port -> value)
+      val ranges = defaultRange +: cluster.ports.values.filter(_ != null).toSeq
+      val start = ranges.minBy(_.start).start
+      val end = ranges.maxBy(_.end).end
+
+      reservedPorts ++= reservePorts(ListBuffer() += new Range(start, end))
+    } else {
+      reservedPorts ++= reservePorts(portsOffer)
+      val collocatedNode = cluster.getNodes.find(n => n.runtime != null && n.runtime.hostname == offer.getHostname).getOrElse(null)
+
+      def ignorePortIfRequired(port: Node.Port.Value) {
+        if (reservedPorts(port) != -1 || collocatedNode == null) return
+        ignoredPorts += port
+
+        val value: Int = collocatedNode.runtime.reservation.ports(port)
+        reservedPorts += (port -> value)
+      }
+
+      ignorePortIfRequired(Node.Port.STORAGE)
+      ignorePortIfRequired(Node.Port.AGENT)
     }
-
-    ignorePortIfRequired(Node.Port.STORAGE)
-    ignorePortIfRequired(Node.Port.AGENT)
 
     // return reservation
     new Reservation(reservedCpus, reservedMem, reservedPorts.toMap, ignoredPorts.toList)
   }
 
-  private[dse] def reservePorts(offer: Offer): Map[Node.Port.Value, Int] = {
+  private[dse] def reservePorts(portsOffer: mutable.Buffer[Util.Range]): Map[Node.Port.Value, Int] = {
     val result = new mutable.HashMap[Node.Port.Value, Int]()
     Node.Port.values.foreach(result(_) = -1)
 
-    val resource = offer.getResourcesList.toList.find(_.getName == "ports").getOrElse(null)
-    if (resource == null) return result.toMap
+    if (portsOffer == null) return result.toMap
 
     var availPorts: ListBuffer[Range] = new ListBuffer[Range]()
-    availPorts ++= resource.getRanges.getRangeList.map(r => new Util.Range(r.getBegin.toInt, r.getEnd.toInt)).sortBy(_.start)
+    availPorts ++= portsOffer
 
     for (port <- Node.Port.values) {
       var range: Range = cluster.ports(port)
@@ -204,7 +218,7 @@ class Node extends Constrained {
       .setSlaveId(SlaveID.newBuilder().setValue(runtime.slaveId))
       .setExecutor(newExecutor())
       .setData(ByteString.copyFromUtf8("" + toJson(expanded = true)))
-      .addAllResources(runtime.reservation.toResources)
+      .addAllResources(runtime.reservation.toResources(cluster.ipPerContainerEnabled))
       .build()
   }
 
@@ -510,7 +524,7 @@ object Node {
       Node.Port.values.foreach(ports(_) = -1)
     }
 
-    def toResources: List[Resource] = {
+    def toResources(ipPerContainerEnabled: Boolean): List[Resource] = {
       def cpusResource(value: Double): Resource = {
         Resource.newBuilder
           .setName("cpus")
@@ -543,12 +557,14 @@ object Node {
       if (cpus > 0) resources += cpusResource(cpus)
       if (mem > 0) resources += memResource(mem)
 
-      for (port <- Node.Port.values) {
-        val value = ports(port)
-        if (value != -1 && !ignoredPorts.contains(port))
-          resources += portResource(value)
+      if (!ipPerContainerEnabled){
+        // ports is not a subject of resource claiming when node starts in a container with a separate network stack
+        for (port <- Node.Port.values) {
+          val value = ports(port)
+          if (value != -1 && !ignoredPorts.contains(port))
+            resources += portResource(value)
+        }
       }
-
       resources.toList
     }
 

@@ -15,7 +15,7 @@ DataStax Enterprise Mesos Framework
 * [Rolling restart](#rolling-restart)
 * [Memory configuration](#memory-configuration)
 * [Failed node recovery](#failed-node-recovery)
-* [Ip per container support](#ip-per-container-support)
+* [IP per container support](#ip-per-container-support)
 
 [Navigating the CLI](#navigating-the-cli)
 * [Requesting help](#requesting-help)
@@ -341,11 +341,11 @@ The following failover settings exists:
 --failover-max-tries - max failover tries to deactivate broker (to reset to unbound pass --failover-max-tries "")
 ```
 
-Ip per container support
+IP per container support
 -----------------------
 DataStax-Enterprise-mesos supports 0.27 mesos-networking feature enabling IP per node allocation.
 This means each node may be started in a container (by mesos containerizer) and get its own IP address. This way it is 
-possible to start multiple DSE nodes per machine - each will get it's ip and thus there will be no port conflicts.
+possible to start multiple DSE nodes per machine - each will get its ip and thus there will be no port conflicts.
 
 Mesos-networking (and DataStax-Enterprise-mesos) does not rely on any concrete IPAM and network isolator implementation 
 providing a pluggable interface instead. You need to follow corresponding instructions to setup everything required for 
@@ -364,7 +364,7 @@ Example:
 
 Caveats:
 - If you run cluster on AWS disable "Source/Dest check" on each machine
-- Ensure sudo on slave machines doesn't require tty
+- Ensure sudo on slave machines doesn't require tty (this is required to add loopback interface before node is started within container)
 
 
 Navigating the CLI
