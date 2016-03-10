@@ -23,8 +23,6 @@ import org.I0Itec.zkclient.ZkClient
 import org.I0Itec.zkclient.exception.ZkNodeExistsException
 import org.I0Itec.zkclient.serialize.BytesPushThroughSerializer
 
-import scala.util.parsing.json.JSONObject
-
 trait Storage {
   def save()
 

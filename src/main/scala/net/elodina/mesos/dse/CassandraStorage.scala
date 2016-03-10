@@ -19,7 +19,7 @@ package net.elodina.mesos.dse
 
 import com.datastax.driver.core._
 import net.elodina.mesos.dse.Node.{Failover, Reservation, Runtime, Stickiness}
-import net.elodina.mesos.dse.Util.{Period, BindAddress}
+import net.elodina.mesos.dse.Util.{Version, Period, BindAddress}
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
 import scala.util.Try
@@ -411,4 +411,92 @@ object CassandraStorage{
 
   def selectQuery(table: String) =
     s"SELECT * FROM $table WHERE $Namespace = ${`:`(Namespace)}"
+}
+
+class CassandraStorageMigrator(port: Int, contactPoints: Seq[String], keyspace: String, stateTable: String) {
+  val versionTableName = "version"
+
+  def migrate: Unit = {
+    val session = Cluster.builder().withPort(port).addContactPoints(contactPoints: _*).build().connect(keyspace)
+    try {
+      val versionTable = session.getCluster.getMetadata.getKeyspace(keyspace).getTable(versionTableName)
+      if (versionTable == null) {
+        session.execute(s"create table $keyspace.$versionTableName (latest text PRIMARY KEY)")
+        session.execute(s"insert into $keyspace.$versionTableName (latest) values ('0.2.1.2')")
+      }
+
+      val schemaVersion: Version = {
+        val result = session.execute(s"select latest from $keyspace.$versionTableName")
+        new Version(result.one().getString("latest"))
+      }
+
+      val migrations = Seq(
+        new CassandraMigration0_2_1_3(session, keyspace, stateTable)
+      )
+
+      def updateVersion(v: Version): Unit = {
+        session.execute(s"truncate $keyspace.$versionTableName")
+        session.execute(s"insert into $keyspace.$versionTableName (latest) values ('$v')")
+      }
+
+      Migrator.migrate(schemaVersion, Scheduler.version, migrations, updateVersion)
+
+      updateVersion(Scheduler.version)
+    } finally {
+      session.close()
+    }
+  }
+
+}
+
+class CassandraMigration0_2_1_3(session: Session, keyspace: String, stateTable: String) extends Migration {
+  import CassandraStorage._
+
+  override val version: Version = new Version("0.2.1.3")
+
+  val alters = Seq(
+    s"alter table $keyspace.$stateTable add cluster_jmx_remote boolean",
+    s"alter table $keyspace.$stateTable add cluster_jmx_user text",
+    s"alter table $keyspace.$stateTable add cluster_jmx_password text",
+
+    s"alter table $keyspace.$stateTable add node_failover_delay text",
+    s"alter table $keyspace.$stateTable add node_failover_max_delay text",
+    s"alter table $keyspace.$stateTable add node_failover_max_tries int",
+    s"alter table $keyspace.$stateTable add node_failover_failures int",
+    s"alter table $keyspace.$stateTable add node_failover_failure_time timestamp"
+  )
+
+  override def apply(): Unit = {
+    alters.foreach(session.execute)
+
+    val updatePs = session.prepare(s"""
+            UPDATE $keyspace.$stateTable
+            SET
+            cluster_jmx_remote = false,
+            node_failover_delay = '3m',
+            node_failover_max_delay = '30m',
+            node_failover_failures = 0
+            WHERE
+            namespace = :namespace AND
+              framework_id = :framework_id AND
+              cluster_id = :cluster_id AND
+              node_id = :node_id
+          """)
+
+    val selectPs = session.prepare(s"select namespace, framework_id, cluster_id, node_id, nr_of_nodes from $keyspace.$stateTable")
+
+    val batch = new BatchStatement()
+    val rows = session.execute(selectPs.bind()).all().asScala
+    for (row <- rows) {
+      val update = updatePs.bind()
+        .setString(Namespace, row.getString(Namespace))
+        .setString(FrameworkId, row.getString(FrameworkId))
+        .setString(ClusterId, row.getString(ClusterId))
+        .setString(NodeId, row.getString(NodeId))
+
+      batch add update
+    }
+
+    session execute batch
+  }
 }

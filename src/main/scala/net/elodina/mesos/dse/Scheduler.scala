@@ -30,13 +30,15 @@ import scala.collection.JavaConversions._
 import scala.concurrent.duration.Duration
 import scala.language.postfixOps
 
-import Util.Str
+import Util.{Str, Version}
 import scala.collection.mutable.ListBuffer
 import java.util.{Collections, Date}
 
 object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
   private[dse] val logger = Logger.getLogger(this.getClass)
   private var driver: SchedulerDriver = null
+
+  val version = new Version("0.2.1.3")
 
   def start() {
     initLogging()

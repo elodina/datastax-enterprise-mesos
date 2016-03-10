@@ -230,6 +230,38 @@ object Util {
     override def toString: String = if (start == end) "" + start else start + ".." + end
   }
 
+  class Version(s: String) extends Ordered[Version] {
+    private var parts: Array[Int] = null
+
+    def this(args: Int*) {
+      this(args.mkString("."))
+    }
+
+    parse
+    private def parse {
+      parts = if (s != "") s.split("\\.", -1).map(Integer.parseInt) else new Array[Int](0)
+    }
+
+    def asList: List[Int] = parts.toList
+
+    override def compare(v: Version): Int = {
+      for (i <- 0 until Math.min(parts.length, v.parts.length)) {
+        val diff = parts(i) - v.parts(i)
+        if (diff != 0) return diff
+      }
+
+      parts.length - v.parts.length
+    }
+
+    override def hashCode(): Int = toString.hashCode
+
+    override def equals(obj: scala.Any): Boolean = {
+      obj.isInstanceOf[Version] && toString == "" + obj
+    }
+
+    override def toString: String = parts.mkString(".")
+  }
+
   class Period(s: String) {
     private var _value: Long = 0
     private var _unit: String = null
@@ -664,5 +696,18 @@ object Util {
 
       writeFile(file, content)
     }
+  }
+
+  // to allow transformations Map[String, Any] => Map[String, Any] and be able to serialize to JSON
+  // without adding to much boilerplate such as wrapping manually map into JSONObject, list into JSONArray
+  import scala.util.parsing.json.{JSONObject, JSONArray}
+  import scala.util.parsing.json.JSONFormat.{ValueFormatter, quoteString}
+  val jsonFormatter: ValueFormatter = (x : Any) => x match {
+    case s: String => "\"" + quoteString(s) + "\""
+    case jo: JSONObject => jo.toString(jsonFormatter)
+    case ja: JSONArray => ja.toString(jsonFormatter)
+    case m: Map[_, _] => new JSONObject(m.asInstanceOf[Map[String, Any]]).toString(jsonFormatter)
+    case l: List[_] => new JSONArray(l).toString(jsonFormatter)
+    case o => o.toString
   }
 }

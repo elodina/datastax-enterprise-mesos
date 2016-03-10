@@ -114,6 +114,8 @@ object Nodes {
       json("nodes") = new JSONArray(nodesJson.toList)
     }
 
+    json("version") = "" + Scheduler.version
+
     new JSONObject(json.toMap)
   }
 
@@ -127,9 +129,20 @@ object Nodes {
 
   private[dse] def newStorage(storage: String): Storage = {
     storage.split(":", 3) match {
-      case Array("file", fileName) => FileStorage(new File(fileName))
-      case Array("zk", zk) => ZkStorage(zk)
-      case Array("cassandra", port, contactPoints) => new CassandraStorage(port.toInt, contactPoints.split(",").map(_.trim), Config.cassandraKeyspace, Config.cassandraTable)
+      case Array("file", fileName) =>
+        val file = new File(fileName)
+        new FileStorageMigrator(file).migrate
+        FileStorage(file)
+
+      case Array("zk", zk) =>
+        new ZkStorageMigrator(zk).migrate
+        ZkStorage(zk)
+
+      case Array("cassandra", port, contactPoints) =>
+        val points = contactPoints.split(",").map(_.trim)
+        new CassandraStorageMigrator(port.toInt, points, Config.cassandraKeyspace, Config.cassandraTable).migrate
+        new CassandraStorage(port.toInt, points, Config.cassandraKeyspace, Config.cassandraTable)
+
       case _ => throw new IllegalArgumentException(s"Unsupported storage: $storage")
     }
   }
