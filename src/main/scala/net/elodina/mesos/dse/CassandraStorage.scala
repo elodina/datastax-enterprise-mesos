@@ -34,8 +34,8 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
     Cluster.builder()
       .withPort(port).addContactPoints(contactPoints: _*).build().connect(keyspace)
 
-  private val SelectPs = session.prepare(CassandraStorage.selectQuery(stateTable))
-  // have to make InsertionPs lazy because it uses fields that could not exist at the moment (e.g. added after migration)
+  // have to make SelectPs, InsertionPs lazy because it uses fields that could not exist at the moment or not in metadata (e.g. added after migration)
+  private lazy val SelectPs = session.prepare(CassandraStorage.selectQuery(stateTable))
   private lazy val InsertionPs = session.prepare(CassandraStorage.insertionQuery(stateTable))
   private val DeletionPs = session.prepare(CassandraStorage.deleteQuery(stateTable))
 
