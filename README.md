@@ -15,6 +15,7 @@ DataStax Enterprise Mesos Framework
 * [Rolling restart](#rolling-restart)
 * [Memory configuration](#memory-configuration)
 * [Failed node recovery](#failed-node-recovery)
+* [Automatic migration mechanism for state between versions](#automatic-migration-mechanism-for-state-between-versions)
 
 [Navigating the CLI](#navigating-the-cli)
 * [Requesting help](#requesting-help)
@@ -339,6 +340,15 @@ The following failover settings exists:
 --failover-max-delay - max failover delay (option value is required)
 --failover-max-tries - max failover tries to deactivate broker (to reset to unbound pass --failover-max-tries "")
 ```
+
+Upgrading scheduler
+-------------------
+Scheduler of version 0.2.1.3 is able to migrate state between versions for all types
+of storages (file, zk, cassandra) from version 0.2.1.2. For example you are running 0.2.1.2 version and want
+to update to 0.2.1.3 then you have to stop scheduler (for C* storage stop all running
+schedulers that share state table) and then start new scheduler (for C* start schedulers
+sequentially, first one will migrate state table, next will just start without migrating
+anything).
 
 Navigating the CLI
 ==================

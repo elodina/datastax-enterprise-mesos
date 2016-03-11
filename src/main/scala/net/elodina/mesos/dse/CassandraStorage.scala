@@ -19,12 +19,12 @@ package net.elodina.mesos.dse
 
 import com.datastax.driver.core._
 import net.elodina.mesos.dse.Node.{Failover, Reservation, Runtime, Stickiness}
-import net.elodina.mesos.dse.Util.{Period, BindAddress}
+import net.elodina.mesos.dse.Util.{Version, Period, BindAddress}
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
 import scala.util.Try
 
-class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, stateTable: String) extends Storage {
+class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, stateTable: String, versionTable: String = "version") extends Storage {
 
   import CassandraStorage._
 
@@ -35,7 +35,8 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
       .withPort(port).addContactPoints(contactPoints: _*).build().connect(keyspace)
 
   private val SelectPs = session.prepare(CassandraStorage.selectQuery(stateTable))
-  private val InsertionPs = session.prepare(CassandraStorage.insertionQuery(stateTable))
+  // have to make InsertionPs lazy because it uses fields that could not exist at the moment (e.g. added after migration)
+  private lazy val InsertionPs = session.prepare(CassandraStorage.insertionQuery(stateTable))
   private val DeletionPs = session.prepare(CassandraStorage.deleteQuery(stateTable))
 
   private def stringOrNull[T](value: T): String = {
@@ -256,6 +257,8 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
   }
 
   override def load(): Boolean = {
+    migrate
+
     val boundStatement = SelectPs.bind().setString(Namespace, Config.namespace).setConsistencyLevel(ConsistencyLevel.ONE)
 
     val rows = session.execute(boundStatement).all().asScala
@@ -300,6 +303,28 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
       if (session != null)
         session.close()
     }
+  }
+
+  private[dse] def migrate: Unit = {
+    val verTable = session.getCluster.getMetadata.getKeyspace(keyspace).getTable(versionTable)
+    if (verTable == null) {
+      session.execute(s"create table $keyspace.$versionTable (latest text PRIMARY KEY)")
+      session.execute(s"insert into $keyspace.$versionTable (latest) values ('0.2.1.2')")
+    }
+
+    val schemaVersion: Version = {
+      val result = session.execute(s"select latest from $keyspace.$versionTable")
+      new Version(result.one().getString("latest"))
+    }
+
+    def updateVersion(v: Version): Unit = {
+      session.execute(s"truncate $keyspace.$versionTable")
+      session.execute(s"insert into $keyspace.$versionTable (latest) values ('$v')")
+    }
+
+    Migration.migrate(schemaVersion, Scheduler.version, updateVersion, m => m.migrateCassandra(session))
+
+    updateVersion(Scheduler.version)
   }
 }
 
