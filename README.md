@@ -341,8 +341,8 @@ The following failover settings exists:
 --failover-max-tries - max failover tries to deactivate broker (to reset to unbound pass --failover-max-tries "")
 ```
 
-Automatic migration mechanism for state between versions
---------------------------------------------------------
+Upgrading scheduler
+-------------------
 Scheduler of version 0.2.1.3 is able to migrate state between versions for all types
 of storages (file, zk, cassandra) from version 0.2.1.2. For example you are running 0.2.1.2 version and want
 to update to 0.2.1.3 then you have to stop scheduler (for C* storage stop all running

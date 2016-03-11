@@ -46,43 +46,37 @@ case class FileStorage(file: File) extends Storage {
   }
 
   override def load(): Boolean = {
-    if (file.exists()) {
-      migrate
-      val json = Util.IO.readFile(file)
-      Nodes.fromJson(Util.parseJsonAsMap(json))
-      true
-    } else false
+    if (!file.exists()) return false
+
+    migrate
+
+    val json = Util.IO.readFile(file)
+    Nodes.fromJson(Util.parseJsonAsMap(json))
+
+    true
   }
 
   private[dse] def migrate: Unit = {
-    if (file.exists()) {
-      var schemaVersion: Version = null
-      withJson { json =>
-        val versioned = if (!json.contains("version")) json.updated("version", "0.2.1.2") else json
-        schemaVersion = new Version(versioned("version").asInstanceOf[String])
-        versioned
-      }
-
-      def updateVersion(v: Version): Unit = withJson { json => json.updated("version", v.toString) }
-
-      var json: Map[String, Any] = readJson
-      Migration.migrate(schemaVersion, Scheduler.version, v => (), m => json = m.migrateJson(json))
-      writeJson(json)
-
-      updateVersion(Scheduler.version)
+    var schemaVersion: Version = null
+    withJson { json =>
+      val versioned = if (!json.contains("version")) json.updated("version", "0.2.1.2") else json
+      schemaVersion = new Version(versioned("version").asInstanceOf[String])
+      versioned
     }
-  }
 
-  def readJson: Map[String, Any] =
-    if (file.exists()) Util.parseJsonAsMap(Util.IO.readFile(file))
-    else Map.empty[String, Any]
+    def updateVersion(v: Version): Unit = withJson { json => json.updated("version", v.toString) }
 
-  def writeJson(json: Map[String, Any]): Unit = {
+    var json: Map[String, Any] = Util.parseJsonAsMap(Util.IO.readFile(file))
+    Migration.migrate(schemaVersion, Scheduler.version, v => (), m => json = m.migrateJson(json))
     Util.IO.writeFile(file, new JSONObject(json).toString(Util.jsonFormatter))
+
+    updateVersion(Scheduler.version)
   }
 
   def withJson(f: Map[String, Any] => Map[String, Any]): Unit = {
-    if (file.exists()) Util.IO.writeFile(file, new JSONObject(f(readJson)).toString(Util.jsonFormatter))
+    var json = Util.parseJsonAsMap(Util.IO.readFile(file))
+    json = f(json)
+    Util.IO.writeFile(file, new JSONObject(json).toString(Util.jsonFormatter))
   }
 }
 

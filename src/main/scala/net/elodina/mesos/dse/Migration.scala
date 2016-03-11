@@ -49,15 +49,16 @@ object Migration {
       apply(m)
       updateVersion(m.version)
     }
-    logger.info(s"migration from $from to $to completed")
+
+    logger.info(s"migration completed")
   }
 
   val migrations = Seq[Migration](
-    new Migration0_2_1_3(Config.cassandraKeyspace, Config.cassandraTable)
+    new M_0_2_1_3()
   )
 }
 
-class Migration0_2_1_3(keyspace: String, stateTable: String) extends Migration {
+private class M_0_2_1_3 extends Migration {
   override val version: Version = new Version("0.2.1.3")
 
   override def migrateJson(json: Map[String, Any]): Map[String, Any] = {
@@ -76,23 +77,25 @@ class Migration0_2_1_3(keyspace: String, stateTable: String) extends Migration {
     json2
   }
 
-  val alters = Seq(
-    s"alter table $keyspace.$stateTable add cluster_jmx_remote boolean",
-    s"alter table $keyspace.$stateTable add cluster_jmx_user text",
-    s"alter table $keyspace.$stateTable add cluster_jmx_password text",
-
-    s"alter table $keyspace.$stateTable add node_failover_delay text",
-    s"alter table $keyspace.$stateTable add node_failover_max_delay text",
-    s"alter table $keyspace.$stateTable add node_failover_max_tries int",
-    s"alter table $keyspace.$stateTable add node_failover_failures int",
-    s"alter table $keyspace.$stateTable add node_failover_failure_time timestamp"
-  )
-
   override def migrateCassandra(session: Session): Unit = {
+    val keyspace = Config.cassandraKeyspace
+    val table = Config.cassandraTable
+
+    val alters = Seq(
+      s"alter table $keyspace.$table add cluster_jmx_remote boolean",
+      s"alter table $keyspace.$table add cluster_jmx_user text",
+      s"alter table $keyspace.$table add cluster_jmx_password text",
+
+      s"alter table $keyspace.$table add node_failover_delay text",
+      s"alter table $keyspace.$table add node_failover_max_delay text",
+      s"alter table $keyspace.$table add node_failover_max_tries int",
+      s"alter table $keyspace.$table add node_failover_failures int",
+      s"alter table $keyspace.$table add node_failover_failure_time timestamp"
+    )
     alters.foreach(session.execute)
 
     val updatePs = session.prepare(s"""
-          UPDATE $keyspace.$stateTable
+          UPDATE $keyspace.$table
           SET
           cluster_jmx_remote = false,
           node_failover_delay = '3m',
@@ -105,7 +108,7 @@ class Migration0_2_1_3(keyspace: String, stateTable: String) extends Migration {
             node_id = :node_id
         """)
 
-    val selectPs = session.prepare(s"select namespace, framework_id, cluster_id, node_id, nr_of_nodes from $keyspace.$stateTable")
+    val selectPs = session.prepare(s"select namespace, framework_id, cluster_id, node_id, nr_of_nodes from $keyspace.$table")
 
     import CassandraStorage._
 
