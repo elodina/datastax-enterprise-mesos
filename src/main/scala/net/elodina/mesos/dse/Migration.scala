@@ -28,9 +28,9 @@ trait Migration {
   def migrateCassandra(session: Session): Unit
 }
 
-object Migrator {
+object Migration {
   import org.apache.log4j.Logger
-  private val logger = Logger.getLogger(Migrator.getClass)
+  private val logger = Logger.getLogger(Migration.getClass)
 
   def migrate(from: Version, to: Version, migrations: Seq[Migration], updateVersion: Version => Unit, apply: Migration => Unit): Unit = {
     if (from == to) {

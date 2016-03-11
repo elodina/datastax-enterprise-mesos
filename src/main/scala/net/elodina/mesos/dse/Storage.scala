@@ -66,7 +66,7 @@ case class FileStorage(file: File) extends Storage {
       def updateVersion(v: Version): Unit = withJson { json => json.updated("version", v.toString) }
 
       var json: Map[String, Any] = readJson
-      Migrator.migrate(schemaVersion, Scheduler.version, Migrator.migrations, v => (), m => json = m.migrateJson(json))
+      Migration.migrate(schemaVersion, Scheduler.version, Migration.migrations, v => (), m => json = m.migrateJson(json))
       writeJson(json)
 
       updateVersion(Scheduler.version)
@@ -118,7 +118,7 @@ case class ZkStorage[T](zk: String) extends Storage {
       def updateVersion(v: Version) = withJson(client) { json => json.updated("version", v.toString) }
 
       var json = readJson(client)
-      Migrator.migrate(schemaVersion, Scheduler.version, Migrator.migrations, v => (), m => json = m.migrateJson(json))
+      Migration.migrate(schemaVersion, Scheduler.version, Migration.migrations, v => (), m => json = m.migrateJson(json))
       writeJson(client, json)
 
       updateVersion(Scheduler.version)

@@ -322,7 +322,7 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
       session.execute(s"insert into $keyspace.$versionTable (latest) values ('$v')")
     }
 
-    Migrator.migrate(schemaVersion, Scheduler.version, Migrator.migrations, updateVersion, m => m.migrateCassandra(session))
+    Migration.migrate(schemaVersion, Scheduler.version, Migration.migrations, updateVersion, m => m.migrateCassandra(session))
 
     updateVersion(Scheduler.version)
   }
