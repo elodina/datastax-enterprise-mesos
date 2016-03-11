@@ -3,6 +3,9 @@ CREATE KEYSPACE IF NOT EXISTS dse_mesos
 
 USE dse_mesos;
 
+CREATE TABLE IF NOT EXISTS version (latest text PRIMARY KEY);
+INSERT INTO version (latest) VALUES ('0.2.1.3');
+
 CREATE TABLE IF NOT EXISTS dse_mesos_framework(
         namespace text,
         framework_id text,
