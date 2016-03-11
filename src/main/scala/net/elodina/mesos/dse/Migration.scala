@@ -32,7 +32,7 @@ object Migration {
   import org.apache.log4j.Logger
   private val logger = Logger.getLogger(Migration.getClass)
 
-  def migrate(from: Version, to: Version, migrations: Seq[Migration], updateVersion: Version => Unit, apply: Migration => Unit): Unit = {
+  def migrate(from: Version, to: Version, updateVersion: Version => Unit, apply: Migration => Unit): Unit = {
     if (from == to) {
       logger.info("storage schema is up to date")
       return
