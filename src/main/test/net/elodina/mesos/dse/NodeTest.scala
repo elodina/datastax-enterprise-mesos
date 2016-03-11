@@ -103,7 +103,11 @@ class NodeTest extends MesosTestCase {
 
       node.cluster.ports.clear()
       node.cluster.ports ++= parsePortsDef(portsDef)
-      val ports: Map[Port.Value, Int] = node.reservePorts(offer(resources = resources))
+
+      val portsOffer = offer(resources = resources).getResourcesList.toList.find(_.getName == "ports")
+        .map(_.getRanges.getRangeList.map(r => new Util.Range(r.getBegin.toInt, r.getEnd.toInt)).sortBy(_.start)).orNull
+
+      val ports: Map[Port.Value, Int] = node.reservePorts(portsOffer)
 
       for ((port, value) <- expected)
         assertTrue(s"portsDef:$portsDef, resources:$resources, expected:$expected, actual:$ports", ports.getOrElse(port, null) == value)
@@ -312,11 +316,11 @@ class NodeTest extends MesosTestCase {
 
   @Test
   def Reservation_toResources {
-    assertEquals(resources("").toList, new Reservation().toResources)
-    assertEquals(resources("cpus:0.5;mem:500;ports:1000..1000;ports:2000").toList, new Reservation(0.5, 500, Map(Port.STORAGE -> 1000, Port.JMX -> 2000)).toResources)
+    assertEquals(resources("").toList, new Reservation().toResources(false))
+    assertEquals(resources("cpus:0.5;mem:500;ports:1000..1000;ports:2000").toList, new Reservation(0.5, 500, Map(Port.STORAGE -> 1000, Port.JMX -> 2000)).toResources(false))
 
     // ignore storage port
-    assertEquals(resources("ports:2000").toList, new Reservation(ports = Map(Port.STORAGE -> 1000, Port.JMX -> 2000), ignoredPorts = List(Port.STORAGE)).toResources)
+    assertEquals(resources("ports:2000").toList, new Reservation(ports = Map(Port.STORAGE -> 1000, Port.JMX -> 2000), ignoredPorts = List(Port.STORAGE)).toResources(false))
   }
 
   // Stickiness

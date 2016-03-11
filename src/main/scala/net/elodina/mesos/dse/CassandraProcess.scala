@@ -183,6 +183,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
 
     if (node.cluster.jmxRemote) {
       map += "LOCAL_JMX=.*" -> "LOCAL_JMX=no"
+      map += "# JVM_OPTS=\"\\$JVM_OPTS -Djava.rmi.server.hostname=.*" -> ("JVM_OPTS=\"\\$JVM_OPTS -Djava.rmi.server.hostname=" + address + "\"")
 
       val authenticate = node.cluster.jmxUser != null
       map += ("-Dcom.sun.management.jmxremote.authenticate=.*\"" -> (s"-Dcom.sun.management.jmxremote.authenticate=$authenticate" + "\""))
