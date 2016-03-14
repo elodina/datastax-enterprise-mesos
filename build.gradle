@@ -43,6 +43,7 @@ dependencies {
     compile "com.101tec:zkclient:0.6"
     compile 'com.datastax.cassandra:cassandra-driver-core:2.1.8'
     testCompile 'junit:junit:4.12'
+    testCompile 'org.cassandraunit:cassandra-unit:2.2.2.1'
 }
 
 jar {
