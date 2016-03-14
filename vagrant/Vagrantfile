@@ -17,6 +17,7 @@
 
 SLAVES=1
 NET_PREFIX="192.168.3."
+IP_PER_CONTAINER_SUPPORT=false
 
 NODES={"master" => NET_PREFIX + "5"}
 (0..SLAVES-1).each do |i| NODES["slave#{i}"] = NET_PREFIX + (6 + i).to_s end
@@ -40,27 +41,35 @@ Vagrant.configure(2) do |config|
 
   config.vm.define "master" do |master|
     master.vm.provider "virtualbox" do |v|
-      v.memory = 2548
+        v.memory = (IP_PER_CONTAINER_SUPPORT ? 2048 : 2548)
     end
 
     master.vm.hostname = "master"
     master.vm.network :private_network, ip: NODES["master"]
     master.vm.network :private_network, ip: NODES["master"].sub(".3.", ".4.")
 
-    master.vm.provision "shell", path: "init.sh", args: "master"
+    if IP_PER_CONTAINER_SUPPORT
+      master.vm.provision "shell", path: "init-master-with-calico.sh"
+    else
+      master.vm.provision "shell", path: "init.sh", args: "master"
+    end
   end
 
   (0..SLAVES-1).each do |i|
     config.vm.define "slave#{i}" do |slave|
       slave.vm.provider "virtualbox" do |v|
-        v.memory = 2048
+        v.memory = (IP_PER_CONTAINER_SUPPORT ? 2548 : 2048)
       end
 
       slave.vm.hostname = "slave#{i}"
       slave.vm.network :private_network, ip: NODES[slave.vm.hostname]
       slave.vm.network :private_network, ip: NODES[slave.vm.hostname].sub(".3.", ".4.")
 
-      slave.vm.provision "shell", path: "init.sh", args: "slave"
+      if IP_PER_CONTAINER_SUPPORT
+        slave.vm.provision "shell", path: "init-slave-with-calico.sh"
+      else
+        slave.vm.provision "shell", path: "init.sh", args: "slave"
+      end
     end
   end
 end
