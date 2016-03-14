@@ -62,7 +62,7 @@ object Scheduler extends org.apache.mesos.Scheduler with Constraints[Node] {
 
       credsBuilder = Credential.newBuilder()
         .setPrincipal(Config.principal)
-        .setSecret(Config.secret)
+        .setSecret(ByteString.copyFromUtf8(Config.secret))
     }
 
     val driver = if (credsBuilder == null) new MesosSchedulerDriver(this, frameworkBuilder.build, Config.master)
