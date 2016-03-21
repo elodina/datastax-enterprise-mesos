@@ -39,7 +39,7 @@ object HttpServer {
   def start() {
     if (server != null) throw new IllegalStateException("HttpServer already started")
 
-    val threadPool = new QueuedThreadPool(16)
+    val threadPool = new QueuedThreadPool(Runtime.getRuntime.availableProcessors() * 16)
     threadPool.setName("Jetty")
 
     server = new Server(threadPool)
