@@ -31,7 +31,7 @@ import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.Duration
 import net.elodina.mesos.dse.Node.State
 import net.elodina.mesos.dse.Util.BindAddress
-import net.elodina.mesos.util.{Period, Range}
+import net.elodina.mesos.util.{Strings, Period, Range}
 
 object HttpServer {
   private val logger = Logger.getLogger(HttpServer.getClass)
@@ -189,8 +189,10 @@ object HttpServer {
       val dataFileDirs = request.getParameter("dataFileDirs")
       val commitLogDir = request.getParameter("commitLogDir")
       val savedCachesDir = request.getParameter("savedCachesDir")
-      val cassandraDotYaml = Util.parseMap(request.getParameter("cassandraDotYaml"))
-      val addressDotYaml = Util.parseMap(request.getParameter("addressDotYaml"))
+
+      import scala.collection.JavaConversions.mapAsScalaMap
+      val cassandraDotYaml = Strings.parseMap(request.getParameter("cassandraDotYaml")).toMap
+      val addressDotYaml = Strings.parseMap(request.getParameter("addressDotYaml")).toMap
       val cassandraJvmOptions = request.getParameter("cassandraJvmOptions")
 
       var failoverDelay: Period = null

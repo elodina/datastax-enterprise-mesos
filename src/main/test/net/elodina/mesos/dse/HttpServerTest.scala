@@ -1,7 +1,8 @@
 package net.elodina.mesos.dse
 
-import net.elodina.mesos.dse.Util.{BindAddress, parseMap}
+import net.elodina.mesos.dse.Util.BindAddress
 import net.elodina.mesos.util.Range
+import net.elodina.mesos.util.Strings.parseMap
 import org.junit.{Before, Test, After}
 import org.junit.Assert._
 import net.elodina.mesos.dse.Cli.sendRequest
@@ -24,7 +25,7 @@ class HttpServerTest extends MesosTestCase {
     Nodes.reset()
   }
 
-  val getPlainResponse = sendRequest(_: String, parseMap(""), urlPathPrefix = "", parseJson = false)
+  val getPlainResponse = sendRequest(_: String, parseMap("").toMap, urlPathPrefix = "", parseJson = false)
   val getJsonResponse = sendRequest(_: String, _: Map[String, String])
 
   def assertErrorResponse(req: => Any, code: Int, msg: String): Unit = {
@@ -143,15 +144,15 @@ class HttpServerTest extends MesosTestCase {
       assertEquals("node by default don't has pending update", false, node2.modified)
 
       // modified flag don't change when node being idle
-      nodeUpdate(parseMap("node=2,cpu=2.0"))
+      nodeUpdate(parseMap("node=2,cpu=2.0").toMap)
       assertEquals(false, node2.modified)
 
       // starting & task running
-      sendRequest("/node/start", parseMap("node=2,timeout=0s"))
+      sendRequest("/node/start", parseMap("node=2,timeout=0s").toMap)
       assertEquals(Node.State.STARTING, node2.state)
       assertEquals(false, node2.modified)
 
-      nodeUpdate(parseMap("node=2,cpu=1.5,dataFileDirs=/sstable/xvdv"))
+      nodeUpdate(parseMap("node=2,cpu=1.5,dataFileDirs=/sstable/xvdv").toMap)
 
       assertEquals(true, node2.modified)
 
@@ -162,7 +163,7 @@ class HttpServerTest extends MesosTestCase {
       assertEquals(1, schedulerDriver.launchedTasks.size())
 
       // modification between accepting offer and receiving task status running from executor
-      nodeUpdate(parseMap("node=2;dataFileDirs=/sstable/xvdv,/sstable/xvdw", ';'))
+      nodeUpdate(parseMap("node=2;dataFileDirs=/sstable/xvdv,/sstable/xvdw", ';', '=', false).toMap)
       assertEquals(true, node2.modified)
 
       Scheduler.onTaskStarted(node2, taskStatus(node2.runtime.taskId, TaskState.TASK_RUNNING))
@@ -182,21 +183,21 @@ class HttpServerTest extends MesosTestCase {
       Scheduler.onTaskStarted(node2, taskStatus(node2.runtime.taskId, TaskState.TASK_RUNNING))
       assertEquals(Node.State.RUNNING, node2.state)
 
-      nodeUpdate(parseMap("node=2;dataFileDirs=/sstable/xvdv,/sstable/xvdw,/sstable/xvdx", ';'))
+      nodeUpdate(parseMap("node=2;dataFileDirs=/sstable/xvdv,/sstable/xvdw,/sstable/xvdx", ';').toMap)
       assertEquals(true, node2.modified)
 
       // stopping
-      sendRequest("/node/stop", parseMap("node=2,timeout=0s"))
+      sendRequest("/node/stop", parseMap("node=2,timeout=0s").toMap)
       assertEquals(Node.State.STOPPING, node2.state)
       Scheduler.onTaskStopped(node2, taskStatus(node2.runtime.taskId, TaskState.TASK_FINISHED))
       assertEquals(false, node2.modified)
 
-      sendRequest("/node/start", parseMap("node=2,timeout=0s"))
+      sendRequest("/node/start", parseMap("node=2,timeout=0s").toMap)
       Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:20480;ports:0..65000", hostname = "slave2"))
       Scheduler.onTaskStarted(node2, taskStatus(node2.runtime.taskId, TaskState.TASK_RUNNING))
       assertEquals(Node.State.RUNNING, node2.state)
-      sendRequest("/node/stop", parseMap("node=2,timeout=0s"))
-      nodeUpdate(parseMap("node=2;dataFileDirs=/sstable/xvdv,/sstable/xvdw,/sstable/xvdx,/sstable/xvdz", ';'))
+      sendRequest("/node/stop", parseMap("node=2,timeout=0s").toMap)
+      nodeUpdate(parseMap("node=2;dataFileDirs=/sstable/xvdv,/sstable/xvdw,/sstable/xvdx,/sstable/xvdz", ';').toMap)
       assertEquals(true, node2.modified)
       Scheduler.onTaskStopped(node2, taskStatus(node2.runtime.taskId, TaskState.TASK_FINISHED))
       assertEquals(false, node2.modified)
@@ -271,7 +272,7 @@ class HttpServerTest extends MesosTestCase {
     }
 
     val node0 = Nodes.addNode(new Node("0"))
-    nodeStart(parseMap("node=0,timeout=1s"))
+    nodeStart(parseMap("node=0,timeout=1s").toMap)
 
     // no offers or offers that don't have required resource
     // low cpu
@@ -282,35 +283,35 @@ class HttpServerTest extends MesosTestCase {
     Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:128;ports:0..1"))
 
     // for sure response status it timeout
-    nodeStop(parseMap("node=0,timeout=1s"))
+    nodeStop(parseMap("node=0,timeout=1s").toMap)
     assertEquals(Node.State.IDLE, node0.state)
     // kill task sent only when node has runtime
     assertEquals(0, schedulerDriver.killedTasks.size())
 
     // has runtime
-    nodeStart(parseMap("node=0,timeout=0s"))
+    nodeStart(parseMap("node=0,timeout=0s").toMap)
     started(node0, immediately = true)
 
     delay("100ms") { stopped(node0) }
-    nodeStop(parseMap("node=0,timeout=1s"))
+    nodeStop(parseMap("node=0,timeout=1s").toMap)
 
     // ability to send kill task multiple times
-    nodeStart(parseMap("node=0,timeout=0s"))
+    nodeStart(parseMap("node=0,timeout=0s").toMap)
     started(node0, immediately = true)
 
     assertDifference(schedulerDriver.killedTasks.size(), 3) {
-      nodeStop(parseMap("node=0,timeout=0s"))
-      nodeStop(parseMap("node=0,timeout=0s"))
-      nodeStop(parseMap("node=0,timeout=0s"))
+      nodeStop(parseMap("node=0,timeout=0s").toMap)
+      nodeStop(parseMap("node=0,timeout=0s").toMap)
+      nodeStop(parseMap("node=0,timeout=0s").toMap)
       stopped(node0)
     }
 
     // status is disconnected when trying to stop node while scheduler disconnected from master
-    nodeStart(parseMap("node=0,timeout=1s"))
+    nodeStart(parseMap("node=0,timeout=1s").toMap)
     started(node0, immediately = true)
 
     Scheduler.disconnected(schedulerDriver)
-    val json = nodeStop(parseMap("node=0,timeout=0s")).asInstanceOf[Map[String, Any]]
+    val json = nodeStop(parseMap("node=0,timeout=0s").toMap).asInstanceOf[Map[String, Any]]
     assertEquals("disconnected", json("status").asInstanceOf[String])
     assertEquals(1, json("nodes").asInstanceOf[List[Map[String, Any]]].size)
     assertEquals(Node.State.RUNNING, node0.state)

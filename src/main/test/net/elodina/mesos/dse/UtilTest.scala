@@ -15,41 +15,6 @@ import Util._
 
 class UtilTest {
   @Test
-  def parseMapTest() = {
-    var map = parseMap("a=1,b=2")
-
-    assertEquals(2, map.size)
-    assertEquals(Some("1"), map.get("a"))
-    assertEquals(Some("2"), map.get("b"))
-
-    // missing pair
-    try { map = parseMap("a=1,,b=2"); fail() }
-    catch { case e: IllegalArgumentException => }
-
-    // null value
-    map = parseMap("a=1,b,c=3")
-    assertEquals(3, map.size)
-    assertEquals(Some(null), map.get("b"))
-
-    try { parseMap("a=1,b,c=3", nullValues = false) }
-    catch { case e: IllegalArgumentException => }
-
-    // escaping
-    map = parseMap("a=\\,,b=\\=,c=\\\\")
-    assertEquals(3, map.size)
-    assertEquals(Some(","), map.get("a"))
-    assertEquals(Some("="), map.get("b"))
-    assertEquals(Some("\\"), map.get("c"))
-
-    // open escaping
-    try { parseMap("a=\\"); fail() }
-    catch { case e: IllegalArgumentException => }
-
-    // null
-    assertTrue(parseMap(null).isEmpty)
-  }
-
-  @Test
   def formatMapTest() = {
     val map = new LinkedHashMap[String, String]()
     map.put("a", "1")

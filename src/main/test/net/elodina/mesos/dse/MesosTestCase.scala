@@ -18,7 +18,7 @@
 package net.elodina.mesos.dse
 
 import net.elodina.mesos.dse.Node.{Failover, Runtime, Stickiness, Reservation}
-import net.elodina.mesos.util.Range
+import net.elodina.mesos.util.{Strings, Range}
 import org.apache.mesos.Protos.Resource.DiskInfo.Persistence
 import org.apache.mesos.Protos.Resource.{DiskInfo, ReservationInfo}
 import org.apache.mesos.Protos.Volume.Mode
@@ -113,7 +113,7 @@ class MesosTestCase {
     builder.addAllResources(this.resources(resources))
 
     if (attributes != null) {
-      val map = Util.parseMap(attributes)
+      val map = Strings.parseMap(attributes)
       for ((k, v) <- map) {
         val attribute = Attribute.newBuilder()
           .setType(Value.Type.TEXT)

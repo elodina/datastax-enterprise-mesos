@@ -75,8 +75,6 @@ object Util {
     result.toList
   }
 
-  def parseMap(s: String, entrySep: Char = ',', valueSep: Char = '=', nullValues: Boolean = true): Map[String, String] = parseList(s, entrySep, valueSep, nullValues).toMap
-
   def formatList(list: List[(String, _ <: Any)], entrySep: Char = ',', valueSep: Char = '='): String = {
     def escape(s: String): String = {
       var result = ""

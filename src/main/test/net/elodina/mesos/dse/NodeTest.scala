@@ -8,7 +8,7 @@ import net.elodina.mesos.dse.Node._
 import scala.collection.mutable
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
-import net.elodina.mesos.util.{Period, Range}
+import net.elodina.mesos.util.{Strings, Period, Range}
 import java.util.Date
 
 class NodeTest extends MesosTestCase {
@@ -95,7 +95,7 @@ class NodeTest extends MesosTestCase {
         val ports = new mutable.HashMap[Port.Value, Range]()
         Port.values.foreach(ports(_) = null)
 
-        for ((k,v) <- Util.parseMap(s))
+        for ((k,v) <- Strings.parseMap(s))
           ports(Port.withName(k)) = new Range(v)
 
         ports.toMap

@@ -3,6 +3,8 @@ package net.elodina.mesos.dse
 import org.junit.Test
 import org.junit.Assert._
 import java.util
+import net.elodina.mesos.util.Strings
+import scala.collection.JavaConversions.mapAsScalaMap
 
 class ExprTest extends MesosTestCase {
   @Test
@@ -40,9 +42,9 @@ class ExprTest extends MesosTestCase {
     val n2 = Nodes.addNode(new Node("2"))
     Nodes.addNode(new Node("3"))
 
-    n0.runtime = new Node.Runtime(hostname = "master", attributes = Util.parseMap("a=1"))
-    n1.runtime = new Node.Runtime(hostname = "slave0", attributes = Util.parseMap("a=2,b=2"))
-    n2.runtime = new Node.Runtime(hostname = "slave1", attributes = Util.parseMap("b=2"))
+    n0.runtime = new Node.Runtime(hostname = "master", attributes = Strings.parseMap("a=1").toMap)
+    n1.runtime = new Node.Runtime(hostname = "slave0", attributes = Strings.parseMap("a=2,b=2").toMap)
+    n2.runtime = new Node.Runtime(hostname = "slave1", attributes = Strings.parseMap("b=2").toMap)
 
     // exact match
     assertEquals(List("0", "1", "2", "3"), Expr.expandNodes("*"))
@@ -71,12 +73,12 @@ class ExprTest extends MesosTestCase {
     val n4 = Nodes.addNode(new Node("4"))
     val n5 = Nodes.addNode(new Node("5"))
 
-    n0.runtime = new Node.Runtime(attributes = Util.parseMap("r=2,a=1"))
-    n1.runtime = new Node.Runtime(attributes = Util.parseMap("r=0,a=1"))
-    n2.runtime = new Node.Runtime(attributes = Util.parseMap("r=1,a=1"))
-    n3.runtime = new Node.Runtime(attributes = Util.parseMap("r=1,a=2"))
-    n4.runtime = new Node.Runtime(attributes = Util.parseMap("r=0,a=2"))
-    n5.runtime = new Node.Runtime(attributes = Util.parseMap("r=0,a=2"))
+    n0.runtime = new Node.Runtime(attributes = Strings.parseMap("r=2,a=1").toMap)
+    n1.runtime = new Node.Runtime(attributes = Strings.parseMap("r=0,a=1").toMap)
+    n2.runtime = new Node.Runtime(attributes = Strings.parseMap("r=1,a=1").toMap)
+    n3.runtime = new Node.Runtime(attributes = Strings.parseMap("r=1,a=2").toMap)
+    n4.runtime = new Node.Runtime(attributes = Strings.parseMap("r=0,a=2").toMap)
+    n5.runtime = new Node.Runtime(attributes = Strings.parseMap("r=0,a=2").toMap)
 
     assertEquals(List("0", "1", "2", "3", "4", "5"), Expr.expandNodes("*", sortByAttrs = true))
     assertEquals(List("1", "2", "0", "4", "3", "5"), Expr.expandNodes("*[r]", sortByAttrs = true))
