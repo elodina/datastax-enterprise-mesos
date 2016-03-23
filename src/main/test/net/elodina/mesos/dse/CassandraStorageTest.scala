@@ -3,7 +3,8 @@ package net.elodina.mesos.dse
 import java.util.Date
 
 import net.elodina.mesos.dse.Node.{Failover, Reservation, Stickiness}
-import net.elodina.mesos.dse.Util.{BindAddress, Period}
+import net.elodina.mesos.dse.Util.BindAddress
+import net.elodina.mesos.util.Period
 import org.cassandraunit.CassandraCQLUnit
 import org.cassandraunit.dataset.cql.FileCQLDataSet
 import org.junit.Assert._

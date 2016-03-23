@@ -8,7 +8,8 @@ import net.elodina.mesos.dse.Node._
 import scala.collection.mutable
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
-import net.elodina.mesos.dse.Util.{Period, Range}
+import net.elodina.mesos.dse.Util.Range
+import net.elodina.mesos.util.Period
 import java.util.Date
 
 class NodeTest extends MesosTestCase {

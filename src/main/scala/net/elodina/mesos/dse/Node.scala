@@ -30,7 +30,7 @@ import scala.collection.mutable.ListBuffer
 import net.elodina.mesos.dse.Util.Range
 import net.elodina.mesos.dse.Node.Reservation
 import java.util.{TimeZone, Date}
-import Util.Period
+import net.elodina.mesos.util.Period
 import java.text.SimpleDateFormat
 import Math._
 import Util.Size

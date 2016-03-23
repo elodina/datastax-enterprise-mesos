@@ -1,7 +1,7 @@
 package net.elodina.mesos.dse
 
 import net.elodina.mesos.dse.Node.Failover
-import net.elodina.mesos.dse.Util.Period
+import net.elodina.mesos.util.Period
 import org.junit.{Test, Before, After}
 import org.junit.Assert._
 import scala.concurrent.duration._
