@@ -10,7 +10,7 @@ import java.io._
 import org.apache.mesos.Protos.TaskState
 import scala.collection.JavaConversions._
 
-class HttpServerTest extends MesosTestCase {
+class HttpServerTest extends DseMesosTestCase {
   @Before
   override def before = {
     super.before
@@ -127,7 +127,7 @@ class HttpServerTest extends MesosTestCase {
     {
       val node1 = Nodes.getNode("1")
       node1.state = Node.State.RUNNING
-      node1.runtime = new Node.Runtime(node1, offer(resources = "cpus:2.0;mem:20480;ports:0..65000"))
+      node1.runtime = new Node.Runtime(node1, offer("cpus:2.0;mem:20480;ports:0..65000"))
 
       // node could be updated while it is running
       try { nodeUpdate(Map("node" -> "1", "cpu" -> "2.0")) }
@@ -156,7 +156,7 @@ class HttpServerTest extends MesosTestCase {
 
       assertEquals(true, node2.modified)
 
-      Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:20480;ports:0..65000", hostname = "slave2"))
+      Scheduler.acceptOffer(offer("slave2", "cpus:2.0;mem:20480;ports:0..65000"))
 
       // modified reset for starting when task is launched
       assertEquals(false, node2.modified)
@@ -179,7 +179,7 @@ class HttpServerTest extends MesosTestCase {
       assertEquals(Node.State.STARTING, node2.state)
 
       // running (modified is false) then update
-      Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:20480;ports:0..65000", hostname = "slave2"), node2.failover.delayExpires)
+      Scheduler.acceptOffer(offer("slave2", "cpus:2.0;mem:20480;ports:0..65000"), node2.failover.delayExpires)
       Scheduler.onTaskStarted(node2, taskStatus(node2.runtime.taskId, TaskState.TASK_RUNNING))
       assertEquals(Node.State.RUNNING, node2.state)
 
@@ -193,7 +193,7 @@ class HttpServerTest extends MesosTestCase {
       assertEquals(false, node2.modified)
 
       sendRequest("/node/start", parseMap("node=2,timeout=0s").toMap)
-      Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:20480;ports:0..65000", hostname = "slave2"))
+      Scheduler.acceptOffer(offer("slave2", "cpus:2.0;mem:20480;ports:0..65000"))
       Scheduler.onTaskStarted(node2, taskStatus(node2.runtime.taskId, TaskState.TASK_RUNNING))
       assertEquals(Node.State.RUNNING, node2.state)
       sendRequest("/node/stop", parseMap("node=2,timeout=0s").toMap)
@@ -262,7 +262,7 @@ class HttpServerTest extends MesosTestCase {
 
     def started(node: Node, immediately: Boolean = false) = {
       assertEquals(Node.State.STARTING, node.state)
-      Scheduler.resourceOffers(schedulerDriver, List(offer(resources = "cpus:2.0;mem:20480;ports:0..65000")))
+      Scheduler.resourceOffers(schedulerDriver, List(offer("cpus:2.0;mem:20480;ports:0..65000")))
       def confirm = {
         Scheduler.onTaskStarted(node, taskStatus(node.runtime.taskId, TaskState.TASK_RUNNING))
         assertEquals(Node.State.RUNNING, node.state)
@@ -276,11 +276,11 @@ class HttpServerTest extends MesosTestCase {
 
     // no offers or offers that don't have required resource
     // low cpu
-    Scheduler.acceptOffer(offer(resources = "cpus:0.1;mem:128;ports:0..65000"))
+    Scheduler.acceptOffer(offer("cpus:0.1;mem:128;ports:0..65000"))
     // low memory
-    Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:128;ports:0..65000"))
+    Scheduler.acceptOffer(offer("cpus:2.0;mem:128;ports:0..65000"))
     // missing ports
-    Scheduler.acceptOffer(offer(resources = "cpus:2.0;mem:128;ports:0..1"))
+    Scheduler.acceptOffer(offer("cpus:2.0;mem:128;ports:0..1"))
 
     // for sure response status it timeout
     nodeStop(parseMap("node=0,timeout=1s").toMap)

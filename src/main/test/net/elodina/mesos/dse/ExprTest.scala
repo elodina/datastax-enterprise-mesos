@@ -6,7 +6,7 @@ import java.util
 import net.elodina.mesos.util.Strings
 import scala.collection.JavaConversions.mapAsScalaMap
 
-class ExprTest extends MesosTestCase {
+class ExprTest extends DseMesosTestCase {
   @Test
   def expandNodes {
     for (i <- 0 until 5)

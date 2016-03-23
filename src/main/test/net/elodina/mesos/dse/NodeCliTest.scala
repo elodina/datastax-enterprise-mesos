@@ -9,7 +9,7 @@ import org.apache.mesos.Protos.TaskState
 import scala.collection.JavaConversions._
 
 
-class NodeCliTest extends MesosTestCase with CliTestCase {
+class NodeCliTest extends DseMesosTestCase with CliTestCase {
   def cli = NodeCli.handle(_: Array[String])
 
   @Before
@@ -183,7 +183,7 @@ class NodeCliTest extends MesosTestCase with CliTestCase {
 
   def started(node: Node, immediately: Boolean = false) = {
     assertEquals(Node.State.STARTING, node.state)
-    Scheduler.resourceOffers(schedulerDriver, List(offer(resources = "cpus:2.0;mem:20480;ports:0..65000")))
+    Scheduler.resourceOffers(schedulerDriver, List(offer("cpus:2.0;mem:20480;ports:0..65000")))
     def confirm = {
       Scheduler.onTaskStarted(node, taskStatus(node.runtime.taskId, TaskState.TASK_RUNNING))
       assertEquals(Node.State.RUNNING, node.state)

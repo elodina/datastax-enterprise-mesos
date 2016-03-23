@@ -6,7 +6,7 @@ import java.nio.file.Files
 import java.io.File
 import net.elodina.mesos.util.IO
 
-class ExecutorTest extends MesosTestCase {
+class ExecutorTest extends DseMesosTestCase {
   @Before
   override def before {
     super.before
@@ -50,7 +50,7 @@ class ExecutorTest extends MesosTestCase {
     val node = Nodes.addNode(new Node("0"))
     node.mem = 2048 // out of 16G
     node.cpu = 2.0
-    val cp = new CassandraProcess(node, task(data = ""), "localhost")
+    val cp = new CassandraProcess(node, task("id", "name", "slave", ""), "localhost")
 
     val dseDir: File = new File(Executor.dir, "dse-4.8.0")
     dseDir.mkdirs()
