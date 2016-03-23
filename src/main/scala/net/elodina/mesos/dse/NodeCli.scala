@@ -2,7 +2,7 @@ package net.elodina.mesos.dse
 
 import java.io.IOException
 import joptsimple.{OptionException, OptionSet, OptionParser}
-import net.elodina.mesos.dse.Util.Str
+import net.elodina.mesos.util.Repr
 import scala.collection.mutable
 import Cli.{out, printLine, handleGenericOptions, Error}
 
@@ -367,15 +367,15 @@ object NodeCli {
     if (node.failover.isWaitingDelay()) {
       var s = "failed " + node.failover.failures
       if (node.failover.maxTries != null) s += "/" + node.failover.maxTries
-      s += " " + Str.dateTime(node.failover.failureTime)
-      s += ", next start " + Str.dateTime(node.failover.delayExpires)
+      s += " " + Repr.dateTime(node.failover.failureTime)
+      s += ", next start " + Repr.dateTime(node.failover.delayExpires)
       return s
     }
 
     if (node.failover.failures > 0) {
       var s = "starting " + (node.failover.failures + 1)
       if (node.failover.maxTries != null) s += "/" + node.failover.maxTries
-      s += ", failed " + Str.dateTime(node.failover.failureTime)
+      s += ", failed " + Repr.dateTime(node.failover.failureTime)
       return s
     }
 
@@ -419,7 +419,7 @@ object NodeCli {
   private def nodeStickiness(node: Node): String = {
     var s = "period:" + node.stickiness.period
     if (node.stickiness.hostname != null) s += ", hostname:" + node.stickiness.hostname
-    if (node.stickiness.stopTime != null) s += ", expires:" + Util.Str.dateTime(node.stickiness.expires)
+    if (node.stickiness.stopTime != null) s += ", expires:" + Repr.dateTime(node.stickiness.expires)
     s
   }
 

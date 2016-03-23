@@ -1,6 +1,7 @@
 package net.elodina.mesos.dse
 
-import net.elodina.mesos.dse.Util.{Range, BindAddress, parseMap}
+import net.elodina.mesos.dse.Util.{BindAddress, parseMap}
+import net.elodina.mesos.util.Range
 import org.junit.{Before, Test, After}
 import org.junit.Assert._
 import net.elodina.mesos.dse.Cli.sendRequest

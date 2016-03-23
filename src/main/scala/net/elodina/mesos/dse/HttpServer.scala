@@ -30,8 +30,8 @@ import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.Duration
 import net.elodina.mesos.dse.Node.State
-import net.elodina.mesos.dse.Util.{Range, BindAddress}
-import net.elodina.mesos.util.Period
+import net.elodina.mesos.dse.Util.BindAddress
+import net.elodina.mesos.util.{Period, Range}
 
 object HttpServer {
   private val logger = Logger.getLogger(HttpServer.getClass)

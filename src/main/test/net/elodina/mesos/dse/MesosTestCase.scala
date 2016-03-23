@@ -18,6 +18,7 @@
 package net.elodina.mesos.dse
 
 import net.elodina.mesos.dse.Node.{Failover, Runtime, Stickiness, Reservation}
+import net.elodina.mesos.util.Range
 import org.apache.mesos.Protos.Resource.DiskInfo.Persistence
 import org.apache.mesos.Protos.Resource.{DiskInfo, ReservationInfo}
 import org.apache.mesos.Protos.Volume.Mode
@@ -130,7 +131,7 @@ class MesosTestCase {
   def ranges(s: String): util.List[Value.Range] = {
     if (s.isEmpty) return Collections.emptyList()
     s.split(",").toList
-      .map(s => new Util.Range(s.trim))
+      .map(s => new Range(s.trim))
       .map(r => Value.Range.newBuilder().setBegin(r.start).setEnd(r.end).build())
   }
 

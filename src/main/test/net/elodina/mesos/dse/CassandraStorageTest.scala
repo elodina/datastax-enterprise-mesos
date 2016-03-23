@@ -2,6 +2,7 @@ package net.elodina.mesos.dse
 
 import java.util.Date
 
+import net.elodina.mesos.util.Range
 import net.elodina.mesos.dse.Node.{Failover, Reservation, Stickiness}
 import net.elodina.mesos.dse.Util.BindAddress
 import net.elodina.mesos.util.Period
@@ -17,7 +18,7 @@ object CassandraStorageTest {
   private val CassandraKeyspace = "dse_mesos"
   private val CassandraTable = "dse_mesos_framework"
 
-  private def createCluster(id: String, bindAddress: String, ports: Map[Node.Port.Value, Util.Range],
+  private def createCluster(id: String, bindAddress: String, ports: Map[Node.Port.Value, Range],
                             jmxRemote: Boolean, jmxUser: String, jmxPassword: String): Cluster = {
     val cluster = new Cluster(id)
     cluster.bindAddress = new BindAddress(bindAddress)
@@ -171,7 +172,7 @@ class CassandraStorageTest {
 
   @Test
   def testEmptyCluster(): Unit = {
-    val cluster = createCluster("cluster_1", "192.168.*", Map(Node.Port.AGENT -> new Util.Range("5005")), true, "user", "pass")
+    val cluster = createCluster("cluster_1", "192.168.*", Map(Node.Port.AGENT -> new Range("5005")), true, "user", "pass")
     Nodes.addCluster(cluster)
     Nodes.save()
 
@@ -190,7 +191,7 @@ class CassandraStorageTest {
 
   @Test
   def testTwoClusters(): Unit = {
-    val cluster1 = createCluster("cluster_1", "192.168.*", Map(Node.Port.AGENT -> new Util.Range("5005"), Node.Port.CQL -> null), true, "user", "pass")
+    val cluster1 = createCluster("cluster_1", "192.168.*", Map(Node.Port.AGENT -> new Range("5005"), Node.Port.CQL -> null), true, "user", "pass")
     val node1_1 = createNode("1", Node.State.RUNNING, cluster1, createStickiness("30m", "slave0", new Date()), null, 1.5, 2056,
       true, "", null, null, Map.empty, Map.empty, ".", ".", ".", Map.empty, Map.empty, "", false, new Failover())
     Nodes.addCluster(cluster1)

@@ -1,5 +1,6 @@
 package net.elodina.mesos.dse
 
+import net.elodina.mesos.util.Range
 import scala.util.parsing.json.JSONObject
 import scala.collection.mutable
 import Util.BindAddress
@@ -9,7 +10,7 @@ class Cluster {
   var name: String = null
 
   var bindAddress: BindAddress = null
-  var ports: mutable.HashMap[Node.Port.Value, Util.Range] = new mutable.HashMap[Node.Port.Value, Util.Range]()
+  var ports: mutable.HashMap[Node.Port.Value, Range] = new mutable.HashMap[Node.Port.Value, Range]()
 
   var jmxRemote: Boolean = false
   var jmxUser: String = null
@@ -54,7 +55,7 @@ class Cluster {
 
     resetPorts
     for ((port, range) <- json("ports").asInstanceOf[Map[String, String]])
-      ports(Node.Port.withName(port)) = new Util.Range(range)
+      ports(Node.Port.withName(port)) = new Range(range)
 
     if (json.contains("jmxRemote")) jmxRemote = json("jmxRemote").asInstanceOf[Boolean]
     if (json.contains("jmxUser")) jmxUser = json("jmxUser").asInstanceOf[String]
