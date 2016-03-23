@@ -8,30 +8,10 @@ import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File}
 import java.nio.file.Files
 import java.net.{InetSocketAddress, ServerSocket}
 
-import scala.collection.mutable.LinkedHashMap
-
 import Util._
 
 
 class UtilTest {
-  @Test
-  def formatMapTest() = {
-    val map = new LinkedHashMap[String, String]()
-    map.put("a", "1")
-    map.put("b", "2")
-    assertEquals("a=1,b=2", formatMap(map))
-
-    // null value
-    map.put("b", null)
-    assertEquals("a=1,b", formatMap(map))
-
-    // escaping
-    map.put("a", ",")
-    map.put("b", "=")
-    map.put("c", "\\")
-    assertEquals("a=\\,,b=\\=,c=\\\\", formatMap(map))
-  }
-
   @Test
   def parseJsonTest() = {
     val node = parseJson("{\"a\":\"1\", \"b\":\"2\"}").asInstanceOf[Map[String, Object]]
