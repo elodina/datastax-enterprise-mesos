@@ -18,6 +18,7 @@
 
 package net.elodina.mesos.dse
 
+import net.elodina.mesos.util.Version
 import java.util
 import java.util.concurrent.TimeUnit
 
@@ -30,7 +31,7 @@ import scala.collection.JavaConversions._
 import scala.concurrent.duration.Duration
 import scala.language.postfixOps
 
-import Util.{Str, Version}
+import Util.Str
 import scala.collection.mutable.ListBuffer
 import java.util.{Collections, Date}
 

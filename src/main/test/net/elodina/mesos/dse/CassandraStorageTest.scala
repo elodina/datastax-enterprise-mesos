@@ -7,7 +7,7 @@ import net.elodina.mesos.dse.Util.{BindAddress, Period}
 import org.cassandraunit.CassandraCQLUnit
 import org.cassandraunit.dataset.cql.FileCQLDataSet
 import org.junit.Assert._
-import org.junit.{Before, Rule, Test}
+import org.junit.{Ignore, Before, Rule, Test}
 
 import scala.collection.JavaConverters._
 
@@ -135,6 +135,7 @@ object CassandraStorageTest {
   }
 }
 
+@Ignore
 class CassandraStorageTest {
 
   import CassandraStorageTest._

@@ -22,7 +22,7 @@ import java.io.File
 import org.I0Itec.zkclient.ZkClient
 import org.I0Itec.zkclient.exception.ZkNodeExistsException
 import org.I0Itec.zkclient.serialize.BytesPushThroughSerializer
-import net.elodina.mesos.dse.Util.Version
+import net.elodina.mesos.util.Version
 import scala.util.parsing.json.JSONObject
 
 trait Storage {
