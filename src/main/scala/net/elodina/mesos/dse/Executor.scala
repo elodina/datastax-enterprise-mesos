@@ -19,13 +19,14 @@
 package net.elodina.mesos.dse
 
 import java.io.{File, PrintWriter, StringWriter}
+import net.elodina.mesos.util.{IO, Repr}
 
 import org.apache.log4j._
 import org.apache.mesos.Protos._
 import org.apache.mesos.{ExecutorDriver, MesosExecutorDriver}
 
-import Util.{BindAddress, Str}
 import com.google.protobuf.ByteString
+import Util.BindAddress
 
 object Executor extends org.apache.mesos.Executor {
   private val logger = Logger.getLogger(Executor.getClass)
@@ -46,13 +47,13 @@ object Executor extends org.apache.mesos.Executor {
   }
 
   def registered(driver: ExecutorDriver, executor: ExecutorInfo, framework: FrameworkInfo, slave: SlaveInfo) {
-    logger.info("[registered] framework:" + Str.framework(framework) + " slave:" + Str.slave(slave))
+    logger.info("[registered] framework:" + Repr.framework(framework) + " slave:" + Repr.slave(slave))
 
     this.hostname = slave.getHostname
   }
 
   def reregistered(driver: ExecutorDriver, slave: SlaveInfo) {
-    logger.info("[reregistered] " + Str.slave(slave))
+    logger.info("[reregistered] " + Repr.slave(slave))
 
     this.hostname = slave.getHostname
   }
@@ -62,7 +63,7 @@ object Executor extends org.apache.mesos.Executor {
   }
 
   def launchTask(driver: ExecutorDriver, task: TaskInfo) {
-    logger.info("[launchTask] " + Str.task(task))
+    logger.info("[launchTask] " + Repr.task(task))
     driver.sendStatusUpdate(TaskStatus.newBuilder().setTaskId(task.getTaskId).setState(TaskState.TASK_STARTING).build)
 
     new Thread {
@@ -165,9 +166,9 @@ object Executor extends org.apache.mesos.Executor {
   var jreDir: File = null
 
   def resolveDeps() {
-    cassandraDir = Util.IO.findDir(dir, "apache-cassandra.*")
-    dseDir = Util.IO.findDir(dir, "dse.*")
-    jreDir = Util.IO.findDir(dir, "jre.*")
+    cassandraDir = IO.findDir(dir, "apache-cassandra.*")
+    dseDir = IO.findDir(dir, "dse.*")
+    jreDir = IO.findDir(dir, "jre.*")
 
     if (dseDir == null && cassandraDir == null)
       throw new IllegalStateException("Either cassandra or dse dir should exist")

@@ -2,8 +2,9 @@ package net.elodina.mesos.dse
 
 import java.io.IOException
 import joptsimple.{OptionException, OptionSet, OptionParser}
-import net.elodina.mesos.dse.Util.Str
+import net.elodina.mesos.util.{Strings, Repr}
 import scala.collection.mutable
+import scala.collection.JavaConversions.mapAsJavaMap
 import Cli.{out, printLine, handleGenericOptions, Error}
 
 object NodeCli {
@@ -352,8 +353,8 @@ object NodeCli {
     if (node.seed && node.seedConstraints.nonEmpty) printLine(s"seed constraints: ${Util.formatConstraints(node.seedConstraints)}", indent)
 
     printLine(s"dirs: ${nodeDirs(node)}", indent)
-    if (!node.cassandraDotYaml.isEmpty) printLine(s"cassandra.yaml overrides: ${Util.formatMap(node.cassandraDotYaml)}", indent)
-    if (!node.addressDotYaml.isEmpty) printLine(s"address.yaml overrides: ${Util.formatMap(node.addressDotYaml)}", indent)
+    if (!node.cassandraDotYaml.isEmpty) printLine(s"cassandra.yaml overrides: ${Strings.formatMap(node.cassandraDotYaml)}", indent)
+    if (!node.addressDotYaml.isEmpty) printLine(s"address.yaml overrides: ${Strings.formatMap(node.addressDotYaml)}", indent)
     if (node.cassandraJvmOptions != null) printLine(s"cassandra jvm options: ${node.cassandraJvmOptions}", indent)
 
     printLine(s"failover: ${nodeFailover(node)}", indent)
@@ -367,15 +368,15 @@ object NodeCli {
     if (node.failover.isWaitingDelay()) {
       var s = "failed " + node.failover.failures
       if (node.failover.maxTries != null) s += "/" + node.failover.maxTries
-      s += " " + Str.dateTime(node.failover.failureTime)
-      s += ", next start " + Str.dateTime(node.failover.delayExpires)
+      s += " " + Repr.dateTime(node.failover.failureTime)
+      s += ", next start " + Repr.dateTime(node.failover.delayExpires)
       return s
     }
 
     if (node.failover.failures > 0) {
       var s = "starting " + (node.failover.failures + 1)
       if (node.failover.maxTries != null) s += "/" + node.failover.maxTries
-      s += ", failed " + Str.dateTime(node.failover.failureTime)
+      s += ", failed " + Repr.dateTime(node.failover.failureTime)
       return s
     }
 
@@ -390,7 +391,7 @@ object NodeCli {
     printLine(s"host: ${nodeHost(runtime)}", indent + 1)
     printLine(s"reservation: ${nodeReservation(runtime.reservation)}", indent + 1)
     printLine(s"seeds: ${if (runtime.seeds.isEmpty) "<none>" else runtime.seeds.mkString(",")}", indent + 1)
-    if (!runtime.attributes.isEmpty) printLine(s"attributes: ${Util.formatMap(runtime.attributes)}", indent + 1)
+    if (!runtime.attributes.isEmpty) printLine(s"attributes: ${Strings.formatMap(runtime.attributes)}", indent + 1)
   }
 
   private def nodeTopology(node: Node): String = {
@@ -419,7 +420,7 @@ object NodeCli {
   private def nodeStickiness(node: Node): String = {
     var s = "period:" + node.stickiness.period
     if (node.stickiness.hostname != null) s += ", hostname:" + node.stickiness.hostname
-    if (node.stickiness.stopTime != null) s += ", expires:" + Util.Str.dateTime(node.stickiness.expires)
+    if (node.stickiness.stopTime != null) s += ", expires:" + Repr.dateTime(node.stickiness.expires)
     s
   }
 

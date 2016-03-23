@@ -2,9 +2,10 @@ package net.elodina.mesos.dse
 
 import org.junit.{Before, Test}
 import org.junit.Assert._
-import net.elodina.mesos.dse.Util.{BindAddress, Range}
+import net.elodina.mesos.dse.Util.BindAddress
+import net.elodina.mesos.util.Range
 
-class ClusterTest extends MesosTestCase {
+class ClusterTest extends DseMesosTestCase {
   @Before
   override def before {
     super.before

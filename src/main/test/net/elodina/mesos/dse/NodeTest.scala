@@ -8,10 +8,10 @@ import net.elodina.mesos.dse.Node._
 import scala.collection.mutable
 import scala.collection.JavaConversions._
 import scala.collection.mutable.ListBuffer
-import net.elodina.mesos.dse.Util.{Period, Range}
+import net.elodina.mesos.util.{Strings, Period, Range}
 import java.util.Date
 
-class NodeTest extends MesosTestCase {
+class NodeTest extends DseMesosTestCase {
   @Test
   def matches {
     val node = new Node("0")
@@ -19,13 +19,13 @@ class NodeTest extends MesosTestCase {
     node.mem = 500
     node.cluster.resetPorts
 
-    assertEquals(s"cpus < 0.5", node.matches(offer(resources = "cpus:0.1")))
-    assertEquals(s"mem < 500", node.matches(offer(resources = "cpus:0.5; mem:400")))
+    assertEquals(s"cpus < 0.5", node.matches(offer("cpus:0.1")))
+    assertEquals(s"mem < 500", node.matches(offer("cpus:0.5; mem:400")))
 
-    assertEquals("no suitable jmx port", node.matches(offer(resources = "cpus:0.5; mem:500; ports:5..5")))
-    assertEquals("no suitable thrift port", node.matches(offer(resources = "cpus:0.5; mem:500; ports:5..7")))
+    assertEquals("no suitable jmx port", node.matches(offer("cpus:0.5; mem:500; ports:5..5")))
+    assertEquals("no suitable thrift port", node.matches(offer("cpus:0.5; mem:500; ports:5..7")))
 
-    assertNull(node.matches(offer(resources = "cpus:0.5; mem:500; ports:0..4")))
+    assertNull(node.matches(offer("cpus:0.5; mem:500; ports:0..4")))
   }
 
   @Test
@@ -35,15 +35,15 @@ class NodeTest extends MesosTestCase {
     val host1 = "host1"
     val resources = s"cpus:${node.cpu};mem:${node.mem};ports:0..10"
 
-    assertEquals(null, node.matches(offer(hostname = host0, resources = resources), new Date(0)))
-    assertEquals(null, node.matches(offer(hostname = host1, resources = resources), new Date(0)))
+    assertEquals(null, node.matches(offer(host0, resources), new Date(0)))
+    assertEquals(null, node.matches(offer(host1, resources), new Date(0)))
 
     node.registerStart(host0)
     node.registerStop(new Date(0))
 
-    assertEquals(null, node.matches(offer(hostname = host0, resources = resources), new Date(0)))
-    assertEquals("hostname != stickiness hostname", node.matches(offer(hostname = host1, resources = resources), new Date(0)))
-    assertEquals(null, node.matches(offer(hostname = host1, resources = resources), new Date(node.stickiness.period.ms)))
+    assertEquals(null, node.matches(offer(host0, resources), new Date(0)))
+    assertEquals("hostname != stickiness hostname", node.matches(offer(host1, resources), new Date(0)))
+    assertEquals(null, node.matches(offer(host1, resources), new Date(node.stickiness.period.ms)))
   }
 
   @Test
@@ -53,13 +53,13 @@ class NodeTest extends MesosTestCase {
     node.mem = 400
 
     // incomplete reservation
-    var reservation = node.reserve(offer(resources = "cpus:0.3;mem:300;ports:0..1"))
+    var reservation = node.reserve(offer("cpus:0.3;mem:300;ports:0..1"))
     assertEquals(0.3d, reservation.cpus, 0.001)
     assertEquals(300, reservation.mem)
     assertEquals(Map(Port.STORAGE -> 0, Port.JMX -> 1, Port.CQL -> -1, Port.THRIFT -> -1, Port.AGENT -> -1), reservation.ports)
 
     // complete reservation
-    reservation = node.reserve(offer(resources = "cpus:0.7;mem:1000;ports:0..10"))
+    reservation = node.reserve(offer("cpus:0.7;mem:1000;ports:0..10"))
     assertEquals(node.cpu, reservation.cpus, 0.001)
     assertEquals(node.mem, reservation.mem)
     assertEquals(Map(Port.STORAGE -> 0, Port.JMX -> 1, Port.CQL -> 2, Port.THRIFT -> 3, Port.AGENT -> 4), reservation.ports)
@@ -71,7 +71,7 @@ class NodeTest extends MesosTestCase {
     val node1 = Nodes.addNode(new Node("1"))
 
     // storage/agent ports available
-    var reservation: Reservation = node1.reserve(offer(hostname = "slave0", resources = "ports:0..200"))
+    var reservation: Reservation = node1.reserve(offer("slave0", "ports:0..200"))
     assertEquals(0, reservation.ports(Port.STORAGE))
     assertTrue(reservation.ignoredPorts.isEmpty)
 
@@ -79,7 +79,7 @@ class NodeTest extends MesosTestCase {
     node0.state = Node.State.RUNNING
     node0.runtime = new Node.Runtime(hostname = "slave0", reservation = new Node.Reservation(ports = Map(Port.STORAGE -> 100, Port.AGENT -> 101)))
     
-    reservation = node1.reserve(offer(hostname = "slave0", resources = "ports:0..99,102..200"))
+    reservation = node1.reserve(offer("slave0", "ports:0..99,102..200"))
     assertEquals(100, reservation.ports(Port.STORAGE))
     assertEquals(101, reservation.ports(Port.AGENT))
     assertEquals(List(Port.STORAGE, Port.AGENT), reservation.ignoredPorts)
@@ -95,7 +95,7 @@ class NodeTest extends MesosTestCase {
         val ports = new mutable.HashMap[Port.Value, Range]()
         Port.values.foreach(ports(_) = null)
 
-        for ((k,v) <- Util.parseMap(s))
+        for ((k,v) <- Strings.parseMap(s))
           ports(Port.withName(k)) = new Range(v)
 
         ports.toMap
@@ -103,7 +103,7 @@ class NodeTest extends MesosTestCase {
 
       node.cluster.ports.clear()
       node.cluster.ports ++= parsePortsDef(portsDef)
-      val ports: Map[Port.Value, Int] = node.reservePorts(offer(resources = resources))
+      val ports: Map[Port.Value, Int] = node.reservePorts(offer(resources))
 
       for ((port, value) <- expected)
         assertTrue(s"portsDef:$portsDef, resources:$resources, expected:$expected, actual:$ports", ports.getOrElse(port, null) == value)
@@ -157,7 +157,7 @@ class NodeTest extends MesosTestCase {
     val node = new Node("0")
     node.cpu = 0.1
     node.mem = 500
-    node.runtime = new Runtime(node, offer(resources = "cpus:1;mem:1000;ports:0..10"))
+    node.runtime = new Runtime(node, offer("cpus:1;mem:1000;ports:0..10"))
 
     val task: TaskInfo = node.newTask()
     assertEquals(node.runtime.taskId, task.getTaskId.getValue)

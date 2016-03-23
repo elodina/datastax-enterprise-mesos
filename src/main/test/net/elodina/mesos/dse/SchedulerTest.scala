@@ -7,7 +7,7 @@ import Scheduler.Reconciler
 import org.apache.mesos.Protos.TaskState
 import scala.collection.JavaConversions._
 
-class SchedulerTest extends MesosTestCase {
+class SchedulerTest extends DseMesosTestCase {
   @Test
   def acceptOffer {
     val node = Nodes.addNode(new Node("0"))
@@ -25,19 +25,19 @@ class SchedulerTest extends MesosTestCase {
     assertEquals("node 0 is starting", Scheduler.acceptOffer(offer()))
 
     node.runtime = null
-    assertEquals("node 0: cpus < 0.5", Scheduler.acceptOffer(offer(resources = "cpus:0.4")))
+    assertEquals("node 0: cpus < 0.5", Scheduler.acceptOffer(offer("cpus:0.4")))
 
-    assertEquals(null, Scheduler.acceptOffer(offer(resources = "cpus:0.5;mem:400;ports:0..10")))
+    assertEquals(null, Scheduler.acceptOffer(offer("cpus:0.5;mem:400;ports:0..10")))
     assertEquals(1, schedulerDriver.launchedTasks.size())
     assertEquals(Node.State.STARTING, node.state)
     assertNotNull(node.runtime)
 
     // failover delay
-    Scheduler.statusUpdate(schedulerDriver, taskStatus(id = node.runtime.taskId, state = TaskState.TASK_FAILED))
+    Scheduler.statusUpdate(schedulerDriver, taskStatus(node.runtime.taskId, TaskState.TASK_FAILED))
     assertEquals(1, node.failover.failures)
-    assertEquals("no nodes to start", Scheduler.acceptOffer(offer(resources = "cpus:1.0;mem:1024;ports:0..10")))
+    assertEquals("no nodes to start", Scheduler.acceptOffer(offer("cpus:1.0;mem:1024;ports:0..10")))
 
-    assertEquals(null, Scheduler.acceptOffer(offer(resources = "cpus:1.0;mem:1024;ports:0..10"), node.failover.delayExpires))
+    assertEquals(null, Scheduler.acceptOffer(offer("cpus:1.0;mem:1024;ports:0..10"), node.failover.delayExpires))
   }
 
   @Test
@@ -48,7 +48,7 @@ class SchedulerTest extends MesosTestCase {
     }
     Nodes.getNode("5").seed = true
 
-    assertEquals(null, Scheduler.acceptOffer(offer(resources = s"cpus:1;mem:1000;ports:0..10")))
+    assertEquals(null, Scheduler.acceptOffer(offer(s"cpus:1;mem:1000;ports:0..10")))
     assertEquals(1, schedulerDriver.launchedTasks.size())
     assertNotNull(Nodes.getNode("5").runtime)
   }
@@ -60,13 +60,13 @@ class SchedulerTest extends MesosTestCase {
     // node started
     node.runtime = new Node.Runtime(node, offer())
     node.state = Node.State.STARTING
-    Scheduler.onTaskStatus(taskStatus(id = node.runtime.taskId, state = TaskState.TASK_RUNNING))
+    Scheduler.onTaskStatus(taskStatus(node.runtime.taskId, TaskState.TASK_RUNNING))
     assertEquals(Node.State.RUNNING, node.state)
     assertEquals(0, schedulerDriver.killedTasks.size())
     assertEquals(0, node.failover.failures)
 
     // node failed
-    Scheduler.onTaskStatus(taskStatus(id = node.runtime.taskId, state = TaskState.TASK_LOST))
+    Scheduler.onTaskStatus(taskStatus(node.runtime.taskId, TaskState.TASK_LOST))
     assertEquals(Node.State.STARTING, node.state)
     assertNull(node.runtime)
     assertEquals(1, node.failover.failures)
@@ -74,7 +74,7 @@ class SchedulerTest extends MesosTestCase {
     // node stopped
     node.runtime = new Node.Runtime(node, offer())
     node.state = Node.State.STOPPING
-    Scheduler.onTaskStatus(taskStatus(id = node.runtime.taskId, state = TaskState.TASK_FINISHED))
+    Scheduler.onTaskStatus(taskStatus(node.runtime.taskId, TaskState.TASK_FINISHED))
     assertEquals(Node.State.IDLE, node.state)
     assertNull(node.runtime)
 
@@ -86,7 +86,7 @@ class SchedulerTest extends MesosTestCase {
       node.state = Node.State.STARTING
 
       assertDifference(node.failover.failures) {
-        Scheduler.onTaskStatus(taskStatus(id = node.runtime.taskId, state = taskState))
+        Scheduler.onTaskStatus(taskStatus(node.runtime.taskId, taskState))
         assertEquals(Node.State.STARTING, node.state)
       }
     }
@@ -95,7 +95,7 @@ class SchedulerTest extends MesosTestCase {
   @Test
   def onTaskStarted {
     // unknown node
-    Scheduler.onTaskStarted(null, taskStatus(state = TaskState.TASK_RUNNING))
+    Scheduler.onTaskStarted(null, taskStatus(TaskState.TASK_RUNNING))
     assertEquals(1, schedulerDriver.killedTasks.size())
     schedulerDriver.killedTasks.clear()
 
@@ -107,7 +107,7 @@ class SchedulerTest extends MesosTestCase {
       node.runtime = new Node.Runtime(taskId = "task")
       node.state = state
 
-      Scheduler.onTaskStarted(node, taskStatus(id = "task", state = TaskState.TASK_RUNNING, data = "address"))
+      Scheduler.onTaskStarted(node, taskStatus("task", TaskState.TASK_RUNNING, "address"))
       assertEquals("" + state, 1, schedulerDriver.killedTasks.size())
       assertEquals("" + state, state, node.state)
       assertEquals("" + state, null, node.runtime.address)
@@ -123,7 +123,7 @@ class SchedulerTest extends MesosTestCase {
       node.failover.resetFailures()
       node.failover.registerFailure(new Date(1))
 
-      Scheduler.onTaskStarted(node, taskStatus(id = "task", state = TaskState.TASK_RUNNING, data = "address"))
+      Scheduler.onTaskStarted(node, taskStatus("task", TaskState.TASK_RUNNING, "address"))
       assertEquals("" + state, 0, schedulerDriver.killedTasks.size())
       assertEquals("" + state, Node.State.RUNNING, node.state)
 
@@ -138,18 +138,18 @@ class SchedulerTest extends MesosTestCase {
   @Test
   def onTaskStopped {
     // unknown node
-    Scheduler.onTaskStopped(null, taskStatus(state = TaskState.TASK_FAILED))
+    Scheduler.onTaskStopped(null, taskStatus(TaskState.TASK_FAILED))
 
     val node = Nodes.addNode(new Node("0"))
     node.runtime = new Node.Runtime(taskId = "task")
 
     // idle
-    Scheduler.onTaskStopped(node, taskStatus(id = "task", state = TaskState.TASK_FAILED))
+    Scheduler.onTaskStopped(node, taskStatus("task", TaskState.TASK_FAILED))
     assertEquals(Node.State.IDLE, node.state)
 
     // stopping
     node.state = Node.State.STOPPING
-    Scheduler.onTaskStopped(node, taskStatus(id = "task", state = TaskState.TASK_FAILED))
+    Scheduler.onTaskStopped(node, taskStatus("task", TaskState.TASK_FAILED))
     assertEquals(Node.State.IDLE, node.state)
     assertNull(node.runtime)
 
@@ -158,7 +158,7 @@ class SchedulerTest extends MesosTestCase {
       node.runtime = new Node.Runtime(taskId = "task")
       node.state = state
 
-      Scheduler.onTaskStopped(node, taskStatus(id = "task", state = TaskState.TASK_FAILED))
+      Scheduler.onTaskStopped(node, taskStatus("task", TaskState.TASK_FAILED))
       assertEquals("" + state, Node.State.STARTING, node.state)
       assertNull("" + state, node.runtime)
     }
@@ -185,7 +185,7 @@ class SchedulerTest extends MesosTestCase {
         node.state = nodeState
         if (node.state == Node.State.RUNNING) node.runtime.address = "slave0"
 
-        Scheduler.onTaskStopped(node, taskStatus(id = node.runtime.taskId, state = taskState), new Date(ts))
+        Scheduler.onTaskStopped(node, taskStatus(node.runtime.taskId, taskState), new Date(ts))
         // when ever failure occurs and max tries not exceeded node state changed to starting
         assertEquals(Node.State.STARTING, node.state)
 
@@ -202,7 +202,7 @@ class SchedulerTest extends MesosTestCase {
       node.runtime = new Node.Runtime(node, offer())
       node.state = Node.State.STOPPING
 
-      Scheduler.onTaskStopped(node, taskStatus(id = node.runtime.taskId, state = taskState))
+      Scheduler.onTaskStopped(node, taskStatus(node.runtime.taskId, taskState))
       assert(node.idle)
 
       assertEquals(0, node.failover.failures)
@@ -220,7 +220,7 @@ class SchedulerTest extends MesosTestCase {
         node.runtime = new Node.Runtime(node, offer())
         node.state = nodeState
 
-        Scheduler.onTaskStopped(node, taskStatus(id = node.runtime.taskId, state = taskState), new Date(5))
+        Scheduler.onTaskStopped(node, taskStatus(node.runtime.taskId, taskState), new Date(5))
         // when ever failure occurs and max tries exceeded node state changed to idle
         assert(node.idle)
 
@@ -252,7 +252,7 @@ class SchedulerTest extends MesosTestCase {
 
     // node has sufficient resources to start
     node0.state = STARTING
-    Scheduler.resourceOffers(schedulerDriver, List(offer(resources = "cpus:2.0;mem:20480;ports:0..65000")))
+    Scheduler.resourceOffers(schedulerDriver, List(offer("cpus:2.0;mem:20480;ports:0..65000")))
     assertNotNull(node0.runtime)
     // confirm start by executor
     Scheduler.onTaskStarted(node0, taskStatus(node0.runtime.taskId, TaskState.TASK_RUNNING))

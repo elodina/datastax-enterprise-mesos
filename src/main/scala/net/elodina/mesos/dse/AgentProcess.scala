@@ -24,6 +24,7 @@ import scala.collection.JavaConversions._
 
 import org.apache.log4j.Logger
 import java.util
+import net.elodina.mesos.util.IO
 
 case class AgentProcess(node: Node, address: String, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
@@ -86,6 +87,6 @@ case class AgentProcess(node: Node, address: String, env: Map[String, String] = 
         case (k, v) => s"$k: $v"
       }.mkString(System.lineSeparator())
 
-    Util.IO.writeFile(file, content)
+    IO.writeFile(file, content)
   }
 }

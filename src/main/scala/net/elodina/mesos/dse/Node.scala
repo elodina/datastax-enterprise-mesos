@@ -27,10 +27,10 @@ import scala.concurrent.duration._
 import scala.language.postfixOps
 import scala.util.parsing.json.{JSONArray, JSONObject}
 import scala.collection.mutable.ListBuffer
-import net.elodina.mesos.dse.Util.Range
+import net.elodina.mesos.util.Range
 import net.elodina.mesos.dse.Node.Reservation
 import java.util.{TimeZone, Date}
-import Util.Period
+import net.elodina.mesos.util.Period
 import java.text.SimpleDateFormat
 import Math._
 import Util.Size
@@ -145,7 +145,7 @@ class Node extends Constrained {
     if (resource == null) return result.toMap
 
     var availPorts: ListBuffer[Range] = new ListBuffer[Range]()
-    availPorts ++= resource.getRanges.getRangeList.map(r => new Util.Range(r.getBegin.toInt, r.getEnd.toInt)).sortBy(_.start)
+    availPorts ++= resource.getRanges.getRangeList.map(r => new Range(r.getBegin.toInt, r.getEnd.toInt)).sortBy(_.start)
 
     for (port <- Node.Port.values) {
       var range: Range = cluster.ports(port)
