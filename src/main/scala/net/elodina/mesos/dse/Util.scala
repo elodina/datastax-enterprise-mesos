@@ -27,11 +27,10 @@ import org.apache.mesos.Protos._
 import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.util.parsing.json.JSON
-import java.util.Date
-import java.text.SimpleDateFormat
 import scala.collection.mutable.ListBuffer
 import java.util.regex.{Matcher, Pattern}
 import java.net._
+import net.elodina.mesos.util.Net
 
 object Util {
   def parseList(s: String, entrySep: Char = ',', valueSep: Char = '=', nullValues: Boolean = true): List[(String, String)] = {
@@ -130,34 +129,6 @@ object Util {
       if (current.getName == name) all ++ current.getRanges.getRangeList
       else all
     }
-  }
-
-  def findAvailPort: Int = {
-    var s: ServerSocket = null
-    var port: Int = -1
-
-    try {
-      s = new ServerSocket(0)
-      port = s.getLocalPort
-    } finally { if (s != null) s.close(); }
-
-    port
-  }
-
-  private def portAvail(address: String, port: Int): Boolean = {
-    var socket: ServerSocket = null
-    try {
-      socket = new ServerSocket()
-      socket.bind(new InetSocketAddress(address, port))
-    } catch {
-      case e: IOException => return false
-    } finally {
-      if (socket != null)
-        try { socket.close() }
-        catch { case e: IOException => }
-    }
-
-    true
   }
 
   class Size(s: String) {
@@ -262,7 +233,7 @@ object Util {
     def resolve(port: Int = -1): String = {
       for (value <- values) {
         val address: String = value.resolve()
-        if (address != null && (port == -1 || portAvail(address, port)))
+        if (address != null && (port == -1 || Net.isPortAvail(address, port)))
           return address
       }
 

@@ -18,7 +18,7 @@
 package net.elodina.mesos.dse
 
 import net.elodina.mesos.dse.Node.{Failover, Runtime, Stickiness, Reservation}
-import net.elodina.mesos.util.{Strings, Range}
+import net.elodina.mesos.util.{Net, Strings, Range}
 import org.apache.mesos.Protos.Resource.DiskInfo.Persistence
 import org.apache.mesos.Protos.Resource.{DiskInfo, ReservationInfo}
 import org.apache.mesos.Protos.Volume.Mode
@@ -56,7 +56,7 @@ class MesosTestCase {
 
     executorDriver = new TestExecutorDriver()
 
-    Config.api = "http://localhost:" + Util.findAvailPort
+    Config.api = "http://localhost:" + Net.findAvailPort
     Config.dse = new File("dse.tar.gz")
     Config.cassandra = new File("cassandra.tar.gz")
     Config.jar = new File("dse-mesos.jar")

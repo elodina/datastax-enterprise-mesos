@@ -1,14 +1,14 @@
 package net.elodina.mesos.dse
 
-import java.util.Arrays
-
 import org.junit.Test
 import org.junit.Assert._
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File}
 import java.nio.file.Files
 import java.net.{InetSocketAddress, ServerSocket}
 
+import java.util
 import Util._
+import net.elodina.mesos.util.Net
 
 
 class UtilTest {
@@ -36,7 +36,7 @@ class UtilTest {
     }
 
     IO.copyAndClose(in, out)
-    assertTrue(Arrays.equals(data, out.toByteArray))
+    assertTrue(util.Arrays.equals(data, out.toByteArray))
     assertTrue(inClosed)
     assertTrue(outClosed)
   }
@@ -71,7 +71,7 @@ class UtilTest {
 
   @Test
   def BindAddress_resolve_checkPort {
-    val port = findAvailPort
+    val port = Net.findAvailPort
 
     // port avail
     val address: BindAddress = new BindAddress("127.*")
