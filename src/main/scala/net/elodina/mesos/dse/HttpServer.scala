@@ -31,7 +31,7 @@ import scala.collection.mutable.ListBuffer
 import scala.concurrent.duration.Duration
 import net.elodina.mesos.dse.Node.State
 import net.elodina.mesos.dse.Util.BindAddress
-import net.elodina.mesos.util.{Strings, Period, Range}
+import net.elodina.mesos.util.{IO, Strings, Period, Range}
 
 object HttpServer {
   private val logger = Logger.getLogger(HttpServer.getClass)
@@ -105,7 +105,7 @@ object HttpServer {
       response.setContentType("application/zip")
       response.setHeader("Content-Length", "" + file.length())
       response.setHeader("Content-Disposition", "attachment; filename=\"" + file.getName + "\"")
-      Util.IO.copyAndClose(new FileInputStream(file), response.getOutputStream)
+      IO.copyAndClose(new FileInputStream(file), response.getOutputStream)
     }
 
     def handleNodeApi(request: HttpServletRequest, response: HttpServletResponse) {

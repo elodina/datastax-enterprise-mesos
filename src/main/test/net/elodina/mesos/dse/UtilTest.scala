@@ -2,11 +2,8 @@ package net.elodina.mesos.dse
 
 import org.junit.Test
 import org.junit.Assert._
-import java.io.{ByteArrayInputStream, ByteArrayOutputStream, File}
-import java.nio.file.Files
 import java.net.{InetSocketAddress, ServerSocket}
 
-import java.util
 import Util._
 import net.elodina.mesos.util.Net
 
@@ -18,27 +15,6 @@ class UtilTest {
     assertEquals(2, node.size)
     assertEquals("1", node("a").asInstanceOf[String])
     assertEquals("2", node("b").asInstanceOf[String])
-  }
-
-  @Test
-  def copyAndCloseTest() = {
-    val data = new Array[Byte](16 * 1024)
-    for (i <- data.indices) data(i) = i.toByte
-
-    var inClosed = false
-    var outClosed = false
-
-    val in = new ByteArrayInputStream(data) {
-      override def close(): Unit = super.close(); inClosed = true
-    }
-    val out = new ByteArrayOutputStream() {
-      override def close(): Unit = super.close(); outClosed = true
-    }
-
-    IO.copyAndClose(in, out)
-    assertTrue(util.Arrays.equals(data, out.toByteArray))
-    assertTrue(inClosed)
-    assertTrue(outClosed)
   }
 
   // BindAddress
@@ -86,42 +62,6 @@ class UtilTest {
     } finally {
       if (socket != null) socket.close()
     }
-  }
-
-  @Test
-  def IO_findFile0 {
-    val dir: File = Files.createTempDirectory(classOf[UtilTest].getSimpleName).toFile
-
-    try {
-      assertNull(IO.findDir(dir, "mask.*"))
-
-      val matchedFile: File = new File(dir, "mask-123")
-      matchedFile.createNewFile()
-
-      assertNull(IO.findFile0(dir, "mask.*", isDir = true))
-      assertEquals(matchedFile, IO.findFile0(dir, "mask.*"))
-    } finally {
-      IO.delete(dir)
-    }
-  }
-
-  @Test
-  def IO_replaceInFile {
-    val file: File = Files.createTempFile(classOf[UtilTest].getSimpleName, null).toFile
-
-    IO.writeFile(file, "a=1\nb=2\nc=3")
-    IO.replaceInFile(file, Map("a=*." -> "a=4", "b=*." -> "b=5"))
-    assertEquals("a=4\nb=5\nc=3", IO.readFile(file))
-
-    // error on miss
-    IO.writeFile(file, "a=1\nb=2")
-    try { IO.replaceInFile(file, Map("a=*." -> "a=3", "c=*." -> "c=4")) }
-    catch { case e: IllegalStateException => assertTrue(e.getMessage, e.getMessage.contains("not found in file")) }
-
-    // ignore misses
-    IO.writeFile(file, "a=1\nb=2")
-    IO.replaceInFile(file, Map("a=*." -> "a=3", "c=*." -> "c=4"), ignoreMisses = true)
-    assertEquals("a=3\nb=2", IO.readFile(file))
   }
 
   @Test

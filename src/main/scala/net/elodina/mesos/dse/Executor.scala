@@ -19,7 +19,7 @@
 package net.elodina.mesos.dse
 
 import java.io.{File, PrintWriter, StringWriter}
-import net.elodina.mesos.util.Repr
+import net.elodina.mesos.util.{IO, Repr}
 
 import org.apache.log4j._
 import org.apache.mesos.Protos._
@@ -166,9 +166,9 @@ object Executor extends org.apache.mesos.Executor {
   var jreDir: File = null
 
   def resolveDeps() {
-    cassandraDir = Util.IO.findDir(dir, "apache-cassandra.*")
-    dseDir = Util.IO.findDir(dir, "dse.*")
-    jreDir = Util.IO.findDir(dir, "jre.*")
+    cassandraDir = IO.findDir(dir, "apache-cassandra.*")
+    dseDir = IO.findDir(dir, "dse.*")
+    jreDir = IO.findDir(dir, "jre.*")
 
     if (dseDir == null && cassandraDir == null)
       throw new IllegalStateException("Either cassandra or dse dir should exist")

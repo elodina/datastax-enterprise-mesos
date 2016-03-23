@@ -4,6 +4,7 @@ import org.junit.{Test, After, Before}
 import org.junit.Assert._
 import java.nio.file.Files
 import java.io.File
+import net.elodina.mesos.util.IO
 
 class ExecutorTest extends MesosTestCase {
   @Before
@@ -17,7 +18,7 @@ class ExecutorTest extends MesosTestCase {
   @After
   override def after {
     super.after
-    Util.IO.delete(Executor.dir)
+    IO.delete(Executor.dir)
     Executor.dir = new File(".")
   }
 
@@ -65,7 +66,7 @@ class ExecutorTest extends MesosTestCase {
     cassandraEnvSh.createNewFile()
 
     def resetCassandraEnvSh =
-      Util.IO.writeFile(cassandraEnvSh,
+      IO.writeFile(cassandraEnvSh,
         """
           |#MAX_HEAP_SIZE="4G"
           |#HEAP_NEWSIZE="800M"
@@ -83,7 +84,7 @@ class ExecutorTest extends MesosTestCase {
           |MAX_HEAP_SIZE=$expectedMaxHeap
           |HEAP_NEWSIZE=$expectedYoungGen
           |JMX_PORT=${node.runtime.reservation.ports(Node.Port.JMX)}
-        """.stripMargin.replaceFirst(" +$", ""), Util.IO.readFile(cassandraEnvSh))
+        """.stripMargin.replaceFirst(" +$", ""), IO.readFile(cassandraEnvSh))
     }
 
     // -XmxN

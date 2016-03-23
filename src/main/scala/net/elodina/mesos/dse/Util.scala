@@ -18,9 +18,7 @@
 
 package net.elodina.mesos.dse
 
-import java.io._
 import java.util
-
 import org.apache.mesos.Protos
 import org.apache.mesos.Protos._
 
@@ -28,7 +26,6 @@ import scala.collection.JavaConversions._
 import scala.collection.mutable
 import scala.util.parsing.json.JSON
 import scala.collection.mutable.ListBuffer
-import java.util.regex.{Matcher, Pattern}
 import java.net._
 import net.elodina.mesos.util.Net
 
@@ -310,77 +307,6 @@ object Util {
       }
 
       override def toString: String = s
-    }
-  }
-
-  object IO {
-    def copyAndClose(in: InputStream, out: OutputStream): Unit = {
-      val buffer = new Array[Byte](128 * 1024)
-      var actuallyRead = 0
-
-      try {
-        while (actuallyRead != -1) {
-          actuallyRead = in.read(buffer)
-          if (actuallyRead != -1) out.write(buffer, 0, actuallyRead)
-        }
-      } finally {
-        try {
-          in.close()
-        }
-        catch {
-          case ignore: IOException =>
-        }
-
-        try {
-          out.close()
-        }
-        catch {
-          case ignore: IOException =>
-        }
-      }
-    }
-
-    def delete(file: File): Unit = {
-      if (file.isDirectory) {
-        val files: Array[File] = file.listFiles()
-        for (file <- files) delete(file)
-      }
-
-      file.delete()
-    }
-
-    def findFile(dir: File, mask: String): File = findFile0(dir, mask)
-    def findDir(dir: File, mask: String): File = findFile0(dir, mask, isDir = true)
-
-    private[dse] def findFile0(dir: File, mask: String, isDir: Boolean = false): File = {
-      for (file <- dir.listFiles())
-        if (file.getName.matches(mask) && (isDir && file.isDirectory || !isDir && file.isFile))
-          return file
-
-      null
-    }
-
-    def readFile(file: File): String = {
-      val buffer = new ByteArrayOutputStream()
-      copyAndClose(new FileInputStream(file), buffer)
-      buffer.toString("utf-8")
-    }
-
-    def writeFile(file: File, content: String): Unit = {
-      copyAndClose(new ByteArrayInputStream(content.getBytes("utf-8")), new FileOutputStream(file))
-    }
-
-    def replaceInFile(file: File, replacements: Map[String, String], ignoreMisses: Boolean = false) {
-      var content = readFile(file)
-
-      for ((regex, value) <- replacements) {
-        val matcher: Matcher = Pattern.compile(regex).matcher(content)
-        if (!ignoreMisses && !matcher.find()) throw new IllegalStateException(s"regex $regex not found in file $file")
-
-        content = matcher.replaceAll(value)
-      }
-
-      writeFile(file, content)
     }
   }
 
