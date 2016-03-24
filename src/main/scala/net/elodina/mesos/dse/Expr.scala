@@ -15,7 +15,7 @@ object Expr {
       val filterIdx = expr.lastIndexOf("[")
       if (filterIdx == -1) throw new IllegalArgumentException("Invalid expr " + expr)
 
-      attributes = Strings.parseMap(expr.substring(filterIdx + 1, expr.length - 1))
+      attributes = Strings.parseMap(expr.substring(filterIdx + 1, expr.length - 1), true)
       expr = expr.substring(0, filterIdx)
     }
 
