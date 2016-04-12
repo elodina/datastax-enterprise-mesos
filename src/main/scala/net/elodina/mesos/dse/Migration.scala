@@ -19,7 +19,7 @@
 package net.elodina.mesos.dse
 
 import scala.collection.JavaConverters._
-import net.elodina.mesos.dse.Util.Version
+import net.elodina.mesos.util.Version
 import com.datastax.driver.core._
 
 trait Migration {
@@ -39,7 +39,7 @@ object Migration {
     }
 
     val applicable = migrations
-      .filter { m => m.version > from && m.version <= to}
+      .filter { m => m.version.compareTo(from) > 0 && m.version.compareTo(to) <= 0 }
       .sortBy(_.version)
 
     logger.info(s"migrating storage from $from to $to")

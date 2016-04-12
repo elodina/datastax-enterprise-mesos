@@ -22,7 +22,7 @@ import java.io.File
 import org.I0Itec.zkclient.ZkClient
 import org.I0Itec.zkclient.exception.ZkNodeExistsException
 import org.I0Itec.zkclient.serialize.BytesPushThroughSerializer
-import net.elodina.mesos.dse.Util.Version
+import net.elodina.mesos.util.{IO, Version}
 import scala.util.parsing.json.JSONObject
 
 trait Storage {
@@ -42,7 +42,7 @@ trait Storage {
 case class FileStorage(file: File) extends Storage {
   override def save() {
     val json = Nodes.toJson
-    Util.IO.writeFile(file, json.toString())
+    IO.writeFile(file, json.toString())
   }
 
   override def load(): Boolean = {
@@ -50,7 +50,7 @@ case class FileStorage(file: File) extends Storage {
 
     migrate
 
-    val json = Util.IO.readFile(file)
+    val json = IO.readFile(file)
     Nodes.fromJson(Util.parseJsonAsMap(json))
 
     true
@@ -66,17 +66,17 @@ case class FileStorage(file: File) extends Storage {
 
     def updateVersion(v: Version): Unit = withJson { json => json.updated("version", v.toString) }
 
-    var json: Map[String, Any] = Util.parseJsonAsMap(Util.IO.readFile(file))
+    var json: Map[String, Any] = Util.parseJsonAsMap(IO.readFile(file))
     Migration.migrate(schemaVersion, Scheduler.version, v => (), m => json = m.migrateJson(json))
-    Util.IO.writeFile(file, new JSONObject(json).toString(Util.jsonFormatter))
+    IO.writeFile(file, new JSONObject(json).toString(Util.jsonFormatter))
 
     updateVersion(Scheduler.version)
   }
 
   def withJson(f: Map[String, Any] => Map[String, Any]): Unit = {
-    var json = Util.parseJsonAsMap(Util.IO.readFile(file))
+    var json = Util.parseJsonAsMap(IO.readFile(file))
     json = f(json)
-    Util.IO.writeFile(file, new JSONObject(json).toString(Util.jsonFormatter))
+    IO.writeFile(file, new JSONObject(json).toString(Util.jsonFormatter))
   }
 }
 

@@ -19,10 +19,11 @@ package net.elodina.mesos.dse
 
 import com.datastax.driver.core._
 import net.elodina.mesos.dse.Node.{Failover, Reservation, Runtime, Stickiness}
-import net.elodina.mesos.dse.Util.{Version, Period, BindAddress}
+import net.elodina.mesos.dse.Util.BindAddress
 import scala.collection.JavaConverters._
 import scala.collection.mutable.ListBuffer
 import scala.util.Try
+import net.elodina.mesos.util.{Version, Period, Range}
 
 class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, stateTable: String, versionTable: String = "version") extends Storage {
 
@@ -165,7 +166,7 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
       if (range == "")
         cluster.ports(Node.Port.withName(port)) = null
       else
-        cluster.ports(Node.Port.withName(port)) = new Util.Range(range)
+        cluster.ports(Node.Port.withName(port)) = new Range(range)
     }
 
     cluster.jmxRemote = row.getBool(ClusterJmxRemote)

@@ -34,6 +34,7 @@ import scala.collection.mutable
 import scala.io.Source
 import scala.language.postfixOps
 import java.lang.reflect.UndeclaredThrowableException
+import net.elodina.mesos.util.IO
 
 case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env: Map[String, String] = Map.empty) {
   private val logger = Logger.getLogger(this.getClass)
@@ -155,14 +156,14 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
 
   private def redirectCassandraLogs() {
     if (Executor.cassandraDir != null)
-      Util.IO.replaceInFile(new File(Executor.cassandraDir, "bin/cassandra"), Map("(.*)-Dcassandra.logdir=\\$CASSANDRA_HOME/logs" -> s"$$1-Dcassandra.logdir=${Executor.dir}/data/log"))
+      IO.replaceInFile(new File(Executor.cassandraDir, "bin/cassandra"), Map("(.*)-Dcassandra.logdir=\\$CASSANDRA_HOME/logs" -> s"$$1-Dcassandra.logdir=${Executor.dir}/data/log"))
     else {
       // DSE 4.8.x
-      Util.IO.replaceInFile(new File(Executor.dseDir, "bin/dse.in.sh"), Map("CASSANDRA_LOG_DIR=.*" -> s"CASSANDRA_LOG_DIR=${Executor.dir}/data/log"), ignoreMisses = true)
+      IO.replaceInFile(new File(Executor.dseDir, "bin/dse.in.sh"), Map("CASSANDRA_LOG_DIR=.*" -> s"CASSANDRA_LOG_DIR=${Executor.dir}/data/log"), true)
 
       // DSE with cassandra 2.0.x
       val log4jConf = new File(Executor.dseDir, "resources/cassandra/conf/log4j-server.properties")
-      if (log4jConf.exists) Util.IO.replaceInFile(log4jConf, Map("/var/log/cassandra/" -> s"${Executor.dir}/data/log/"), ignoreMisses = true)
+      if (log4jConf.exists) IO.replaceInFile(log4jConf, Map("/var/log/cassandra/" -> s"${Executor.dir}/data/log/"), true)
     }
   }
 
@@ -170,7 +171,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
     val confDir = Executor.cassandraConfDir
 
     editCassandraYaml(new File(confDir , "cassandra.yaml"))
-    Util.IO.replaceInFile(new File(confDir, "cassandra-rackdc.properties"), Map("dc=.*" -> s"dc=${node.dc}", "rack=.*" -> s"rack=${node.rack}"))
+    IO.replaceInFile(new File(confDir, "cassandra-rackdc.properties"), Map("dc=.*" -> s"dc=${node.dc}", "rack=.*" -> s"rack=${node.rack}"))
     editCassandraEnvSh(new File(confDir, "cassandra-env.sh"))
   }
 
@@ -197,17 +198,18 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
       }
     }
 
-    Util.IO.replaceInFile(file, map.toMap)
+    import scala.collection.JavaConversions.mapAsJavaMap
+    IO.replaceInFile(file, mapAsJavaMap(map.toMap))
   }
 
   private def generaJmxFiles(pwdFile: File, accessFile: File) {
     val user = node.cluster.jmxUser
     val password = node.cluster.jmxPassword
 
-    Util.IO.writeFile(pwdFile, s"$user $password")
+    IO.writeFile(pwdFile, s"$user $password")
     Runtime.getRuntime.exec(s"chmod 600 $pwdFile").waitFor()
 
-    Util.IO.writeFile(accessFile,
+    IO.writeFile(accessFile,
       s"""$user   readwrite \\
          |        create javax.management.monitor.*,javax.management.timer.* \\
          |        unregister

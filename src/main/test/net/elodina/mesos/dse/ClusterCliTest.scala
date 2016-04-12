@@ -4,7 +4,7 @@ import org.junit.{Test, Before, After}
 import org.junit.Assert._
 
 
-class ClusterCliTest extends MesosTestCase with CliTestCase {
+class ClusterCliTest extends DseMesosTestCase with CliTestCase {
   def cli = ClusterCli.handle(_: Array[String])
 
   @Before
