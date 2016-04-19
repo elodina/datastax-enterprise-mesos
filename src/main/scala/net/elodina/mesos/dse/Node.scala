@@ -67,6 +67,8 @@ class Node extends Constrained {
 
   var failover: Node.Failover = new Node.Failover()
 
+  var solrEnabled = false
+
   def this(id: String) = {
     this
     this.id = id
@@ -150,9 +152,10 @@ class Node extends Constrained {
     for (port <- Node.Port.values) {
       var range: Range = cluster.ports(port)
 
-      // use same storage/agent port for the whole cluster
-      val activeNode = cluster.getNodes.find(_.runtime != null).getOrElse(null)
-      val samePortRequired = port == Node.Port.STORAGE || port == Node.Port.AGENT
+      // use same storage/agent port for the whole cluster, also includes guard
+      // when new ports have been added but not allocated previously, such as addition of solr ports
+      val activeNode = cluster.getNodes.find(n => n.runtime != null && n.runtime.reservation.ports.getOrElse(port, -1) != -1).getOrElse(null)
+      val samePortRequired = port == Node.Port.STORAGE || port == Node.Port.AGENT || port == Node.Port.SOLR_HTTP || port == Node.Port.SOLR_SHARD
 
       if (samePortRequired && activeNode != null) {
         val value = activeNode.runtime.reservation.ports(port)
@@ -285,6 +288,7 @@ class Node extends Constrained {
     if (json.contains("cassandraJvmOptions")) cassandraJvmOptions = json("cassandraJvmOptions").asInstanceOf[String]
 
     modified = json("modified").asInstanceOf[Boolean]
+    solrEnabled = json("solrEnabled").asInstanceOf[Boolean]
   }
 
   def toJson(expanded: Boolean = false): JSONObject = {
@@ -318,6 +322,7 @@ class Node extends Constrained {
     if (cassandraJvmOptions != null) json("cassandraJvmOptions") = cassandraJvmOptions
 
     json("modified") = modified
+    json("solrEnabled") = solrEnabled
 
     new JSONObject(json.toMap)
   }
@@ -372,6 +377,8 @@ object Node {
     val CQL = Value("cql")
     val THRIFT = Value("thrift")
     val AGENT = Value("agent")
+    val SOLR_HTTP = Value("solr-http")
+    val SOLR_SHARD = Value("solr-shard")
   }
 
   class Runtime() {

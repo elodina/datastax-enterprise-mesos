@@ -210,6 +210,8 @@ object HttpServer {
         try { Integer.valueOf(failoverMaxTries) }
         catch { case e: NumberFormatException => throw new HttpError(400, "invalid failoverMaxTries") }
 
+      val solrEnabled: java.lang.Boolean = if (request.getParameter("solrEnabled") != null) request.getParameter("solrEnabled") == "true" else null
+
       // collect nodes and check existence & state
       val nodes = new ListBuffer[Node]()
       for (id <- ids) {
@@ -262,6 +264,8 @@ object HttpServer {
         if (failoverDelay != null) node.failover.delay = failoverDelay
         if (failoverMaxDelay != null) node.failover.maxDelay = failoverMaxDelay
         if (failoverMaxTries != null) node.failover.maxTries = if (failoverMaxTries != "") Integer.valueOf(failoverMaxTries) else null
+
+        if (solrEnabled != null) node.solrEnabled = solrEnabled
       }
 
       for (node <- nodes) {
@@ -495,6 +499,15 @@ object HttpServer {
         try { new Range(agentPort) }
         catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid agentPort") }
 
+      val solrHttpPort: String = request.getParameter("solrHttpPort")
+      if (solrHttpPort != null && !solrHttpPort.isEmpty)
+        try { new Range(solrHttpPort) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid solrHttpPort") }
+
+      val solrShardPort: String = request.getParameter("solrShardPort")
+      if (solrShardPort != null && !solrShardPort.isEmpty)
+        try { new Range(solrShardPort) }
+        catch { case e: IllegalArgumentException => throw new HttpError(400, "invalid solrShardPort") }
 
       var cluster = Nodes.getCluster(id)
       if (add && cluster != null) throw new HttpError(400, "duplicate cluster")
@@ -519,6 +532,8 @@ object HttpServer {
       if (cqlPort != null) cluster.ports(Node.Port.CQL) = if (cqlPort != "") new Range(cqlPort) else null
       if (thriftPort != null) cluster.ports(Node.Port.THRIFT) = if (thriftPort != "") new Range(thriftPort) else null
       if (agentPort != null) cluster.ports(Node.Port.AGENT) = if (agentPort != "") new Range(agentPort) else null
+      if (solrHttpPort != null) cluster.ports(Node.Port.SOLR_HTTP) = if (solrHttpPort != "") new Range(solrHttpPort) else null
+      if (solrShardPort != null) cluster.ports(Node.Port.SOLR_SHARD) = if (solrShardPort != "") new Range(solrShardPort) else null
 
       Nodes.save()
       response.getWriter.println(cluster.toJson)

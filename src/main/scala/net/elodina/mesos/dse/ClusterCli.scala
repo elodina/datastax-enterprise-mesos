@@ -88,6 +88,8 @@ object ClusterCli {
     parser.accepts("cql-port", "CQL port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("thrift-port", "Thrift port.").withRequiredArg().ofType(classOf[String])
     parser.accepts("agent-port", "DataStax agent port.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("solr-http-port", "SOLR HTTP port.").withRequiredArg().ofType(classOf[String])
+    parser.accepts("solr-shard-port", "SOLR shard port.").withRequiredArg().ofType(classOf[String])
 
     if (help) {
       printLine(s"${cmd.capitalize} cluster \nUsage: cluster $cmd <id> [options]\n")
@@ -118,6 +120,8 @@ object ClusterCli {
     val cqlPort = options.valueOf("cql-port").asInstanceOf[String]
     val thriftPort = options.valueOf("thrift-port").asInstanceOf[String]
     val agentPort = options.valueOf("agent-port").asInstanceOf[String]
+    val solrHttpPort = options.valueOf("solr-http-port").asInstanceOf[String]
+    val solrShardPort = options.valueOf("solr-shard-port").asInstanceOf[String]
 
     val params = mutable.HashMap("cluster" -> id)
 
@@ -132,6 +136,8 @@ object ClusterCli {
     if (cqlPort != null) params("cqlPort") = cqlPort
     if (thriftPort != null) params("thriftPort") = thriftPort
     if (agentPort != null) params("agentPort") = agentPort
+    if (solrHttpPort != null) params("solrHttpPort") = solrHttpPort
+    if (solrShardPort != null) params("solrShardPort") = solrShardPort
 
     var json: Map[String, Any] = null
     try { json = Cli.sendRequest(s"/cluster/$cmd", params.toMap).asInstanceOf[Map[String, Any]] }

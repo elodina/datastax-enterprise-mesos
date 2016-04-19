@@ -25,7 +25,7 @@ class NodeTest extends DseMesosTestCase {
     assertEquals("no suitable jmx port", node.matches(offer("cpus:0.5; mem:500; ports:5..5")))
     assertEquals("no suitable thrift port", node.matches(offer("cpus:0.5; mem:500; ports:5..7")))
 
-    assertNull(node.matches(offer("cpus:0.5; mem:500; ports:0..4")))
+    assertNull(node.matches(offer("cpus:0.5; mem:500; ports:0..6")))
   }
 
   @Test
@@ -56,13 +56,13 @@ class NodeTest extends DseMesosTestCase {
     var reservation = node.reserve(offer("cpus:0.3;mem:300;ports:0..1"))
     assertEquals(0.3d, reservation.cpus, 0.001)
     assertEquals(300, reservation.mem)
-    assertEquals(Map(Port.STORAGE -> 0, Port.JMX -> 1, Port.CQL -> -1, Port.THRIFT -> -1, Port.AGENT -> -1), reservation.ports)
+    assertEquals(Map(Port.STORAGE -> 0, Port.JMX -> 1, Port.CQL -> -1, Port.THRIFT -> -1, Port.AGENT -> -1, Port.SOLR_HTTP -> -1, Port.SOLR_SHARD -> -1), reservation.ports)
 
     // complete reservation
     reservation = node.reserve(offer("cpus:0.7;mem:1000;ports:0..10"))
     assertEquals(node.cpu, reservation.cpus, 0.001)
     assertEquals(node.mem, reservation.mem)
-    assertEquals(Map(Port.STORAGE -> 0, Port.JMX -> 1, Port.CQL -> 2, Port.THRIFT -> 3, Port.AGENT -> 4), reservation.ports)
+    assertEquals(Map(Port.STORAGE -> 0, Port.JMX -> 1, Port.CQL -> 2, Port.THRIFT -> 3, Port.AGENT -> 4, Port.SOLR_HTTP -> 5, Port.SOLR_SHARD -> 6), reservation.ports)
   }
 
   @Test
@@ -168,7 +168,7 @@ class NodeTest extends DseMesosTestCase {
     val read: Node = new Node(Util.parseJsonAsMap(data), expanded = true)
     assertEquals(node, read)
 
-    assertEquals(resources("cpus:0.1; mem:500; ports:0..0; ports:1..1; ports:2..2; ports:3..3; ports:4..4"), task.getResourcesList)
+    assertEquals(resources("cpus:0.1; mem:500; ports:0..0; ports:1..1; ports:2..2; ports:3..3; ports:4..4; ports:5..5; ports:6..6"), task.getResourcesList)
   }
 
   @Test

@@ -127,6 +127,29 @@ class NodeCliTest extends DseMesosTestCase with CliTestCase {
   }
 
   @Test
+  def handleAddUpdate_solr(): Unit = {
+    cli("add 0".split(" "))
+    assertFalse(Nodes.getNode("0").solrEnabled)
+
+    cli("add 1 --solr-enabled true".split(" "))
+
+    val node = Nodes.getNode("1")
+    assertTrue(node.solrEnabled)
+
+    assertTrue(outputToString(NodeCli.printNode(node)).contains("solr: true"))
+
+    cli("update 1 --solr-enabled false".split(" "))
+
+    assertTrue(outputToString(NodeCli.printNode(node)).contains("solr: false"))
+
+    // undefined behaviour
+    cli("add 2 --solr-enabled yo".split(" "))
+    assertFalse(Nodes.getNode("2").solrEnabled)
+    cli("update 2 --solr-enabled ioio".split(" "))
+    assertFalse(Nodes.getNode("2").solrEnabled)
+  }
+
+  @Test
   def handleRemove {
     assertCliError(Array("remove", ""), "node required")
     assertCliError(Array("remove", "+"), "invalid node expr")

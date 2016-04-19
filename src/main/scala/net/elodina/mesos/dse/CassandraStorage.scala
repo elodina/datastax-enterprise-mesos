@@ -139,6 +139,7 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
             .setString(NodeSeedConstraints, Util.formatConstraints(node.seedConstraints)).setString(NodeDataFileDirs, node.dataFileDirs).setString(NodeCommitLogDir, node.commitLogDir)
             .setString(NodeSavedCachesDir, node.savedCachesDir).setMap(NodeCassandraDotYaml, node.cassandraDotYaml.asJava).setMap(NodeAddressDotYaml, node.addressDotYaml.asJava)
             .setString(NodeCassandraJvmOptions, node.cassandraJvmOptions).setBool(NodeModified, node.modified)
+            .setBool(NodeSolrEnabled, node.solrEnabled)
             .setLong(UsingTimestamp, tg.next())
 
           batch.add(boundStatement)
@@ -253,6 +254,8 @@ class CassandraStorage(port: Int, contactPoints: Seq[String], keyspace: String, 
     node.modified = row.getBool(NodeModified)
 
     node.failover = failover(row)
+
+    node.solrEnabled = row.getBool(NodeSolrEnabled)
 
     node
   }
@@ -375,6 +378,7 @@ object CassandraStorage{
   val NodeFailoverMaxTries = "node_failover_max_tries"
   val NodeFailoverFailures = "node_failover_failures"
   val NodeFailoverFailureTime = "node_failover_failure_time"
+  val NodeSolrEnabled = "node_solr_enabled"
 
   // not part of the table schema
   val UsingTimestamp = "using_timestamp"
@@ -424,7 +428,8 @@ object CassandraStorage{
     NodeFailoverMaxDelay,
     NodeFailoverMaxTries,
     NodeFailoverFailures,
-    NodeFailoverFailureTime
+    NodeFailoverFailureTime,
+    NodeSolrEnabled
   )
 
   private def `:`(field: String) = ":" + field

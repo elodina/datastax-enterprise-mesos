@@ -16,6 +16,8 @@ DataStax Enterprise Mesos Framework
 * [Memory configuration](#memory-configuration)
 * [Failed node recovery](#failed-node-recovery)
 * [Automatic migration mechanism for state between versions](#automatic-migration-mechanism-for-state-between-versions)
+* [Upgrading scheduler](#upgrading-scheduler)
+* [Launching SOLR](#launching-solr)
 
 [Navigating the CLI](#navigating-the-cli)
 * [Requesting help](#requesting-help)
@@ -349,6 +351,38 @@ to update to 0.2.1.3 then you have to stop scheduler (for C* storage stop all ru
 schedulers that share state table) and then start new scheduler (for C* start schedulers
 sequentially, first one will migrate state table, next will just start without migrating
 anything).
+
+Launching SOLR
+--------------
+
+Just pass option `--solr-enabled true` when creating
+
+```
+./dse-mesos.sh node add 0 --solr-enabled true
+
+node added:
+  id: 0
+  state: idle
+  topology: cluster:default, dc:default, rack:default
+  resources: cpu:0.5, mem:512
+  seed: false
+  solr: true
+  dirs: data:<auto>, commit:<auto>, caches:<auto>
+  failover: delay:3m, max-delay:30m
+  stickiness: period:30m
+```
+
+or updating node configuration via CLI (NOTE: `solr: true` means node with SOLR),
+
+```
+./dse-mesos.sh node update 0 --solr-enabled true
+```
+
+in order to disable launching SOLR on node pass `--solr-enabled false` (don't forget to restart updated node).
+
+SOLR requires two ports `HTTP` and `Shard`, configure them via `./dse-mesos cluster <add | update>` with options
+`--solr-http-port` and `--solr-shard-port`.
+
 
 Navigating the CLI
 ==================
