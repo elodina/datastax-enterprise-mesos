@@ -51,6 +51,7 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
     makeDataDirs()
     redirectCassandraLogs()
     editCassandraConfigs()
+    editSolrConfigs()
 
     process = startProcess()
   }
@@ -59,6 +60,8 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
     var cmd: List[String] = null
     if (Executor.dseDir != null) cmd = List("" + new File(Executor.dseDir, "bin/dse"), "cassandra", "-f")
     else cmd = List("" + new File(Executor.cassandraDir, "bin/cassandra"), "-f")
+
+    if (node.solrEnabled) cmd ++= List("-s")
 
     val builder: ProcessBuilder = new ProcessBuilder(cmd)
       .redirectOutput(new File(Executor.dir, "cassandra.out"))
@@ -173,6 +176,13 @@ case class CassandraProcess(node: Node, taskInfo: TaskInfo, address: String, env
     editCassandraYaml(new File(confDir , "cassandra.yaml"))
     IO.replaceInFile(new File(confDir, "cassandra-rackdc.properties"), Map("dc=.*" -> s"dc=${node.dc}", "rack=.*" -> s"rack=${node.rack}"))
     editCassandraEnvSh(new File(confDir, "cassandra-env.sh"))
+  }
+
+  private[dse] def editSolrConfigs(): Unit = {
+    if (node.solrEnabled) {
+      IO.replaceInFile(new File(Executor.dseDir, "resources/tomcat/conf/catalina.properties"), Map("http.port=.*" -> s"http.port=${node.runtime.reservation.ports(Node.Port.SOLR_HTTP)}"))
+      IO.replaceInFile(new File(Executor.dseDir, "resources/dse/conf/dse.yaml"), Map("    netty_server_port: .*" -> s"    netty_server_port: ${node.runtime.reservation.ports(Node.Port.SOLR_SHARD)}"))
+    }
   }
 
   private[dse] def editCassandraEnvSh(file: File) {

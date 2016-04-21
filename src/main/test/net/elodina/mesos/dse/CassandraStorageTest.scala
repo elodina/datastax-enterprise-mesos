@@ -43,7 +43,7 @@ object CassandraStorageTest {
                          jvmOptions: String, rack: String, dc: String, constraints: Map[String, List[Constraint]],
                          seedConstraints: Map[String, List[Constraint]], dataFileDirs: String, commitLogDir: String,
                          savedCachesDir: String, cassandraDotYaml: Map[String, String], addressDotYaml: Map[String, String],
-                         cassandraJvmOptions: String, modified: Boolean, failover: Node.Failover): Node = {
+                         cassandraJvmOptions: String, modified: Boolean, failover: Node.Failover, solrEnabled: Boolean): Node = {
     val node = new Node(id)
     node.state = state
     node.cluster = cluster
@@ -73,6 +73,8 @@ object CassandraStorageTest {
     node.modified = modified
 
     node.failover = failover
+
+    node.solrEnabled = solrEnabled
 
     node
   }
@@ -134,6 +136,8 @@ object CassandraStorageTest {
     assertEquals(expected.failover.delay, actual.failover.delay)
     assertEquals(expected.failover.maxDelay, actual.failover.maxDelay)
     assertEquals(expected.failover.maxTries, actual.failover.maxTries)
+
+    assertEquals(expected.solrEnabled, actual.solrEnabled)
   }
 }
 
@@ -193,7 +197,7 @@ class CassandraStorageTest {
   def testTwoClusters(): Unit = {
     val cluster1 = createCluster("cluster_1", "192.168.*", Map(Node.Port.AGENT -> new Range("5005"), Node.Port.CQL -> null), true, "user", "pass")
     val node1_1 = createNode("1", Node.State.RUNNING, cluster1, createStickiness("30m", "slave0", new Date()), null, 1.5, 2056,
-      true, "", null, null, Map.empty, Map.empty, ".", ".", ".", Map.empty, Map.empty, "", false, new Failover())
+      true, "", null, null, Map.empty, Map.empty, ".", ".", ".", Map.empty, Map.empty, "", false, new Failover(), false)
     Nodes.addCluster(cluster1)
     Nodes.addNode(node1_1)
 
@@ -206,7 +210,7 @@ class CassandraStorageTest {
       createNode("2", Node.State.RECONCILING, cluster2, createStickiness("1h", null, null), runtime, 0.5,
         1024, true, "opt1", "r1", "dc1", Map("hostname" -> List(Constraint("like:master*"))), Map("hostname" -> List(Constraint("like:slave*"))),
         "/tmp/datafile", "/tmp/comitlogdir", "/opt/savedCaches", Map("num_tokens" -> "1"), Map("stomp_interface" -> "10.1.2.3"), "copt1", false,
-        failover)
+        failover, false)
     }
     Nodes.addCluster(cluster2)
     Nodes.addNode(node1_2)
@@ -218,7 +222,7 @@ class CassandraStorageTest {
       createNode("3", Node.State.RECONCILING, cluster2, createStickiness("2h", null, null), runtime, 0.6,
         1024, true, "opt2", "r2", "dc2", Map("hostname" -> List(Constraint("like:slave*"))), Map("hostname" -> List(Constraint("like:master*"))),
         "/tmp/datafile2", "/tmp/comitlogdir2", "/opt/savedCaches2", Map("num_tokens" -> "2"), Map("stomp_interface" -> "10.3.2.1"), "copt2", false,
-        new Failover(new Period("20m"), new Period("10s"), null))
+        new Failover(new Period("20m"), new Period("10s"), null), false)
     }
     Nodes.addNode(node2_2)
 

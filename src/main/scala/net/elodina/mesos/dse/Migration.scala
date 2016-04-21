@@ -71,7 +71,11 @@ private class M_0_2_1_3 extends Migration {
     // update nodes, add failover delay 3m and maxDelay 30m
     val json2 = if (json1.contains("nodes")) {
       val nodes = json1("nodes").asInstanceOf[List[Map[String, Object]]]
-      json1.updated("nodes", nodes.map { node => node.updated("failover", Map("delay" -> "3m", "maxDelay" -> "30m")) })
+      json1.updated("nodes", nodes.map { node =>
+        node
+          .updated("failover", Map("delay" -> "3m", "maxDelay" -> "30m"))
+          .updated("solrEnabled", false)
+      })
     } else json1
 
     json2
@@ -90,7 +94,9 @@ private class M_0_2_1_3 extends Migration {
       s"alter table $keyspace.$table add node_failover_max_delay text",
       s"alter table $keyspace.$table add node_failover_max_tries int",
       s"alter table $keyspace.$table add node_failover_failures int",
-      s"alter table $keyspace.$table add node_failover_failure_time timestamp"
+      s"alter table $keyspace.$table add node_failover_failure_time timestamp",
+
+      s"alter table $keyspace.$table add node_solr_enabled boolean"
     )
     alters.foreach(session.execute)
 

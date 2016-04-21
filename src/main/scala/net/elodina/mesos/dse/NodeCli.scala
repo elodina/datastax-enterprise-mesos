@@ -120,6 +120,8 @@ object NodeCli {
     parser.accepts("failover-max-delay", "max failover delay. See failoverDelay.").withRequiredArg().ofType(classOf[String])
     parser.accepts("failover-max-tries", "max failover tries. Default - none").withRequiredArg().ofType(classOf[String])
 
+    parser.accepts("solr-enabled", "Enable SOLR for node. Default - false").withRequiredArg().ofType(classOf[java.lang.Boolean])
+
     if (help) {
       printLine(s"${cmd.capitalize} node \nUsage: node $cmd <id> [options]\n")
       parser.printHelpOn(out)
@@ -164,6 +166,8 @@ object NodeCli {
     val failoverMaxDelay = options.valueOf("failover-max-delay").asInstanceOf[String]
     val failoverMaxTries = options.valueOf("failover-max-tries").asInstanceOf[String]
 
+    val solrEnabled = options.valueOf("solr-enabled").asInstanceOf[java.lang.Boolean]
+
     val params = new mutable.HashMap[String, String]()
     params("node") = expr
     if (cluster != null) params("cluster") = cluster
@@ -191,6 +195,8 @@ object NodeCli {
     if (failoverDelay != null) params.put("failoverDelay", failoverDelay)
     if (failoverMaxDelay != null) params.put("failoverMaxDelay", failoverMaxDelay)
     if (failoverMaxTries != null) params.put("failoverMaxTries", failoverMaxTries)
+
+    if (solrEnabled != null) params.put("solrEnabled", "" + solrEnabled)
 
     var nodesJson: List[Any] = null
     try { nodesJson = Cli.sendRequest(s"/node/$cmd", params.toMap).asInstanceOf[List[Any]] }
@@ -346,6 +352,7 @@ object NodeCli {
     printLine(s"topology: ${nodeTopology(node)}", indent)
     printLine(s"resources: ${nodeResources(node)}", indent)
     printLine(s"seed: ${node.seed}", indent)
+    printLine(s"solr: ${node.solrEnabled}", indent)
 
     if (node.jvmOptions != null) printLine(s"jvm-options: ${node.jvmOptions}", indent)
 

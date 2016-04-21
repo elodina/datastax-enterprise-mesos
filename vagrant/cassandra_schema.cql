@@ -52,5 +52,6 @@ CREATE TABLE IF NOT EXISTS dse_mesos_framework(
         node_failover_max_tries int,
         node_failover_failures int,
         node_failover_failure_time timestamp,
+        node_solr_enabled boolean,
         PRIMARY KEY(namespace, framework_id, cluster_id, node_id)
 );
