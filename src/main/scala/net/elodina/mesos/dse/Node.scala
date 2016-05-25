@@ -619,7 +619,7 @@ object Node {
     def currentDelay: Period = {
       if (failures == 0) return new Period("0")
 
-      val multiplier = 1 << (failures - 1)
+      val multiplier = 1 << Math.min(30, failures - 1)
       val d = delay.ms * multiplier
 
       if (d > maxDelay.ms) maxDelay else new Period(delay.value * multiplier + delay.unit)
